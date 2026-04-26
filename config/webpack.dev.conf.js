@@ -1,48 +1,64 @@
-/*!
- * Created by He on 2017/7/9.
- * E-mail:h@strawtc.cn
- */
-const merge = require('webpack-merge');
-const webpack = require('webpack');
-const HtmlWebpackPlugin = require('html-webpack-plugin');
-const baseWebpackConfig = require('./webpack.base.conf');
+const { merge } = require("webpack-merge");
+const webpack = require("webpack");
+const HtmlWebpackPlugin = require("html-webpack-plugin");
+// const FriendlyErrorsWebpackPlugin = require('friendly-errors-webpack-plugin');
+
+const baseWebpackConfig = require("./webpack.base.conf");
 
 module.exports = merge(baseWebpackConfig, {
-  mode: 'development',
+  mode: "development",
   output: {
-    filename: 'js/[name].js',
-    publicPath: '/',
+    filename: "js/[name].js",
+    publicPath: "/",
   },
   module: {
-    rules: [{
-      test: /\.(scss|css)$/,
-      use: [
-        'style-loader', {
-          loader: 'css-loader',
-          options: {
-            sourceMap: true,
-            modules: true,
-            localIdentName: '[local]'
+    rules: [
+      {
+        test: /\.(scss|css)$/,
+        use: [
+          "style-loader",
+          {
+            loader: "css-loader",
+            options: {
+              modules: {
+                localIdentName: "[local]",
+              },
+            },
           },
-        }, {
-          loader: 'postcss-loader'
-        }
-      ],
-    }],
+          {
+            loader: "sass-loader",
+          },
+          // {
+          //   loader: 'postcss-loader',
+          //   options: {
+          //     sourceMap: true,
+          //   },
+          // },
+        ],
+      },
+    ],
   },
   devServer: {
-    contentBase: './public',
+    contentBase: "./public",
     historyApiFallback: true,
     hot: true,
     port: 8088,
     inline: true,
+    // open: true,
+    quiet: true,
+    host: "0.0.0.0",
   },
   plugins: [
-    new webpack.HotModuleReplacementPlugin(),
-    new webpack.NoEmitOnErrorsPlugin(),
+    // new FriendlyErrorsWebpackPlugin({
+    //   compilationSuccessInfo: {
+    //     notes: ['Your application is running here: http://localhost:8088'],
+    //   },
+    //   clearConsole: true,
+    // }),
+    // new webpack.HotModuleReplacementPlugin(),
     new HtmlWebpackPlugin({
       inject: true,
-      template: './public/index.html',
-    })
-  ]
+      template: "./public/index.html",
+    }),
+  ],
 });

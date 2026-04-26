@@ -9,7 +9,7 @@ const initialState = 'right';
 const snakeDir = (state = initialState, action) => {
   switch (action.type) {
     case SET_SNAKEDIR: {
-      let snakeDirection = 'right';
+      let snakeDirection = state;
       switch (action.data) {
         case 37:
           console.log('Press Left!');

@@ -1,0 +1,23 @@
+.block{
+  width: 19px;
+  height: 19px;
+  border: 2px solid rgba(0, 0, 0, 0.4);
+  padding: 2px;
+  display: inline-block;
+  margin-left: 2px;
+  &:after{
+    content: '';
+    display: block;
+    width: 11px;
+    height: 11px;
+    background-color: rgba(0, 0, 0, 0.4);
+  }
+}
+
+.blockBlack{
+  @extend .block;
+  border-color: black;
+  &:after{
+    background-color: black;
+  }
+}

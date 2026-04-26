@@ -1,31 +1,33 @@
-/*!
- * Created by He on 2017/7/9.
- * E-mail:h@strawtc.cn
- */
-const path = require('path');
-
+const path = require("path");
 
 module.exports = {
-  devtool: 'eval-source-map',
-  entry: './src/index.js',
+  devtool: "eval-source-map",
+  entry: "./src/index.js",
   resolve: {
-    extensions: ['.js', '.jsx']
+    extensions: [".js", ".jsx"],
+    mainFiles: ["index"],
+    alias: { "@": path.resolve(__dirname, "../src") },
   },
   module: {
     rules: [
+      // {
+      //   test: /\.(js|jsx)$/,
+      //   enforce: 'pre',
+      //   loader: 'eslint-loader',
+      //   exclude: /node_modules/,
+      //   options: {
+      //     emitWarning: true,
+      //   },
+      // },
       {
         test: /\.(js|jsx)$/,
-        enforce: 'pre',
-        loader: 'eslint-loader',
         exclude: /node_modules/,
-        options: {
-          emitWarning: true,
-        }
-      },
-      {
-        test: /\.(js|jsx)$/,
-        loader: 'babel-loader',
-        exclude: /node_modules/
+        use: {
+          loader: "babel-loader?cacheDirectory",
+          options: {
+            presets: ["@babel/preset-env", "@babel/preset-react"],
+          },
+        },
       },
     ],
   },

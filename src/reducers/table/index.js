@@ -1,9 +1,5 @@
-/*!
- * Created by He on 2017/9/5.
- * E-mail:h@strawtc.cn
- */
-import Immutable from 'immutable';
-import { SET_BLOCK, SET_BLANK, SET_FOOD } from '../../action';
+import { List } from 'immutable';
+import { SET_TABLE, SET_BLOCK, SET_BLANK } from '@/action';
 
 const initialState = (() => {
   const table = [];
@@ -14,20 +10,21 @@ const initialState = (() => {
     }
     table.push(cols);
   }
-  return Immutable.fromJS(table);
+  return List(table);
 })();
 
-const table = (state = initialState, action) => {
+const table = (state = List(), action) => {
   switch (action.type) {
+    case SET_TABLE:
+      return action.data;
     case SET_BLOCK:
       return state.setIn([action.data.x, action.data.y], action.data.type);
     case SET_BLANK:
       return initialState;
-    case SET_FOOD:
-      return state.setIn([action.data.x, action.data.y], action.data.type);
     default:
       return state;
   }
 };
 
+export { initialState };
 export default table;

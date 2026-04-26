@@ -1,0 +1,66 @@
+{
+  "name": "react-gamebaby",
+  "version": "1.0.0",
+  "description": "用React编写的游戏机",
+  "main": "index.js",
+  "scripts": {
+    "dev": "yarn run start",
+    "start": "webpack-dev-server --config ./config/webpack.dev.conf.js --progress",
+    "build": "rimraf ./dist/* && webpack --config ./config/webpack.prod.conf.js"
+  },
+  "keywords": [
+    "贪吃蛇",
+    "React"
+  ],
+  "author": "flyerH",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/flyerH/react-gamebaby/issues"
+  },
+  "homepage": "https://github.com/flyerH/react-gamebaby#readme",
+  "devDependencies": {
+    "@babel/core": "^7.4.0",
+    "@babel/plugin-proposal-class-properties": "^7.4.0",
+    "@babel/preset-env": "^7.4.2",
+    "@babel/preset-react": "^7.0.0",
+    "autoprefixer": "^9.5.0",
+    "babel-eslint": "^10.0.1",
+    "babel-loader": "^8.0.5",
+    "css-loader": "^2.1.1",
+    "eslint": "^5.16.0",
+    "eslint-config-airbnb": "^17.1.0",
+    "eslint-config-prettier": "^4.1.0",
+    "eslint-import-resolver-webpack": "^0.11.0",
+    "eslint-loader": "^2.1.2",
+    "eslint-plugin-babel": "^5.3.0",
+    "eslint-plugin-import": "^2.22.0",
+    "eslint-plugin-jsx-a11y": "^6.3.1",
+    "eslint-plugin-react": "^7.20.6",
+    "friendly-errors-webpack-plugin": "^1.7.0",
+    "html-webpack-plugin": "^3.2.0",
+    "postcss-loader": "^3.0.0",
+    "precss": "^4.0.0",
+    "redux-devtools": "^3.5.0",
+    "style-loader": "^0.23.1",
+    "webpack": "^4.44.1",
+    "webpack-cli": "^3.3.12",
+    "webpack-dev-server": "^3.11.0",
+    "webpack-merge": "^5.1.4"
+  },
+  "dependencies": {
+    "@pmmmwh/react-refresh-webpack-plugin": "^0.4.2",
+    "immutable": "^4.0.0-rc.12",
+    "intl": "^1.2.5",
+    "lodash": "^4.17.11",
+    "mini-css-extract-plugin": "^0.5.0",
+    "prop-types": "^15.7.2",
+    "react": "^16.13.1",
+    "react-dom": "^16.13.1",
+    "react-hot-loader": "^4.12.21",
+    "react-immutable-proptypes": "^2.1.0",
+    "react-intl": "^2.8.0",
+    "react-redux": "^6.0.1",
+    "redux": "^4.0.1",
+    "redux-immutable": "^4.0.0"
+  }
+}

@@ -1,0 +1,19 @@
+.contentTop {
+  padding: 0 10px;
+  box-sizing: border-box;
+  text-align: center;
+  .title {
+    margin: 20px 0 15px;
+    & > p {
+      font-size: 28px;
+      text-align: center;
+    }
+  }
+  .contentBody {
+    width: 490px;
+    display: inline-block;
+    border: 7px solid white;
+    padding: 20px;
+  }
+
+}

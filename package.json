@@ -1,57 +1,35 @@
 {
   "name": "react-gamebaby",
   "version": "1.0.0",
-  "description": "用React编写的游戏机",
+  "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "webpack-dev-server --config ./config/webpack.dev.conf.js  --inline --colors --progress",
-    "build": "rimraf ./dist/* && webpack --config ./config/webpack.prod.conf.js",
-    "dev": "yarn run start"
+    "dev": "yarn run start",
+    "start": "webpack serve --config ./config/webpack.dev.conf.js --progress",
+    "build": "rimraf ./dist/* && webpack --config ./config/webpack.prod.conf.js"
   },
-  "keywords": [
-    "贪吃蛇",
-    "React"
-  ],
-  "author": "flyerH",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/flyerH/react-gamebaby/issues"
-  },
-  "homepage": "https://github.com/flyerH/react-gamebaby#readme",
+  "author": "",
+  "license": "ISC",
   "devDependencies": {
-    "@babel/core": "^7.1.2",
-    "@babel/preset-env": "^7.1.0",
-    "@babel/preset-react": "^7.0.0",
-    "autoprefixer": "^9.2.1",
-    "babel-loader": "^8.0.4",
-    "css-loader": "^1.0.0",
-    "eslint": "^5.7.0",
-    "eslint-config-airbnb": "^17.1.0",
-    "eslint-loader": "^2.1.1",
-    "eslint-plugin-import": "^2.7.0",
-    "eslint-plugin-jsx-a11y": "^6.0.2",
-    "eslint-plugin-react": "^7.1.0",
-    "html-webpack-plugin": "^3.2.0",
-    "postcss-loader": "^3.0.0",
-    "precss": "^3.1.2",
-    "redux-devtools": "^3.4.0",
-    "style-loader": "^0.23.1",
-    "webpack": "^4.20.2",
-    "webpack-cli": "^3.1.2",
-    "webpack-dev-server": "^3.1.11",
-    "webpack-merge": "^4.1.0"
+    "@babel/core": "^7.12.3",
+    "@babel/preset-env": "^7.12.1",
+    "@babel/preset-react": "^7.12.1",
+    "babel-loader": "^8.1.0",
+    "css-loader": "^5.0.0",
+    "html-webpack-plugin": "^5.0.0-alpha.7",
+    "redux-devtools": "^3.7.0",
+    "sass": "^1.28.0",
+    "sass-loader": "^10.0.5",
+    "style-loader": "^2.0.0",
+    "webpack": "^5.3.1",
+    "webpack-cli": "^4.1.0",
+    "webpack-dev-server": "^3.11.0",
+    "webpack-merge": "^5.2.0"
   },
   "dependencies": {
-    "immutable": "^4.0.0-rc.12",
-    "intl": "^1.2.5",
-    "prop-types": "^15.5.10",
-    "react": "16.6.3",
-    "react-dom": "16.6.3",
-    "react-hot-loader": "^4.3.11",
-    "react-immutable-proptypes": "^2.1.0",
-    "react-intl": "^2.7.2",
-    "react-redux": "^5.0.6",
-    "redux": "^4.0.1",
-    "redux-immutable": "^4.0.0"
+    "@reduxjs/toolkit": "^1.4.0",
+    "react": "^17.0.1",
+    "react-dom": "^17.0.1",
+    "react-redux": "^7.2.2"
   }
 }

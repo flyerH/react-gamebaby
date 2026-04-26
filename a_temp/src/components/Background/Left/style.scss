@@ -1,0 +1,9 @@
+:global(.background){
+  position: absolute;
+  width: 365px;
+  background-color: azure;
+}
+.left{
+  left: -365px;
+  text-align: right;
+}

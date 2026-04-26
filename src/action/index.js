@@ -3,15 +3,20 @@
  * E-mail:h@strawtc.cn
  */
 export const DROP_BLOCK = 'DROP_BLOCK';
+export const SET_TABLE = 'SET_TABLE';
 export const SET_BLOCK = 'SET_BLOCK';
 export const SET_BLANK = 'SET_BLANK';
+export const RUN_SNAKE = 'RUN_SNAKE';
 export const RUN_BLOCK = 'RUN_BLOCK';
 export const ADD_BLOCK = 'ADD_BLOCK';
 export const SET_FOOD = 'SET_FOOD';
 export const SET_SNAKEDIR = 'SET_SNAKEDIR';
 export const SET_KEYCODE = 'SET_KEYCODE';
+export const SET_FLOW = 'SET_FLOW';
+export const SWITCH_GAME_NEXT = 'SWITCH_GAME_NEXT';
+export const SWITCH_GAME_PREV = 'SWITCH_GAME_PREV';
 
-const dropBlock = (state) => {
+const dropBlock = state => {
   let hY = 0;
   if (state.headY > 7) {
     hY = 8;
@@ -29,6 +34,11 @@ const dropBlock = (state) => {
   };
 };
 
+const setTable = data => ({
+  type: SET_TABLE,
+  data,
+});
+
 const setBlock = (x, y, type) => ({
   type: SET_BLOCK,
   data: {
@@ -42,6 +52,11 @@ const setBlank = () => ({
   type: SET_BLANK,
 });
 
+const runSnakeAction = data => ({
+  type: RUN_SNAKE,
+  data,
+});
+
 const runBlock = dir => ({
   type: RUN_BLOCK,
   data: dir,
@@ -50,18 +65,14 @@ const runBlock = dir => ({
 const addBlock = (x, y) => ({
   type: ADD_BLOCK,
   data: {
-    x: x,
-    y: y,
+    x,
+    y,
   },
 });
 
-const setFood = (x, y, type) => ({
+const setFood = data => ({
   type: SET_FOOD,
-  data: {
-    x: x,
-    y: y,
-    type: type,
-  },
+  data,
 });
 
 const setSnakeDir = keyCode => ({
@@ -74,4 +85,31 @@ const setKeyCode = keyCode => ({
   data: keyCode,
 });
 
-export { dropBlock, setBlock, setBlank, runBlock, addBlock, setFood, setSnakeDir, setKeyCode };
+const setFlowAction = nowStep => ({
+  type: SET_FLOW,
+  step: nowStep,
+});
+
+const switchGameNextAction = () => ({
+  type: SWITCH_GAME_NEXT,
+});
+
+const switchGamePrevAction = () => ({
+  type: SWITCH_GAME_PREV,
+});
+
+export {
+  dropBlock,
+  setTable,
+  setBlock,
+  setBlank,
+  runSnakeAction,
+  runBlock,
+  addBlock,
+  setFood,
+  setSnakeDir,
+  setKeyCode,
+  setFlowAction,
+  switchGameNextAction,
+  switchGamePrevAction,
+};

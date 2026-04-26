@@ -25,10 +25,10 @@ class App extends Component {
   }
 
   resize() {
-    console.log(`clientWidth: ${document.documentElement.clientWidth}`);
-    console.log(`clientHeight: ${document.documentElement.clientHeight}`);
-    console.log(`bodyHeight: ${document.body.clientHeight}`);
-    console.log(`innerHeight: ${window.innerHeight}`);
+    // console.log(`clientWidth: ${document.documentElement.clientWidth}`);
+    // console.log(`clientHeight: ${document.documentElement.clientHeight}`);
+    // console.log(`bodyHeight: ${document.body.clientHeight}`);
+    // console.log(`innerHeight: ${window.innerHeight}`);
     this.setState({
       winWidth: document.documentElement.clientWidth,
       winHeight: document.documentElement.clientHeight,
@@ -56,7 +56,7 @@ class App extends Component {
     };
 
     return (
-      <div className={ style.app } style={outStyle}>
+      <div className={style.app} style={outStyle}>
         <BackgroundLeft />
         <Content />
         <BackgroundRight />
@@ -65,4 +65,4 @@ class App extends Component {
   }
 }
 
-export default hot(module)(App);
+export default App;
