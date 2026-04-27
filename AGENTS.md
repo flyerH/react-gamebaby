@@ -18,6 +18,7 @@
 - `pnpm dev` —— 启动开发服务器
 - `pnpm build` —— 生产构建（含 `tsc --noEmit` 类型检查）
 - `pnpm lint` —— 对 `src/**/*.{ts,tsx}` 跑 ESLint
+- `pnpm test` —— 跑一次 Vitest（CI / 提交前用）
 
 pre-commit 钩子会自动对 staged 文件跑 `eslint --fix` + `prettier --write`，并对项目跑 `tsc --noEmit`。不得使用 `--no-verify` 跳过。
 

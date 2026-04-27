@@ -26,6 +26,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "test": "vitest run",
     "prepare": "husky"
   },
   "lint-staged": {
