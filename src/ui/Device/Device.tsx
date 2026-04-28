@@ -1,75 +1,79 @@
-import type { CSSProperties, ReactNode } from 'react';
+import { type CSSProperties, type ReactNode, useEffect, useState } from 'react';
+
+import styles from './Device.module.css';
+
+/** 整机内部坐标系固定尺寸（与 legacy 一致），小于此尺寸的窗口会被等比缩放 */
+const DEVICE_WIDTH = 650;
+const DEVICE_HEIGHT = 950;
+
+function computeScale(): number {
+  if (typeof window === 'undefined') return 1;
+  return Math.min(1, window.innerWidth / DEVICE_WIDTH, window.innerHeight / DEVICE_HEIGHT);
+}
 
 export interface DeviceProps {
-  /** 屏幕区 / 侧栏 / 按钮区等 —— 由使用方在外部组合 */
-  children: ReactNode;
-  /** 机身上部印刷的主标题 */
+  /** 机身上部印刷的品牌标题 */
   title?: string;
-  /** 机身上部印刷的副标题（型号字样） */
-  subtitle?: string;
+  /** 主点阵屏；通常传入一个 <ContentScreen> */
+  screen: ReactNode;
+  /** 屏幕右侧的信息区；通常传入一个 <SidePanel> */
+  side?: ReactNode;
+  /** 机身下部实体按键区；通常传入一个 <Buttons> */
+  buttons?: ReactNode;
 }
 
 /**
- * Device —— 最外层掌机外壳
+ * Device —— 模拟 Brick Game 9999-in-1 的最外层掌机外壳
  *
- * 只负责"外观与布局"：塑料机身、logo 区、屏幕凹槽。
- * 真实显示由 children（通常是 ContentScreen）承担。
+ * 视觉参考 legacy：蓝色塑料机身 + 圆角顶部 + 白色屏幕粗边框 +
+ * 3D 凹陷蓝色内框 + LCD 黄绿屏底 + 红色实体按键。
  *
- * 样式当前内联，D3 阶段会抽成 CSS Module 并加主题切换。
+ * 本组件只负责外观与布局，屏幕 / 侧栏 / 按键区等内容由调用方以 slot 形式注入，
+ * 这样外壳与内部实现（Canvas renderer、分数、按键映射）完全解耦。
+ *
+ * 窗口比例适配：小于 650×950 的视窗会通过 CSS 变量 --device-scale
+ * 等比缩放整机。scale 用 useState lazy initializer 在首帧就算好，
+ * 避免先以默认 scale=1 渲染一次再 effect 里修正带来的"大 → 小"闪烁。
  */
 export function Device({
-  children,
-  title = 'GAMEBABY',
-  subtitle = 'BRICK · 9999 IN 1',
+  title = 'GameBaby',
+  screen,
+  side,
+  buttons,
 }: DeviceProps): React.ReactElement {
+  const [scale, setScale] = useState<number>(computeScale);
+
+  useEffect(() => {
+    const onResize = (): void => {
+      setScale(computeScale());
+    };
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+    };
+  }, []);
+
+  // CSSProperties 类型里不识别自定义属性，这里走一次类型断言
+  const wrapperStyle = { '--device-scale': scale } as CSSProperties;
+
   return (
-    <div style={shellStyle}>
-      <header style={headerStyle}>
-        <div style={brandStyle}>{title}</div>
-        <div style={modelStyle}>{subtitle}</div>
-      </header>
-      <div style={screenWellStyle}>{children}</div>
+    <div className={styles.wrapper} style={wrapperStyle}>
+      <div className={styles.app}>
+        <div className={styles.content}>
+          <div className={styles.contentTop}>
+            <p className={styles.title}>{title}</p>
+            <div className={styles.screenFrame}>
+              <div className={styles.screenInner3d}>
+                <div className={styles.screen}>
+                  <div className={styles.screenLeft}>{screen}</div>
+                  <div className={styles.screenRight}>{side}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className={styles.contentBottom}>{buttons}</div>
+        </div>
+      </div>
     </div>
   );
 }
-
-const shellStyle: CSSProperties = {
-  width: 'fit-content',
-  padding: '28px 32px 40px',
-  borderRadius: 28,
-  background: 'linear-gradient(135deg, #d8d7cf 0%, #a8a69e 100%)',
-  boxShadow:
-    'inset 0 2px 4px rgba(255,255,255,0.6),' +
-    ' inset 0 -2px 6px rgba(0,0,0,0.2),' +
-    ' 0 16px 32px rgba(0,0,0,0.35)',
-  fontFamily: "'Courier New', Menlo, monospace",
-  color: '#1c1c1c',
-};
-
-const headerStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'baseline',
-  justifyContent: 'space-between',
-  marginBottom: 18,
-  gap: 24,
-};
-
-const brandStyle: CSSProperties = {
-  fontSize: 22,
-  fontWeight: 700,
-  letterSpacing: 4,
-};
-
-const modelStyle: CSSProperties = {
-  fontSize: 10,
-  letterSpacing: 2,
-  opacity: 0.55,
-};
-
-const screenWellStyle: CSSProperties = {
-  padding: 14,
-  background: '#2b2b2b',
-  borderRadius: 12,
-  boxShadow: 'inset 0 3px 8px rgba(0,0,0,0.7)',
-  display: 'inline-block',
-};
