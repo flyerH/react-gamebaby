@@ -41,6 +41,8 @@ export interface BindKeyboardOptions {
  * - keyup   → inputBus.emit(btn, 'release')
  * - 未命中映射的按键忽略，不吞事件
  * - 长按浏览器会重复发 keydown，InputBus.emit 已对重复 press 去重
+ * - 带 Ctrl / Meta / Alt 修饰键的组合一律不处理，留给浏览器快捷键
+ *   （Ctrl+R / Cmd+R 刷新、Cmd+W 关标签、DevTools 等）
  *
  * @returns 解绑函数，调用后移除事件监听
  */
@@ -51,6 +53,7 @@ export function bindKeyboardInput(inputBus: InputBus, opts: BindKeyboardOptions 
     (action: 'press' | 'release') =>
     (ev: Event): void => {
       const e = ev as KeyboardEvent;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       const btn = keyMap[e.key];
       if (!btn) return;
       if (preventDefault) e.preventDefault();

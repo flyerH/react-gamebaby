@@ -5,8 +5,18 @@ import type { Button, InputBus } from '@/engine/types';
 
 import { bindKeyboardInput, DEFAULT_KEY_MAP } from '../input';
 
-function fireKey(target: EventTarget, type: 'keydown' | 'keyup', key: string): KeyboardEvent {
-  const ev = new KeyboardEvent(type, { key, cancelable: true, bubbles: true });
+function fireKey(
+  target: EventTarget,
+  type: 'keydown' | 'keyup',
+  key: string,
+  modifiers: { ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean } = {}
+): KeyboardEvent {
+  const ev = new KeyboardEvent(type, {
+    key,
+    cancelable: true,
+    bubbles: true,
+    ...modifiers,
+  });
   target.dispatchEvent(ev);
   return ev;
 }
@@ -96,6 +106,21 @@ describe('bindKeyboardInput', () => {
     detach();
     fireKey(target, 'keydown', 'ArrowDown');
     expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it('带 Ctrl / Meta / Alt 修饰键的组合不处理，也不 preventDefault', () => {
+    const fn = vi.fn();
+    input.subscribe(fn);
+    bindKeyboardInput(input, { target });
+
+    const ev1 = fireKey(target, 'keydown', 'r', { ctrlKey: true });
+    const ev2 = fireKey(target, 'keydown', 'r', { metaKey: true });
+    const ev3 = fireKey(target, 'keydown', 'ArrowUp', { altKey: true });
+
+    expect(fn).not.toHaveBeenCalled();
+    expect(ev1.defaultPrevented).toBe(false);
+    expect(ev2.defaultPrevented).toBe(false);
+    expect(ev3.defaultPrevented).toBe(false);
   });
 
   it('DEFAULT_KEY_MAP 至少覆盖四个方向键与 Start / A', () => {

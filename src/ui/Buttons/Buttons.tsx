@@ -1,10 +1,18 @@
-import type { Button } from '@/engine/types';
+import { type PointerEvent as ReactPointerEvent, useCallback } from 'react';
+
+import type { Button, ButtonAction } from '@/engine/types';
 
 import styles from './Buttons.module.css';
 
 export interface ButtonsProps {
-  /** 按钮按下时回调；不传则无操作 */
-  onPress?: (btn: Button) => void;
+  /**
+   * 按键交互回调，press / release 成对触发。
+   *
+   * 实现上用 PointerEvent + setPointerCapture 保证按下后拖出按钮、
+   * 触屏滑出边界等场景都能可靠收到 release——这样 L3 InputBus 的
+   * "重复 press 去重 + release 必须配对" 语义才不会被 UI 破坏。
+   */
+  onInput?: (btn: Button, action: ButtonAction) => void;
 }
 
 /**
@@ -17,11 +25,28 @@ export interface ButtonsProps {
  * Rotate 按下时 emit 'Start'——与 Enter 键位一致，在菜单里是确认、
  * 在俄罗斯方块里是旋转。
  */
-export function Buttons({ onPress }: ButtonsProps): React.ReactElement {
-  const press =
-    (btn: Button): (() => void) =>
-    () =>
-      onPress?.(btn);
+export function Buttons({ onInput }: ButtonsProps): React.ReactElement {
+  const makeHandlers = useCallback(
+    (btn: Button) => ({
+      onPointerDown: (e: ReactPointerEvent<HTMLButtonElement>): void => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        onInput?.(btn, 'press');
+      },
+      onPointerUp: (e: ReactPointerEvent<HTMLButtonElement>): void => {
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        }
+        onInput?.(btn, 'release');
+      },
+      onPointerCancel: (e: ReactPointerEvent<HTMLButtonElement>): void => {
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        }
+        onInput?.(btn, 'release');
+      },
+    }),
+    [onInput]
+  );
 
   return (
     <div className={styles.contentBottom}>
@@ -29,7 +54,7 @@ export function Buttons({ onPress }: ButtonsProps): React.ReactElement {
         type="button"
         aria-label="Up"
         className={`${styles.button} ${styles.topButton}`}
-        onClick={press('Up')}
+        {...makeHandlers('Up')}
       >
         <p className={styles.buttonTip}>Top</p>
         <span className={styles.buttonDir} />
@@ -39,7 +64,7 @@ export function Buttons({ onPress }: ButtonsProps): React.ReactElement {
         type="button"
         aria-label="Right"
         className={`${styles.button} ${styles.rightButton}`}
-        onClick={press('Right')}
+        {...makeHandlers('Right')}
       >
         <p className={styles.buttonTip}>Right</p>
         <span className={styles.buttonDir} />
@@ -49,7 +74,7 @@ export function Buttons({ onPress }: ButtonsProps): React.ReactElement {
         type="button"
         aria-label="Down"
         className={`${styles.button} ${styles.bottomButton}`}
-        onClick={press('Down')}
+        {...makeHandlers('Down')}
       >
         <p className={styles.buttonTip}>Bottom</p>
         <span className={styles.buttonDir} />
@@ -59,7 +84,7 @@ export function Buttons({ onPress }: ButtonsProps): React.ReactElement {
         type="button"
         aria-label="Left"
         className={`${styles.button} ${styles.leftButton}`}
-        onClick={press('Left')}
+        {...makeHandlers('Left')}
       >
         <p className={styles.buttonTip}>Left</p>
         <span className={styles.buttonDir} />
@@ -69,7 +94,7 @@ export function Buttons({ onPress }: ButtonsProps): React.ReactElement {
         type="button"
         aria-label="Rotate"
         className={styles.rotateButton}
-        onClick={press('Start')}
+        {...makeHandlers('Start')}
       >
         <p className={styles.rotateTip}>Rotate</p>
         <span className={styles.rotateArrowLeft}>
