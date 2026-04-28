@@ -4,9 +4,8 @@ import { mulberry32 } from '@/engine/rng';
 import { createScreen } from '@/engine/screen';
 import { createNullSound } from '@/engine/sound';
 import { createMemoryStorage } from '@/engine/storage';
-import type { HardwareContext, Unsubscribe } from '@/engine/types';
+import type { HardwareContext } from '@/engine/types';
 
-import { bindKeyboardInput, type BindKeyboardOptions } from './input';
 import { createRealtimeTicker } from './ticker';
 
 /** createBrowserContext 的可选参数 */
@@ -21,36 +20,29 @@ export interface BrowserContextOptions {
   speed?: number;
   /** 初始生命数，默认 3 */
   lives?: number;
-  /** 键盘桥接参数；传入 false 表示不绑定键盘（留给调用方自行接入触摸 / 手柄） */
-  keyboard?: BindKeyboardOptions | false;
 }
 
 /**
  * 浏览器环境下组装完整 HardwareContext
  *
- * 与 `createHeadlessContext` 的差别：
- * - ticker 是 RealtimeTicker，由 requestAnimationFrame 自动驱动
- * - 默认绑定键盘到 InputBus（可关闭），返回 detach 用于清理
- * - Storage / Sound 仍用 engine 的跨平台默认实现；
- *   后续接入 LocalStorage / zzfx 时替换这两处即可
+ * 与 `createHeadlessContext` 的差别仅在 Ticker：
+ * RealtimeTicker 由 requestAnimationFrame 自动驱动，其他组件（Screen / Input /
+ * Storage / Sound 等）都复用 engine 的跨平台实现。
+ *
+ * 设计约束：本函数**纯组装，不绑定任何 DOM 副作用**。
+ *   需要接键盘时，调用方显式调用 `bindKeyboardInput(ctx.input)`，
+ *   并在自己的生命周期里管理 detach（典型地：React useEffect 的 cleanup）。
+ *   这样 StrictMode 的 mount-unmount-mount 循环和资源释放能干净配对。
  */
-export function createBrowserContext(opts: BrowserContextOptions): {
-  ctx: HardwareContext;
-  /** 解绑所有副作用（目前是键盘监听），在组件卸载 / 页面切换时调用 */
-  detach: Unsubscribe;
-} {
-  const { seed, width = 20, height = 10, speed = 30, lives = 3, keyboard } = opts;
+export function createBrowserContext(opts: BrowserContextOptions): HardwareContext {
+  const { seed, width = 20, height = 10, speed = 30, lives = 3 } = opts;
 
   const ticker = createRealtimeTicker({ initialSpeed: speed });
-  const input = createInputBus();
 
-  const detachKeyboard: Unsubscribe | null =
-    keyboard === false ? null : bindKeyboardInput(input, keyboard ?? {});
-
-  const ctx: HardwareContext = {
+  return {
     screen: createScreen(width, height),
     ticker,
-    input,
+    input: createInputBus(),
     sound: createNullSound(),
     storage: createMemoryStorage(),
 
@@ -64,11 +56,4 @@ export function createBrowserContext(opts: BrowserContextOptions): {
     rng: mulberry32(seed),
     now: () => ticker.tickCount,
   };
-
-  const detach: Unsubscribe = () => {
-    detachKeyboard?.();
-    ticker.stop();
-  };
-
-  return { ctx, detach };
 }
