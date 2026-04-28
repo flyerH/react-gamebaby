@@ -1,10 +1,10 @@
-import type { Storage } from '@/engine/types';
+import type { Storage } from './types';
 
 /**
- * 创建纯内存版本的 Storage
+ * 纯内存版 Storage：engine 提供的跨平台默认实现
  *
- * 用途：Node 训练 / 测试 / 初次加载缺省。
- * 浏览器实现见 `src/platform/browser/storage.ts`（localStorage 适配）。
+ * 无任何平台耦合，Node / 浏览器 / 测试都可直接使用。
+ * 需要持久化时请改用 `src/platform/browser/storage.ts` 的 localStorage 适配。
  */
 export function createMemoryStorage(): Storage {
   const map = new Map<string, unknown>();

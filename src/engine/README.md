@@ -16,6 +16,8 @@
 | `counter.ts` | `createCounter` / `createToggle`  | 可订阅的原子状态（分数、暂停等）                     |
 | `screen.ts`  | `createScreen` / `bitmapFromRows` | 纯 framebuffer，提供 `setPixel` / `blit` / `commit`  |
 | `input.ts`   | `createInputBus`                  | 统一按键事件总线                                     |
+| `storage.ts` | `createMemoryStorage`             | 内存键值存储（跨平台默认实现）                       |
+| `sound.ts`   | `createNullSound`                 | 无声 Sound（跨平台默认实现）                         |
 | `index.ts`   | 统一 re-export                    | 外层只从这里导入                                     |
 | `__tests__/` | 单元测试                          | 每个模块一个 `<name>.test.ts`                        |
 

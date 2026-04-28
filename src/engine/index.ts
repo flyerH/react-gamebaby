@@ -27,3 +27,5 @@ export { mulberry32, randomInt } from './rng';
 export { createCounter, createToggle } from './counter';
 export { bitmapFromRows, createScreen } from './screen';
 export { createInputBus } from './input';
+export { createMemoryStorage } from './storage';
+export { createNullSound } from './sound';

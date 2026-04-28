@@ -2,10 +2,10 @@ import { createCounter, createToggle } from '@/engine/counter';
 import { createInputBus } from '@/engine/input';
 import { mulberry32 } from '@/engine/rng';
 import { createScreen } from '@/engine/screen';
+import { createNullSound } from '@/engine/sound';
+import { createMemoryStorage } from '@/engine/storage';
 import type { HardwareContext } from '@/engine/types';
 
-import { createNullSound } from './sound';
-import { createMemoryStorage } from './storage';
 import { createHeadlessTicker } from './ticker';
 
 /** createHeadlessContext 的可选参数 */
