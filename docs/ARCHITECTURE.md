@@ -35,8 +35,15 @@
 ├─────────────────────────────────────────────────────────────┤
 │ L3  Engine (Hardware Abstraction)         DOM-agnostic 核心 │
 │                                                              │
-│   Screen (framebuffer) · Ticker · InputBus                  │
-│   Sound · Storage · Counter/Toggle · rng · Context          │
+│   接口: Screen · Ticker · InputBus · Sound · Storage · ...  │
+│   跨平台通用实现: Screen framebuffer · InputBus · Counter / │
+│     Toggle · rng                                             │
+│                                                              │
+│   └─ Platform (平台适配层)     按运行环境落地 L3 接口       │
+│      ├─ headless/  HeadlessTicker · MemoryStorage · Null    │
+│      │            Sound · HeadlessContext                    │
+│      └─ browser/   RealtimeTicker · LocalStorage · zzfx     │
+│                   Sound · bindKeyboardInput · BrowserContext│
 ├─────────────────────────────────────────────────────────────┤
 │ L2  SDK                                   游戏作者用的工具箱 │
 │                                                              │
@@ -48,17 +55,19 @@
 │   menu/  snake/  tetris/  tank/  _template/                 │
 └─────────────────────────────────────────────────────────────┘
 
-          ↓ 同一套 engine/sdk/games 同时被这两边复用 ↓
+          ↓ engine/sdk/games 同时被两边复用；平台差异锁在 platform/ ↓
 
-┌─────────────────────────┐     ┌────────────────────────────┐
-│ 浏览器运行时             │     │ Node 训练运行时            │
-│                          │     │                            │
-│ RealtimeTicker           │     │ HeadlessTicker / Batch     │
-│ CanvasScreen + <Device/> │     │ BufferScreen (无 DOM)      │
-│ Keyboard/Touch InputBus  │     │ Policy 驱动 InputBus       │
-│ zzfx Sound               │     │ Null Sound                 │
-│ tfjs (推理)              │     │ tfjs-node (训练)           │
-└─────────────────────────┘     └────────────────────────────┘
+┌──────────────────────────────┐     ┌──────────────────────────────┐
+│ 浏览器运行时                  │     │ Node 训练运行时              │
+│ (src/platform/browser/ + ui/) │     │ (src/platform/headless/)     │
+│                               │     │                              │
+│ RealtimeTicker                │     │ HeadlessTicker / Batch       │
+│ Canvas renderer + <Device/>   │     │ Screen buffer only (无渲染)  │
+│ Keyboard/Touch InputBus 桥接  │     │ Policy 驱动 InputBus         │
+│ zzfx Sound                    │     │ Null Sound                   │
+│ LocalStorage                  │     │ Memory Storage               │
+│ tfjs (推理)                   │     │ tfjs-node (训练)             │
+└──────────────────────────────┘     └──────────────────────────────┘
                                          │
                                    Hono + SSE
                                          │
@@ -107,10 +116,10 @@ interface Ticker {
   setSpeed(ticksPerSecond: number): void;
 }
 
-// 具体实现：
-//   RealtimeTicker   使用 requestAnimationFrame + 累积器
-//   HeadlessTicker   同步循环，用于 Node 训练（无限速）
-//   BatchTicker      批量推进 N 步后返回，用于 evaluator
+// 具体实现（均位于 src/platform/）：
+//   browser/  RealtimeTicker   使用 requestAnimationFrame + 累积器
+//   headless/ HeadlessTicker   非自驱，外部 advance 推进，用于训练 / 单测
+//   headless/ BatchTicker      批量推进 N 步后返回，用于 evaluator（可选）
 
 // InputBus —— 统一按键总线
 type Button = 'Up' | 'Down' | 'Left' | 'Right' | 'A' | 'B' | 'Start' | 'Select' | 'Sound' | 'Reset';
@@ -166,9 +175,9 @@ interface Context {
   rng: () => number; // 0..1，seeded PRNG（mulberry32）
 }
 
-// 两种 Context 构造函数：
-//   createRealtimeContext(opts)  浏览器运行时
-//   createHeadlessContext(seed)  Node 训练 / 测试
+// 两种 Context 构造函数（按运行环境从对应 platform 子目录导入）：
+//   import { createBrowserContext  } from '@/platform/browser'   浏览器运行时
+//   import { createHeadlessContext } from '@/platform/headless'  Node 训练 / 测试
 ```
 
 ### 3.2 L2 SDK
@@ -388,16 +397,24 @@ react-gamebaby/
 │  ├─ AI-PRACTICES.md          AI 工程化细节
 │  └─ RL-TRAINING.md           RL 训练流程
 ├─ src/
-│  ├─ engine/                  L3 Engine (DOM-agnostic)
-│  │  ├─ screen.ts
-│  │  ├─ ticker.ts
-│  │  ├─ input.ts
-│  │  ├─ sound.ts
-│  │  ├─ storage.ts
-│  │  ├─ counter.ts
-│  │  ├─ rng.ts
-│  │  ├─ context.ts
-│  │  └─ types.ts
+│  ├─ engine/                  L3 Engine：接口 + 跨平台通用实现 (DOM-agnostic)
+│  │  ├─ types.ts              所有接口定义
+│  │  ├─ screen.ts             framebuffer
+│  │  ├─ input.ts              按键事件总线
+│  │  ├─ counter.ts            可订阅原子状态
+│  │  └─ rng.ts                可播种 PRNG
+│  ├─ platform/                平台适配层：按运行环境落地 L3 接口
+│  │  ├─ headless/             Node / 训练 / 单测
+│  │  │  ├─ ticker.ts          createHeadlessTicker（非自驱）
+│  │  │  ├─ storage.ts         createMemoryStorage
+│  │  │  ├─ sound.ts           createNullSound
+│  │  │  └─ context.ts         createHeadlessContext
+│  │  └─ browser/              浏览器（待建）
+│  │     ├─ ticker.ts          createRealtimeTicker（requestAnimationFrame）
+│  │     ├─ input.ts           bindKeyboardInput（键盘桥接到 InputBus）
+│  │     ├─ storage.ts         createLocalStorage
+│  │     ├─ sound.ts           createZzfxSound
+│  │     └─ context.ts         createBrowserContext
 │  ├─ sdk/                     L2 SDK
 │  │  ├─ scene.ts
 │  │  ├─ game.ts               Game<S> 接口

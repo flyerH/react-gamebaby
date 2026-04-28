@@ -1,9 +1,9 @@
-import type { Sound } from './types';
+import type { Sound } from '@/engine/types';
 
 /**
  * 无声实现：训练 / 测试默认使用
  *
- * 浏览器运行时会提供 zzfx 适配器（放在 L4 / runtime 层，不在 Engine）。
+ * 浏览器实现见 `src/platform/browser/sound.ts`（zzfx 适配）。
  */
 export function createNullSound(): Sound {
   let enabled = false;

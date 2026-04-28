@@ -1,8 +1,9 @@
 /**
  * L3 Engine 对外统一入口
  *
- * 外层（L2 SDK / L1 Games / L4 UI / 训练脚本）只从此处导入，
- * 不要深入到具体实现模块；具体模块内部可能重构、重命名。
+ * 此处只导出**接口**与**跨平台通用实现**（DOM-agnostic，Node 与浏览器共用）。
+ * 各平台专属的 Ticker / Storage / Sound / Context 组装在 `src/platform/<platform>/`，
+ * 按运行环境从对应路径导入。
  */
 
 export type {
@@ -24,11 +25,5 @@ export type {
 
 export { mulberry32, randomInt } from './rng';
 export { createCounter, createToggle } from './counter';
-export { createMemoryStorage } from './storage';
-export { createNullSound } from './sound';
 export { bitmapFromRows, createScreen } from './screen';
 export { createInputBus } from './input';
-export { createHeadlessTicker } from './ticker';
-export type { HeadlessTicker } from './ticker';
-export { createHeadlessContext } from './context';
-export type { HeadlessContextOptions } from './context';

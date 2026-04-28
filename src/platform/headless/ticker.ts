@@ -1,4 +1,4 @@
-import type { Ticker } from './types';
+import type { Ticker } from '@/engine/types';
 
 /**
  * HeadlessTicker —— 非自驱的 Ticker 实现

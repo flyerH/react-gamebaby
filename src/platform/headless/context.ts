@@ -1,11 +1,12 @@
-import { createCounter, createToggle } from './counter';
-import { createInputBus } from './input';
-import { mulberry32 } from './rng';
-import { createScreen } from './screen';
+import { createCounter, createToggle } from '@/engine/counter';
+import { createInputBus } from '@/engine/input';
+import { mulberry32 } from '@/engine/rng';
+import { createScreen } from '@/engine/screen';
+import type { HardwareContext } from '@/engine/types';
+
 import { createNullSound } from './sound';
 import { createMemoryStorage } from './storage';
 import { createHeadlessTicker } from './ticker';
-import type { HardwareContext } from './types';
 
 /** createHeadlessContext 的可选参数 */
 export interface HeadlessContextOptions {
@@ -29,8 +30,8 @@ export interface HeadlessContextOptions {
  * - 完全确定性：给定 seed 与输入序列，任意环境下重放一致
  * - Ticker 非自驱：调用方需要显式 `ticker.advance(n)` 推进
  *
- * 浏览器运行时的 `createRealtimeContext` 会在 L4 / runtime 层提供，
- * 内部组合 RealtimeTicker / CanvasScreen / KeyboardInputBus / LocalStorage 等。
+ * 对应的浏览器实现（`createBrowserContext`）位于 `src/platform/browser/`，
+ * 内部组合 RealtimeTicker / LocalStorage / ZzfxSound / 键盘适配等。
  */
 export function createHeadlessContext(opts: HeadlessContextOptions): HardwareContext {
   const { seed, width = 20, height = 10, speed = 30, lives = 3 } = opts;

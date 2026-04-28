@@ -40,7 +40,8 @@ pre-commit 钩子会自动对 staged 文件跑 `eslint --fix` + `prettier --writ
 
 ```
 L4  UI Shell   —— React 组件、DOM 渲染
-L3  Engine     —— Screen / Ticker / InputBus / Sound / Storage / Context
+L3  Engine     —— Screen / Ticker / InputBus / Sound / Storage / Context（接口 + 跨平台通用实现）
+ └─ Platform   —— 平台专属实现（src/platform/<platform>/），对称落地 L3 接口
 L2  SDK        —— Game 接口、GameEnv、Registry、draw helpers
 L1  Games      —— 各款游戏实现（纯函数）
 ```
@@ -48,8 +49,9 @@ L1  Games      —— 各款游戏实现（纯函数）
 详见 `docs/ARCHITECTURE.md`。以下是必须遵守的约束：
 
 - **L3 Engine 完全 DOM-agnostic**：`src/engine/` 下不得 `import` React、`document`、`window`、`HTMLElement` 等；Engine 必须能在 Node 里运行（RL 训练会用到）。
+- **Platform 按运行环境分目录**：`src/platform/headless/` 为 Node / 测试实现，`src/platform/browser/` 为浏览器实现；二者互不依赖，都只依赖 `@/engine/*`。`src/platform/browser/` 是**唯一**允许直接调用 `window` / `document` / `performance.now()` / `requestAnimationFrame` 等真实环境 API 的目录——它的职责就是把墙钟与 DOM 事件桥接到 L3 接口。
 - **L1 Games 是纯函数**：`src/games/<name>/` 的 `init` / `step` / `render` 除 `ctx` 参数外，不得有外部副作用、不得引用模块级可变状态。
-- **依赖方向单向**：L1 → L2 → L3，不得反向。L4 UI 可依赖全部下层。
+- **依赖方向单向**：L1 → L2 → L3，不得反向。L4 UI 可依赖全部下层，并按环境从 `@/platform/<platform>` 装配 `HardwareContext`。
 - **UI 与状态分离**：L4 组件只通过 `subscribe` 观察状态，不直接修改；所有状态变更经由 L3 API。
 
 **Engine 还是 SDK？** 新增文件纠结归哪层时，问自己："删掉它，这台机器还能开机吗？"
@@ -59,7 +61,7 @@ L1  Games      —— 各款游戏实现（纯函数）
 
 ## 确定性约束（硬规则）
 
-在 `src/engine/` / `src/sdk/` / `src/games/` / `src/ai/` 下：
+在 `src/engine/` / `src/platform/headless/` / `src/sdk/` / `src/games/` / `src/ai/` 下：
 
 - ❌ `Math.random()` / `Date.now()` / `performance.now()`
 - ✅ 随机性一律走 `ctx.rng()`（可播种 PRNG）
