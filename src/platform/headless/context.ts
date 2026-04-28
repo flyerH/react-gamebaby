@@ -12,9 +12,9 @@ import { createHeadlessTicker } from './ticker';
 export interface HeadlessContextOptions {
   /** PRNG 种子；同一 seed 在任意环境下产出完全相同的序列 */
   seed: number;
-  /** 主屏宽度（像素），默认 20 —— 对应 Brick Game 原机 */
+  /** 主屏宽度（像素列数），默认 10 —— 对应 Brick Game 原机纵向 10×20 */
   width?: number;
-  /** 主屏高度（像素），默认 10 */
+  /** 主屏高度（像素行数），默认 20 */
   height?: number;
   /** 初始速度（ticks/second），默认 30 */
   speed?: number;
@@ -34,7 +34,7 @@ export interface HeadlessContextOptions {
  * 内部组合 RealtimeTicker / LocalStorage / ZzfxSound / 键盘适配等。
  */
 export function createHeadlessContext(opts: HeadlessContextOptions): HardwareContext {
-  const { seed, width = 20, height = 10, speed = 30, lives = 3 } = opts;
+  const { seed, width = 10, height = 20, speed = 30, lives = 3 } = opts;
 
   const ticker = createHeadlessTicker(speed);
 

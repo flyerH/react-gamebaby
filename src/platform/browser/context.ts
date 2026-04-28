@@ -12,9 +12,9 @@ import { createRealtimeTicker } from './ticker';
 export interface BrowserContextOptions {
   /** PRNG 种子；同一 seed 在任意环境下产出完全相同的序列 */
   seed: number;
-  /** 主屏宽度（像素），默认 20 —— 对应 Brick Game 原机 */
+  /** 主屏宽度（像素列数），默认 10 —— 对应 Brick Game 原机纵向 10×20 */
   width?: number;
-  /** 主屏高度（像素），默认 10 */
+  /** 主屏高度（像素行数），默认 20 */
   height?: number;
   /** 初始速度（ticks/second），默认 30 */
   speed?: number;
@@ -35,7 +35,7 @@ export interface BrowserContextOptions {
  *   这样 StrictMode 的 mount-unmount-mount 循环和资源释放能干净配对。
  */
 export function createBrowserContext(opts: BrowserContextOptions): HardwareContext {
-  const { seed, width = 20, height = 10, speed = 30, lives = 3 } = opts;
+  const { seed, width = 10, height = 20, speed = 30, lives = 3 } = opts;
 
   const ticker = createRealtimeTicker({ initialSpeed: speed });
 

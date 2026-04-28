@@ -3,10 +3,10 @@ import { createHeadlessContext } from '../context';
 import type { HeadlessTicker } from '../ticker';
 
 describe('createHeadlessContext', () => {
-  it('缺省尺寸 20×10、初始计数器归零、rng/now 可用', () => {
+  it('缺省尺寸 10×20（纵向）、初始计数器归零、rng/now 可用', () => {
     const ctx = createHeadlessContext({ seed: 1 });
-    expect(ctx.screen.width).toBe(20);
-    expect(ctx.screen.height).toBe(10);
+    expect(ctx.screen.width).toBe(10);
+    expect(ctx.screen.height).toBe(20);
     expect(ctx.score.value).toBe(0);
     expect(ctx.level.value).toBe(0);
     expect(ctx.lives.value).toBe(3);
@@ -18,13 +18,13 @@ describe('createHeadlessContext', () => {
   it('options 覆盖默认值', () => {
     const ctx = createHeadlessContext({
       seed: 1,
-      width: 10,
-      height: 20,
+      width: 32,
+      height: 16,
       speed: 60,
       lives: 5,
     });
-    expect(ctx.screen.width).toBe(10);
-    expect(ctx.screen.height).toBe(20);
+    expect(ctx.screen.width).toBe(32);
+    expect(ctx.screen.height).toBe(16);
     expect(ctx.speed.value).toBe(60);
     expect(ctx.lives.value).toBe(5);
   });

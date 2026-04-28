@@ -29,7 +29,7 @@
 │ L4  UI Shell                              纯视图，可替换渲染 │
 │                                                              │
 │   Device (外壳)                                              │
-│     ├─ ContentScreen   主 20×10 点阵 (Canvas2D/DOM/WebGL)   │
+│     ├─ ContentScreen   主 10×20 点阵 (Canvas2D/DOM/WebGL)   │
 │     ├─ SidePanel       Score/Level/Speed/Next               │
 │     └─ Buttons         方向 + 功能键                         │
 ├─────────────────────────────────────────────────────────────┤
@@ -272,7 +272,7 @@ function mainLoop(game: Game<S>, ctx: Context) {
 - 天然支持游戏切换、暂停、回放 —— 给一个 state 就能画出对应画面
 - 状态是唯一事实来源，渲染是 state 的纯函数
 
-**性能不是问题**：20×10 = 200 像素，全量重绘开销可忽略。
+**性能不是问题**：10×20 = 200 像素，全量重绘开销可忽略。
 
 ### 4.2 可切换的 Renderer
 

@@ -3,11 +3,11 @@ import { describe, it, expect } from 'vitest';
 import { createBrowserContext } from '../context';
 
 describe('createBrowserContext', () => {
-  it('默认尺寸 20×10，初始计数器 / 计时器数值符合期望', () => {
+  it('默认尺寸 10×20（纵向），初始计数器 / 计时器数值符合期望', () => {
     const ctx = createBrowserContext({ seed: 42 });
 
-    expect(ctx.screen.width).toBe(20);
-    expect(ctx.screen.height).toBe(10);
+    expect(ctx.screen.width).toBe(10);
+    expect(ctx.screen.height).toBe(20);
     expect(ctx.ticker.speed).toBe(30);
     expect(ctx.ticker.tickCount).toBe(0);
     expect(ctx.score.value).toBe(0);
