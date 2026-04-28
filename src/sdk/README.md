@@ -1,22 +1,36 @@
-# `src/sdk` · L2 游戏 SDK
+# L2 Game SDK
 
-在 L3（硬件抽象）之上封装游戏通用能力，给 L1（各游戏）复用。**同样不依赖 DOM**。
+> 游戏开发者对外的稳定 API 层。只依赖 `@/engine/types`，不依赖任何具体平台或 UI 框架。
 
-## 职责划分
+## 当前阶段
 
-| 文件（规划） | 导出                   | 职责                                             |
-| ------------ | ---------------------- | ------------------------------------------------ |
-| `game.ts`    | `Game<State>` 接口     | 游戏契约：`init` / `step` / `render` / `onInput` |
-| `scene.ts`   | `Scene`                | 单帧的临时画布，最后整体 `commit` 到 `Screen`    |
-| `sprite.ts`  | `drawSprite`、`Sprite` | 软件层位图辅助（非硬件 sprite）                  |
-| `timer.ts`   | `createTimer`          | 基于 tick 的定时器工具                           |
-| `board.ts`   | `createBoard`          | 通用棋盘 / 方格状态管理                          |
+仅承载菜单 / 选择所需能力：
 
-## 规则
+- `Game` —— 最小游戏元数据（`id` / `name` / `preview`）
+- `createRegistry(games)` —— 构造游戏注册表，提供 `list()` / `get(id)` / `size`
 
-- **纯函数优先**：`step(state, input) => nextState` 必须是纯函数。
-- **渲染声明式**：`render(state, scene)` 里只描述"当前帧应该长什么样"，不保留跨帧脏区。
-- **禁止使用时间 / 随机 API**：同 L3 规则，走 `ctx.rng` / `ctx.now()`。
-- 状态采用不可变更新（浅复制 + 新对象），不要原地修改。
+注册表在构造时：
 
-完整接口契约见 [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §3.2。
+- 冻结输入数组（`list()` 返回同一引用，可做引用相等判断）
+- 重复 id 直接抛错，避免运行时静默覆盖
+
+## 规划
+
+待首款真正的游戏落地时，会在不破坏现有 `Game` 字段的前提下扩展：
+
+- `init(env)` / `step(env)` / `render(env)` —— 纯函数游戏循环
+- `onButton(env, button, kind)` —— 输入回调
+- `scoreOf(state)` / `isGameOver(state)` —— 渲染 SidePanel / 结束条件所需投影
+- `GameEnv` —— 把 L3 `HardwareContext` 的只读切片透传给游戏开发者
+
+这些字段都会 **optional / 有 sensible default**，以便占位游戏无需改动就能继续被注册表收录。
+
+## 目录
+
+```
+src/sdk/
+├─ types.ts      Game / Pixel / GamePreview 类型
+├─ registry.ts   createRegistry 工厂 + GameRegistry 接口
+├─ index.ts      对外 re-export
+└─ __tests__/    单元测试
+```
