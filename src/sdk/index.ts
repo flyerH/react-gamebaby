@@ -5,6 +5,7 @@
  * draw helpers 等也从本文件 re-export。
  */
 
-export type { Game, Pixel, GamePreview } from './types';
+export type { AnyGame, Game, GameEnv, GamePreview, Pixel } from './types';
+export { toGameEnv } from './env';
 export { createRegistry } from './registry';
 export type { GameRegistry } from './registry';

@@ -7,7 +7,7 @@ const SCREEN_W = 10;
 const SCREEN_H = 20;
 
 describe('defaultGames 注册表', () => {
-  it('包含 2 款占位游戏（与 legacy 对齐）', () => {
+  it('包含 2 款占位游戏（A01 Snake / A02 Tetris）', () => {
     expect(defaultGames.size).toBe(2);
     const ids = defaultGames.list().map((g) => g.id);
     expect(ids).toEqual(['snake', 'tetris']);

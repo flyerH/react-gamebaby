@@ -2,7 +2,7 @@ import { type CSSProperties, type ReactNode, useEffect, useState } from 'react';
 
 import styles from './Device.module.css';
 
-/** 整机内部坐标系固定尺寸（与 legacy 一致），小于此尺寸的窗口会被等比缩放 */
+/** 整机内部坐标系固定尺寸，小于此尺寸的窗口会被等比缩放 */
 const DEVICE_WIDTH = 650;
 const DEVICE_HEIGHT = 950;
 
@@ -25,7 +25,7 @@ export interface DeviceProps {
 /**
  * Device —— 模拟 Brick Game 9999-in-1 的最外层掌机外壳
  *
- * 视觉参考 legacy：蓝色塑料机身 + 圆角顶部 + 白色屏幕粗边框 +
+ * 视觉参考 Brick Game 真机：蓝色塑料机身 + 圆角顶部 + 白色屏幕粗边框 +
  * 3D 凹陷蓝色内框 + LCD 黄绿屏底 + 红色实体按键。
  *
  * 本组件只负责外观与布局，屏幕 / 侧栏 / 按键区等内容由调用方以 slot 形式注入，

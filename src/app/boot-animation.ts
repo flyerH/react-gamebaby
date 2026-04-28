@@ -3,7 +3,7 @@ import type { Pixel } from '@/sdk';
 /**
  * 开机动画：顶部 "9999 IN 1" 静态 logo + 外圈到内圈的螺旋点阵
  *
- * 视觉复刻 legacy src/legacy/scenes/initAnimation.js：
+ * 视觉复刻 Brick Game 真机开机画面：
  * 每 tick 推进一个光标，屏幕上亮起从 trail[0] 到 trail[cursor] 的
  * 累积点；走到末尾后瞬间重置到 0，形成循环。
  *
@@ -14,7 +14,7 @@ import type { Pixel } from '@/sdk';
 /**
  * 顶部固定 logo 的点阵坐标（[x, y]）
  *
- * 原始数据来自 legacy nIn1 常量，从 [row, col] 翻转而来。
+ * "9999 IN 1" 字样的手工位图。
  */
 export const BOOT_LOGO: ReadonlyArray<Pixel> = [
   [0, 1],
@@ -62,7 +62,7 @@ export const BOOT_LOGO: ReadonlyArray<Pixel> = [
 /**
  * 生成外到内的回字螺旋轨迹点序列
  *
- * 算法移植自 legacy animaPos()：每层 4 条边（上行 / 右行 / 下行 / 左行），
+ * 每层按 4 条边顺序铺点（上行 / 右行 / 下行 / 左行），
  * 层数取 min(w, h)/2 向下取整。
  */
 export function spiralTrail(width: number, height: number): ReadonlyArray<Pixel> {

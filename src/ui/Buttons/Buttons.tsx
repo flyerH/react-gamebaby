@@ -18,7 +18,7 @@ export interface ButtonsProps {
 /**
  * Buttons —— 掌机实体按键区
  *
- * DOM 结构 1:1 复刻 legacy：每个方向按钮是外层 <button> + 两个子节点
+ * DOM 结构模拟真机按键：每个方向按钮是外层 <button> + 两个子节点
  * （buttonTip 文字标签 + buttonDir 箭头），三者的相对位置由 CSS 绝对定位
  * 落到按钮外围，从而在 4 个按钮的中心围出一个十字形箭头簇。
  *

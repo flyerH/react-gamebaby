@@ -1,8 +1,7 @@
 /* 掌机外壳与机身
- * 视觉参考：src/legacy/containers/App/style.scss
- *           src/legacy/components/Content/**
+ * 视觉参考：Brick Game 9999-in-1 真机外壳
  *
- * 比例适配：legacy 原版未处理小屏溢出，本实现通过 --device-scale
+ * 比例适配：原机是固定尺寸，本实现通过 --device-scale
  * （由 Device.tsx 中 resize 监听设置）对整机做等比缩放，
  * 保持 650×950 的固定内部坐标系不变。
  */

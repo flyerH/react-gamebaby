@@ -1,5 +1,5 @@
 /* 按键区
- * 1:1 复刻 legacy src/legacy/containers/Content/Bottom/style.scss
+ * 复刻 Brick Game 真机按键区
  *
  * 设计要点：
  * - 每个方向按钮是 80×80 红色圆盘，绝对定位在各自坐标
@@ -149,7 +149,7 @@
   pointer-events: none;
 }
 
-/* 两道弯箭头：用椭圆边 + 三角形组合而成，与 legacy 一致 */
+/* 两道弯箭头：用椭圆边 + 三角形组合而成 */
 
 .rotateArrowLeft,
 .rotateArrowRight {

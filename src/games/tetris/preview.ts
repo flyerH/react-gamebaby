@@ -3,8 +3,8 @@ import type { GamePreview } from '@/sdk';
 /**
  * Tetris 菜单预览点阵（坐标 [x, y]）
  *
- * 上部一个 "B" 字形抽象图案，下部沿用 legacy 的 A02 标识点阵。
- * 原始数据来自 src/legacy/game/B02.js 的 gameMenu。
+ * 上部一个 "B" 字形抽象图案，下部是 A02 的标识点阵。
+ * 坐标系：[x, y]（列, 行）。
  */
 export const tetrisPreview: GamePreview = [
   [3, 0],

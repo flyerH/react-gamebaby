@@ -1,4 +1,4 @@
-import type { Game } from './types';
+import type { AnyGame as Game } from './types';
 
 /**
  * 游戏注册表：只读快照 + O(1) id 查找

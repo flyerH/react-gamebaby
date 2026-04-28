@@ -13,7 +13,7 @@ export interface SidePanelProps {
  * SidePanel —— LCD 屏右侧的静态信息区
  *
  * 只显示分数 / 高分 / 等级 / 速度 + 指示灯。
- * 当前游戏的"编号 + 名字"不在这里以文字形式呈现——legacy 原机是把
+ * 当前游戏的"编号 + 名字"不在这里以文字形式呈现——真机是把
  * 当前游戏的代号用像素字打在主屏上的 preview 点阵里，我们沿用这种做法。
  */
 export function SidePanel({

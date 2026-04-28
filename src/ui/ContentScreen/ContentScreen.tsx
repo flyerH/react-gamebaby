@@ -5,9 +5,9 @@ import type { Screen } from '@/engine/types';
 export interface ContentScreenProps {
   /** L3 framebuffer：组件订阅其变化并重绘，不主动改 buffer */
   screen: Screen;
-  /** 单格总边长（CSS px），默认 19 —— 对应 legacy 的 block 尺寸 */
+  /** 单格总边长（CSS px），默认 19 —— 与真机 LCD 单格尺寸一致 */
   cellSize?: number;
-  /** 单格内部方块边长，默认 11 —— legacy :after 伪元素尺寸 */
+  /** 单格内部方块边长，默认 11 */
   innerSize?: number;
   /** 外框线宽，默认 2 */
   outerStroke?: number;
@@ -24,7 +24,7 @@ export interface ContentScreenProps {
 /**
  * ContentScreen —— 主点阵的 Canvas 2D 渲染器
  *
- * 复刻 legacy 的 LCD 阴影格像素风：每个格子都要画，点亮与熄灭只是颜色不同。
+ * LCD 阴影格像素风：每个格子都要画，点亮与熄灭只是颜色不同。
  * 单格构成：2px 外框 + 中心 11×11 方块，外围 cellSize=19。
  *
  * 订阅 L3 Screen 的变化后全量重绘（10×20 = 200 格，开销可忽略）。

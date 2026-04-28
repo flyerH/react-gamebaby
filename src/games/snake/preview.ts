@@ -3,9 +3,8 @@ import type { GamePreview } from '@/sdk';
 /**
  * Snake 菜单预览点阵（坐标 [x, y]）
  *
- * 上部一条横向弧形（抽象的蛇头），下部沿用 legacy 的 A01 标识点阵。
- * 原始数据来自 src/legacy/game/A01-snake/index.js 的 snakeMenu，
- * 从 legacy 的 [row, col] 翻转为 [x, y]。
+ * 上部一条横向弧形（抽象的蛇头），下部是 A01 的标识点阵。
+ * 坐标系：[x, y]（列, 行），与 L3 Screen.setPixel 约定一致。
  */
 export const snakePreview: GamePreview = [
   [4, 0],
