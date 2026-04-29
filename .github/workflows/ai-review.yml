@@ -1,0 +1,78 @@
+# PR 打开 / 新 commit push / 重新打开时，Claude 自动对 diff 做中文代码评审，并精修 PR body。
+#
+# 前置配置（一次性）：
+#   仓库 Settings → Secrets → Actions：
+#     · ANTHROPIC_API_KEY  —— 从 https://console.anthropic.com/ 取得
+#
+# 评审规范来自：
+#   - AGENTS.md （编码风格与协作规范）
+#   - docs/ARCHITECTURE.md （分层架构与确定性约束）
+# 两份文件改动时，评审标准自动跟进，无需改本 workflow。
+name: ai-review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# 同一 PR 新 commit 到来时，取消上一次未完成的评审
+concurrency:
+  group: ai-review-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # 跳过 Dependabot 等 bot PR，省 API 额度
+    if: github.event.pull_request.user.type != 'Bot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Claude code review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # 打开进度追踪评论（可视化 Claude 的审查步骤）
+          track_progress: true
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            你是 react-gamebaby 仓库的代码审查者。严格按照仓库内 AGENTS.md 与 docs/ARCHITECTURE.md 的规范做审查，评审语言统一使用中文。
+
+            ## 审查重点（按严重度降序）
+
+            1. **分层依赖**：L1 → L2 → L3 → L3.5 → L4 单向依赖是否被破坏；L3 engine 下是否出现 React / document / window / HTMLElement 等 DOM API 引用。
+            2. **确定性约束**：src/engine/ · src/sdk/ · src/games/ · src/ai/ 下是否出现 Math.random / Date.now / performance.now（L4 UI 装配层例外）；随机性必须走 ctx.rng，时间读取必须走 ctx.now。
+            3. **纯函数约束**：src/games/<name>/ 下 init / step / render 是否引入模块级可变状态或外部副作用。
+            4. **TypeScript 严格度**：any 禁用；readonly / Readonly<T> 的缺失；enum 是否被字面量联合替代；公共 API 是否显式标注类型。
+            5. **React 规范**：class 组件禁用；副作用（useEffect / 外部订阅）是否只出现在 L4；L1/L2/L3 是否 import 了任何 React API。
+            6. **命名与组织**：文件 / 目录 kebab-case、类型 PascalCase、测试放在源文件同级 __tests__/ 子目录。
+            7. **测试覆盖**：L1/L2/L3 的纯函数变更是否带测试；测试是否依赖真实时钟 / 真随机（应使用 vi.useFakeTimers + 固定 rng seed）。
+            8. **注释质量**：是否存在"解释 what 而非 why"的冗余注释；TODO/FIXME 是否带上下文。
+            9. **依赖选型**：是否引入了可用原生实现替代的库（Lodash / Moment / Ramda 等），或与 Zustand 冲突的状态管理方案。
+
+            ## 输出要求
+
+            - 用 `mcp__github_inline_comment__create_inline_comment` 把具体代码问题打成 **inline 评论**（必须附 `confirmed: true` 立即发布）。
+            - 用 `gh pr comment` 打 **一条** 顶层评论作为总结：分"✅ 符合规范"/"⚠️ 需要修复"/"💡 建议"三栏。
+            - **不要**把评审内容作为消息输出，只通过上述工具发布到 GitHub。
+            - 结束前用 `gh pr edit` 精修 PR body：保留 auto-pr 生成的 commit 列表，在最上方新增一段 2-4 句的中文摘要（核心变更 + 风险点 + 验证方式）。
+
+            ## 克制边界
+
+            - 忽略 src/legacy/ 下的代码（下个版本删除，无需评审）。
+            - 单 PR 评论不要超过 10 条；挑最高价值的问题说，而不是每一处都说。
+            - 符合规范的部分不必点赞，只在顶层总结里一笔带过。
+
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr edit:*)"
+            --max-turns 15

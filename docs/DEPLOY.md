@@ -6,6 +6,37 @@
 
 ---
 
+## 为什么是 "CI build + rsync dist"，而不是 "服务器 git pull + build"
+
+这两种方案可以达到相同效果，但服务器角色不同：
+
+| 维度           | CI build + rsync（本方案）               | 服务器 git pull + build                     |
+| -------------- | ---------------------------------------- | ------------------------------------------- |
+| 服务器依赖     | 只要 nginx + rsync + sshd                | 还要装 Node / pnpm / 全量 devDependencies   |
+| 构建环境一致性 | 强：CI 固定 Node 版本 + 依赖锁，产物稳定 | 弱：server node 版本漂移会产出不同 bundle   |
+| CPU / 内存占用 | 跑在 GitHub runner                       | 吃服务器资源，build 时可能影响线上响应      |
+| 构建失败影响   | CI 失败不影响线上（产物没推上去）        | 服务器上半拉构建可能留下残缺 `dist/`        |
+| 回滚           | 重新 push 旧 commit / revert 即触发      | 要 SSH 上去手动 checkout + rebuild          |
+| 部署时间       | 1–3 分钟（含测试）                       | 首次 `pnpm install` 后 ~30 秒，但带网络抖动 |
+
+结论：服务器只负责 serve 静态文件，构建 / 测试 / 打包一律放 CI。静态站的正确部署形态。
+
+### 从 git-pull 模式迁移（一次性）
+
+如果服务器上之前是 `git clone` + 定时 / 手动 `git pull && pnpm build` 的模式，按下面步骤切换：
+
+1. **停掉服务器上的旧部署任务**：cron job、systemd timer、或手动脚本，确保没有后台进程还在跑 `git pull`。
+2. **选定专属 web root**：建议 `/var/www/react-gamebaby/`。可以直接沿用现有 `dist/` 目录所在路径（保持 nginx 配置不变），也可以新建一个专门的。
+3. **清理该目录**：首次 rsync 会用 `--delete` 清掉目录里所有不在 CI 产物中的文件，可能会波及原 repo 下的 `.git` / `node_modules` / `src/`。为避免惊讶，手动先清空：
+   ```bash
+   sudo rm -rf /var/www/react-gamebaby/*
+   ```
+4. **保留服务器上那份 git clone 做别的用途（可选）**：如果之后还想在服务器本地调试，把 repo 挪到家目录 `~/react-gamebaby/`；让 web root 只装 dist 产物。
+5. **配好 GitHub secrets 与部署 SSH key**（见下文"一次性准备"）。
+6. **master push 一次或 Actions 页手动触发 `deploy` workflow**，验证成功后服务器原有页面被覆盖。
+
+---
+
 ## 整体流程
 
 ```
