@@ -9,6 +9,7 @@ import { toGameEnv } from '@/sdk';
 import { Buttons } from '@/ui/Buttons';
 import { ContentScreen } from '@/ui/ContentScreen';
 import { Device } from '@/ui/Device';
+import { defaultButtonLabels } from '@/ui/locale';
 import { SidePanel } from '@/ui/SidePanel';
 
 import {
@@ -159,6 +160,8 @@ function reduce(state: AppState, action: Action, deps: ReduceDeps): AppState {
 export function App(): React.ReactElement {
   const [ctx] = useState(() => createBrowserContext({ seed: 42 }));
   const registry = defaultGames;
+  // 按钮标签按浏览器首选语言一次性装配；语言切换需刷新页面，暂不支持运行时切换
+  const [buttonLabels] = useState(() => defaultButtonLabels());
   const env = useMemo<GameEnv>(() => toGameEnv(ctx), [ctx]);
   const anim = useMemo(
     () => createBootAnimation(ctx.screen.width, ctx.screen.height),
@@ -285,6 +288,7 @@ export function App(): React.ReactElement {
         }
         buttons={
           <Buttons
+            labels={buttonLabels}
             onInput={(btn, action) => {
               ctx.input.emit(btn, action);
             }}

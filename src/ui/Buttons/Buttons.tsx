@@ -1,6 +1,7 @@
 import { type PointerEvent as ReactPointerEvent, useCallback } from 'react';
 
 import type { Button, ButtonAction } from '@/engine/types';
+import { BUTTON_LABELS, type ButtonLabels } from '@/ui/locale';
 
 import styles from './Buttons.module.css';
 
@@ -13,6 +14,8 @@ export interface ButtonsProps {
    * "重复 press 去重 + release 必须配对" 语义才不会被 UI 破坏。
    */
   onInput?: (btn: Button, action: ButtonAction) => void;
+  /** 按键外围的文字标签；不传用英文 */
+  labels?: ButtonLabels;
 }
 
 /**
@@ -25,7 +28,10 @@ export interface ButtonsProps {
  * Rotate 按下时 emit 'Start'——与 Enter 键位一致，在菜单里是确认、
  * 在俄罗斯方块里是旋转。
  */
-export function Buttons({ onInput }: ButtonsProps): React.ReactElement {
+export function Buttons({
+  onInput,
+  labels = BUTTON_LABELS['en-US'],
+}: ButtonsProps): React.ReactElement {
   const makeHandlers = useCallback(
     (btn: Button) => ({
       onPointerDown: (e: ReactPointerEvent<HTMLButtonElement>): void => {
@@ -56,7 +62,7 @@ export function Buttons({ onInput }: ButtonsProps): React.ReactElement {
         className={`${styles.button} ${styles.topButton}`}
         {...makeHandlers('Up')}
       >
-        <p className={styles.buttonTip}>Top</p>
+        <p className={styles.buttonTip}>{labels.up}</p>
         <span className={styles.buttonDir} />
       </button>
 
@@ -66,7 +72,7 @@ export function Buttons({ onInput }: ButtonsProps): React.ReactElement {
         className={`${styles.button} ${styles.rightButton}`}
         {...makeHandlers('Right')}
       >
-        <p className={styles.buttonTip}>Right</p>
+        <p className={styles.buttonTip}>{labels.right}</p>
         <span className={styles.buttonDir} />
       </button>
 
@@ -76,7 +82,7 @@ export function Buttons({ onInput }: ButtonsProps): React.ReactElement {
         className={`${styles.button} ${styles.bottomButton}`}
         {...makeHandlers('Down')}
       >
-        <p className={styles.buttonTip}>Bottom</p>
+        <p className={styles.buttonTip}>{labels.down}</p>
         <span className={styles.buttonDir} />
       </button>
 
@@ -86,7 +92,7 @@ export function Buttons({ onInput }: ButtonsProps): React.ReactElement {
         className={`${styles.button} ${styles.leftButton}`}
         {...makeHandlers('Left')}
       >
-        <p className={styles.buttonTip}>Left</p>
+        <p className={styles.buttonTip}>{labels.left}</p>
         <span className={styles.buttonDir} />
       </button>
 
@@ -96,7 +102,7 @@ export function Buttons({ onInput }: ButtonsProps): React.ReactElement {
         className={styles.rotateButton}
         {...makeHandlers('Start')}
       >
-        <p className={styles.rotateTip}>Rotate</p>
+        <p className={styles.rotateTip}>{labels.rotate}</p>
         <span className={styles.rotateArrowLeft}>
           <span className={styles.rotateArrowBody} />
         </span>
