@@ -7,6 +7,10 @@ export interface SidePanelProps {
   speed?: number;
   /** 'select' 指示灯是否点亮（仅在选择态亮） */
   selectMode?: boolean;
+  /** 'pause' 指示灯是否点亮 */
+  pauseMode?: boolean;
+  /** 'sound' 指示灯是否点亮（反映 ctx.soundOn） */
+  soundOn?: boolean;
 }
 
 /**
@@ -22,6 +26,8 @@ export function SidePanel({
   level = 1,
   speed = 1,
   selectMode = false,
+  pauseMode = false,
+  soundOn = false,
 }: SidePanelProps): React.ReactElement {
   return (
     <div className={styles.panel}>
@@ -44,8 +50,8 @@ export function SidePanel({
 
       <div className={styles.indicators}>
         <p className={selectMode ? styles.indicatorOn : styles.indicatorOff}>SELECT</p>
-        <p className={styles.indicatorOff}>PAUSE</p>
-        <p className={styles.indicatorOff}>SOUND</p>
+        <p className={pauseMode ? styles.indicatorOn : styles.indicatorOff}>PAUSE</p>
+        <p className={soundOn ? styles.indicatorOn : styles.indicatorOff}>SOUND</p>
       </div>
     </div>
   );

@@ -27,12 +27,17 @@ export function init(env: GameEnv): SnakeState {
     pendingDir: 'right',
     food,
     over: false,
+    overFrame: 0,
     score: 0,
   };
 }
 
 export function step(env: GameEnv, state: SnakeState): SnakeState {
-  if (state.over) return state;
+  // 已结束：只推进 overFrame，供 render 做闪烁；必须返回新引用
+  // 否则 App 的 useEffect(state) 不会触发重画。
+  if (state.over) {
+    return { ...state, overFrame: state.overFrame + 1 };
+  }
   const head = state.body[0];
   if (!head) return state;
 
@@ -44,7 +49,7 @@ export function step(env: GameEnv, state: SnakeState): SnakeState {
   const { width, height } = env.screen;
   if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
     env.sound.play('over');
-    return { ...state, dir, over: true };
+    return { ...state, dir, over: true, overFrame: 0 };
   }
 
   const ate = nx === state.food[0] && ny === state.food[1];
@@ -57,7 +62,7 @@ export function step(env: GameEnv, state: SnakeState): SnakeState {
     const seg = newBody[i];
     if (seg && seg[0] === nx && seg[1] === ny) {
       env.sound.play('over');
-      return { ...state, dir, over: true };
+      return { ...state, dir, over: true, overFrame: 0 };
     }
   }
 
@@ -79,11 +84,19 @@ export function step(env: GameEnv, state: SnakeState): SnakeState {
   return { ...state, body: newBody, dir };
 }
 
-export function render(env: GameEnv, state: SnakeState): void {
-  const { screen } = env;
+export function render(_env: GameEnv, state: SnakeState): void {
+  const { screen } = _env;
   screen.clear();
+
+  // 结束态：按 overFrame 奇偶切换显隐，视觉上尸体闪烁
+  if (state.over && state.overFrame % 2 === 1) {
+    return;
+  }
+
   for (const [x, y] of state.body) screen.setPixel(x, y, true);
-  screen.setPixel(state.food[0], state.food[1], true);
+  if (!state.over) {
+    screen.setPixel(state.food[0], state.food[1], true);
+  }
 }
 
 export function onButton(

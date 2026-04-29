@@ -14,6 +14,11 @@ export interface SnakeState {
   readonly food: Pixel;
   /** 是否已死亡 */
   readonly over: boolean;
+  /**
+   * game over 后每 tick +1，作为尸体闪烁的相位。
+   * 未结束时恒为 0；App 层据此区分"结束态"来切 Ticker 到闪烁速度。
+   */
+  readonly overFrame: number;
   /** 本局分数 */
   readonly score: number;
 }

@@ -11,13 +11,14 @@ function makeEnv(width = 10, height = 20, seed = 42): GameEnv {
 }
 
 describe('snake · init', () => {
-  it('初始蛇长 3，朝右，score = 0，食物不压蛇身', () => {
+  it('初始蛇长 3，朝右，score = 0，overFrame = 0，食物不压蛇身', () => {
     const env = makeEnv();
     const s = init(env);
     expect(s.body).toHaveLength(3);
     expect(s.dir).toBe('right');
     expect(s.pendingDir).toBe('right');
     expect(s.over).toBe(false);
+    expect(s.overFrame).toBe(0);
     expect(s.score).toBe(0);
     for (const seg of s.body) {
       expect(seg).not.toEqual(s.food);
@@ -45,6 +46,7 @@ describe('snake · step（移动、吃食物、碰撞）', () => {
       pendingDir: 'right',
       food: [9, 0],
       over: false,
+      overFrame: 0,
       score: 0,
     };
     const s1 = step(env, s0);
@@ -66,6 +68,7 @@ describe('snake · step（移动、吃食物、碰撞）', () => {
       pendingDir: 'right',
       food: [5, 10],
       over: false,
+      overFrame: 0,
       score: 0,
     };
     const s1 = step(env, s0);
@@ -76,7 +79,7 @@ describe('snake · step（移动、吃食物、碰撞）', () => {
     expect(s1.food).not.toEqual([5, 10]);
   });
 
-  it('撞墙 → over', () => {
+  it('撞墙 → over，overFrame 清零', () => {
     const env = makeEnv(5, 5);
     const s0: SnakeState = {
       body: [[4, 2]],
@@ -84,9 +87,12 @@ describe('snake · step（移动、吃食物、碰撞）', () => {
       pendingDir: 'right',
       food: [0, 0],
       over: false,
+      overFrame: 0,
       score: 0,
     };
-    expect(step(env, s0).over).toBe(true);
+    const s1 = step(env, s0);
+    expect(s1.over).toBe(true);
+    expect(s1.overFrame).toBe(0);
   });
 
   it('撞自身 → over', () => {
@@ -103,6 +109,7 @@ describe('snake · step（移动、吃食物、碰撞）', () => {
       pendingDir: 'down',
       food: [0, 0],
       over: false,
+      overFrame: 0,
       score: 0,
     };
     expect(step(env, s0).over).toBe(true);
@@ -121,6 +128,7 @@ describe('snake · step（移动、吃食物、碰撞）', () => {
       pendingDir: 'right',
       food: [0, 0],
       over: false,
+      overFrame: 0,
       score: 0,
     };
     const s1 = step(env, s0);
@@ -128,7 +136,7 @@ describe('snake · step（移动、吃食物、碰撞）', () => {
     expect(s1.body[0]).toEqual([6, 10]);
   });
 
-  it('over 态下 step 幂等：返回同一 state 引用', () => {
+  it('over 态下 step 只推进 overFrame，其余不变', () => {
     const env = makeEnv();
     const s0: SnakeState = {
       body: [[0, 0]],
@@ -136,9 +144,16 @@ describe('snake · step（移动、吃食物、碰撞）', () => {
       pendingDir: 'right',
       food: [5, 5],
       over: true,
+      overFrame: 7,
       score: 3,
     };
-    expect(step(env, s0)).toBe(s0);
+    const s1 = step(env, s0);
+    // App 的 useEffect(state) 需要新引用才会重渲染，这里必须不等于原引用
+    expect(s1).not.toBe(s0);
+    expect(s1.overFrame).toBe(8);
+    expect(s1.body).toBe(s0.body);
+    expect(s1.score).toBe(3);
+    expect(s1.over).toBe(true);
   });
 });
 
@@ -152,6 +167,7 @@ describe('snake · onButton', () => {
     pendingDir: 'right',
     food: [0, 0],
     over: false,
+    overFrame: 0,
     score: 0,
   };
 

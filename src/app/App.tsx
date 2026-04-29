@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useReducer, useState, useSyncExternalStore } from 'react';
 
-import type { Button, ButtonAction } from '@/engine/types';
+import { createPersistentCounter } from '@/engine/counter';
+import type { Button, ButtonAction, Counter } from '@/engine/types';
 import { defaultGames } from '@/games';
 import { bindKeyboardInput, createBrowserContext } from '@/platform/browser';
 import type { Game, GameEnv, GameRegistry } from '@/sdk';
@@ -23,6 +24,9 @@ import { currentGame, initialMenuState, type MenuState, selectNext, selectPrev }
 
 /** 开机动画速度：约每秒 60 像素 */
 const BOOT_TICK_SPEED = 60;
+
+/** Game Over 闪烁速度：每秒 5 次 → 约 400ms 一个闪烁周期 */
+const GAME_OVER_BLINK_SPEED = 5;
 
 type Mode = 'boot' | 'select' | 'playing';
 
@@ -117,9 +121,18 @@ function reduce(state: AppState, action: Action, deps: ReduceDeps): AppState {
     return state;
   }
 
-  // playing：先给游戏处理按键，再考虑退出键
+  // playing：game over 下 Start 重开当前局；否则先给游戏处理按键，再考虑退出键
   if (state.playingId) {
     const game = registry.get(state.playingId);
+    if (
+      kind === 'press' &&
+      button === 'Start' &&
+      game &&
+      isPlayable(game) &&
+      game.isGameOver?.(state.gameState)
+    ) {
+      return { ...state, gameState: game.init(env) };
+    }
     if (game?.onButton) {
       const next = game.onButton(env, state.gameState, button, kind);
       if (next !== state.gameState) {
@@ -161,13 +174,21 @@ export function App(): React.ReactElement {
   useEffect(() => {
     const unbind = bindKeyboardInput(ctx.input);
     const unsub = ctx.input.subscribe((button, kind) => {
+      // Sound 按键在外层拦截：属于"平台设置"范畴，不走游戏 reducer
+      // 也不进入 playing 态的 onButton，避免游戏误消费
+      if (kind === 'press' && button === 'Sound') {
+        const next = !ctx.soundOn.value;
+        ctx.soundOn.set(next);
+        ctx.sound.setEnabled(next);
+        return;
+      }
       dispatch({ type: 'INPUT', button, kind });
     });
     return () => {
       unsub();
       unbind();
     };
-  }, [ctx.input]);
+  }, [ctx]);
 
   useEffect(() => {
     ctx.ticker.start(() => {
@@ -178,15 +199,16 @@ export function App(): React.ReactElement {
     };
   }, [ctx.ticker]);
 
-  // ticker 速度跟着 mode / 当前游戏走
+  // ticker 速度跟着 mode / 当前游戏 / 是否 game over 走
   useEffect(() => {
     if (state.mode === 'playing' && state.playingId) {
       const game = registry.get(state.playingId);
-      ctx.ticker.setSpeed(game?.tickSpeed ?? BOOT_TICK_SPEED);
+      const isOver = game?.isGameOver?.(state.gameState) ?? false;
+      ctx.ticker.setSpeed(isOver ? GAME_OVER_BLINK_SPEED : (game?.tickSpeed ?? BOOT_TICK_SPEED));
     } else {
       ctx.ticker.setSpeed(BOOT_TICK_SPEED);
     }
-  }, [state.mode, state.playingId, ctx.ticker, registry]);
+  }, [state.mode, state.playingId, state.gameState, ctx.ticker, registry]);
 
   // 屏幕渲染
   useEffect(() => {
@@ -221,11 +243,46 @@ export function App(): React.ReactElement {
     () => ctx.score.value
   );
 
+  // 每款游戏各自一条 hi-score：key 形如 hi-score:snake，随 playingId 切换重建。
+  // 非 playing 态（boot/select）固定拿选中预览那款的，让菜单里也能看到纪录。
+  const hiScoreGameId =
+    state.mode === 'playing' ? state.playingId : (currentGame(registry, state.menu)?.id ?? null);
+  const hiCounter = useMemo<Counter | null>(
+    () =>
+      hiScoreGameId ? createPersistentCounter(ctx.storage, `hi-score:${hiScoreGameId}`, 0) : null,
+    [ctx.storage, hiScoreGameId]
+  );
+  const hiSubscribe = useMemo<(n: () => void) => () => void>(
+    () => (notify) => hiCounter?.subscribe(notify) ?? (() => undefined),
+    [hiCounter]
+  );
+  const hiGetSnapshot = useMemo<() => number>(() => () => hiCounter?.value ?? 0, [hiCounter]);
+  const hiScore = useSyncExternalStore(hiSubscribe, hiGetSnapshot);
+
+  const soundOn = useSyncExternalStore(
+    useMemo(() => (notify: () => void) => ctx.soundOn.subscribe(notify), [ctx.soundOn]),
+    useMemo(() => () => ctx.soundOn.value, [ctx.soundOn])
+  );
+
+  // 本局分数超越 hi-score 时推进。用 ref 式同步调用是安全的：
+  // createCounter.set 在值未变时不通知，不会反向触发 score 订阅造成循环。
+  useEffect(() => {
+    if (state.mode !== 'playing' || !hiCounter) return;
+    if (score > hiCounter.value) hiCounter.set(score);
+  }, [score, state.mode, hiCounter]);
+
   return (
     <div className={styles.page}>
       <Device
         screen={<ContentScreen screen={ctx.screen} />}
-        side={<SidePanel score={score} selectMode={state.mode === 'select'} />}
+        side={
+          <SidePanel
+            score={score}
+            hiScore={hiScore}
+            selectMode={state.mode === 'select'}
+            soundOn={soundOn}
+          />
+        }
         buttons={
           <Buttons
             onInput={(btn, action) => {
