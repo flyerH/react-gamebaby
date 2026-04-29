@@ -63,21 +63,31 @@ web server（nginx 等）直接 serve $DEPLOY_PATH
 
 ### 1. 服务器侧
 
-1. 选定项目专属目录（避免 rsync `--delete` 误删其他文件），并确保 SSH 用户对该目录有读写权限：
+1. **创建专用部署用户**（不要用 root，也不要和你日常运维账号混用）。专用用户即使私钥泄露，攻击面也只有 web root 这一个目录：
+
+   ```bash
+   sudo useradd -m -s /bin/bash deploy
+   #    -m 创建家目录 /home/deploy，-s 指定登录 shell（部署流程本身不需要 shell，
+   #    但保留 bash 方便你人工 ssh 调试；要极简可改 /usr/sbin/nologin）
+   #    这个用户不给 sudo，部署所需能力就是 ssh + 写 web root，够了
+   ```
+
+2. 选定项目专属 web root（避免 rsync `--delete` 误删其他文件），并把 owner 设给刚创建的 deploy 用户：
 
    ```bash
    sudo mkdir -p /var/www/react-gamebaby
-   sudo chown -R "$USER":"$USER" /var/www/react-gamebaby
+   sudo chown -R deploy:deploy /var/www/react-gamebaby
+   #    nginx 以 www-data 运行，对 755 目录有读权限，不用额外加组
    ```
 
-2. 确保服务器安装了 `rsync` 与 `openssh-server`：
+3. 确保服务器安装了 `rsync` 与 `openssh-server`：
 
    ```bash
    # Debian/Ubuntu
    sudo apt-get install -y rsync openssh-server
    ```
 
-3. 配置 web server 指向 `/var/www/react-gamebaby`（以 nginx 为例）：
+4. 配置 web server 指向 `/var/www/react-gamebaby`（以 nginx 为例）：
 
    ```nginx
    server {
@@ -103,14 +113,25 @@ web server（nginx 等）直接 serve $DEPLOY_PATH
 ssh-keygen -t ed25519 -f ~/.ssh/react-gamebaby-deploy -C 'react-gamebaby deploy' -N ''
 ```
 
-- 公钥 `~/.ssh/react-gamebaby-deploy.pub` 的内容追加到服务器的 `~/.ssh/authorized_keys`（对应上面 `SSH_USER` 用户）：
+- 公钥 `~/.ssh/react-gamebaby-deploy.pub` 的内容追加到服务器上 `deploy` 用户的 `~/.ssh/authorized_keys`：
 
   ```bash
-  ssh-copy-id -i ~/.ssh/react-gamebaby-deploy.pub user@host
-  # 或手动：cat ~/.ssh/react-gamebaby-deploy.pub | ssh user@host 'cat >> ~/.ssh/authorized_keys'
+  ssh-copy-id -i ~/.ssh/react-gamebaby-deploy.pub deploy@host
+  # 或手动：cat ~/.ssh/react-gamebaby-deploy.pub | ssh deploy@host 'mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys'
   ```
 
 - 私钥 `~/.ssh/react-gamebaby-deploy` 的完整内容（包括 `-----BEGIN ... KEY-----` 和 `-----END ... KEY-----`）填到下面 `SSH_PRIVATE_KEY` secret。
+
+- 如果公钥加到了错误的服务器 / 错误的用户，登上去按 comment 精确删除即可（`ssh-keygen -C 'react-gamebaby deploy'` 写进公钥的 comment 就是为这种场景准备的）：
+
+  ```bash
+  # 先看一眼确认要删的是哪一行
+  grep 'react-gamebaby deploy' ~/.ssh/authorized_keys
+  # 精确删除，sed -i.bak 会先备份一份以防误删
+  sed -i.bak '/react-gamebaby deploy/d' ~/.ssh/authorized_keys
+  ```
+
+  然后另开一个终端窗口用 `ssh -i ~/.ssh/react-gamebaby-deploy deploy@wrong-host` 验证被拒后，再删 `.bak`。
 
 ### 3. GitHub Secrets
 

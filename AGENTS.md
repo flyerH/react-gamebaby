@@ -37,6 +37,8 @@ pre-commit 钩子会自动对 staged 文件跑 `eslint --fix` + `prettier --writ
 - 不提交 `console.log` / `debugger` / 死代码 / 被注释掉的旧实现
 - AI 助手不得主动 `git push` 或执行 `gh pr create` / `gh pr edit` 等对远端产生可见变更的动作；**推送 / 开 PR / 改远端 PR 只能在用户明确指令后执行**
 - `gh` CLI 已纳入项目工具链；AI 处理 PR 相关操作（提 / 关 / 改 body / 评论）一律走 `gh`，不让用户手动点链接
+- **AI 每次 `git commit` 前必须先把拟用的 commit message（标题 + body）完整展示给用户确认**，用户点头再真正 commit；用户可以在确认前要求改措辞 / 拆分 / 合并
+- **AI 每次 `gh pr create` / `gh pr edit` 后必须在回复里输出 PR 链接**（形如 `https://github.com/<owner>/<repo>/pull/<n>`），方便用户直接跳转
 
 ## AI 协作流程
 
