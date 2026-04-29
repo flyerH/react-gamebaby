@@ -1,0 +1,23 @@
+# Gemini Code Assist for GitHub 配置
+# Schema: https://developers.google.com/gemini-code-assist/docs/customize-gemini-behavior-github
+#
+# 本文件只配 Gemini 行为偏好；项目规范正文放在同目录的 styleguide.md。
+
+have_fun: false
+
+ignore_patterns:
+  - 'src/legacy/**'
+  - 'dist/**'
+  - 'pnpm-lock.yaml'
+  - '**/*.lock'
+
+code_review:
+  disable: false
+  # 只报告中等以上严重度的问题，减少噪声
+  comment_severity_threshold: MEDIUM
+  max_review_comments: 15
+  pull_request_opened:
+    help: false
+    summary: true
+    code_review: true
+    include_drafts: false
