@@ -158,7 +158,10 @@ function reduce(state: AppState, action: Action, deps: ReduceDeps): AppState {
  * 屏幕重绘。其余状态流转都走 useReducer + pure reduce()。
  */
 export function App(): React.ReactElement {
-  const [ctx] = useState(() => createBrowserContext({ seed: 42 }));
+  // 真机每次开机都是新局面：seed 用时间戳即可，mulberry32 入口会自动截成 u32。
+  // AGENTS.md 的确定性约束只针对 engine/sdk/games/ai，L4 UI 层负责装配，
+  // 可以读非确定性源；需要重现的训练 / 测试走 createHeadlessContext({ seed })。
+  const [ctx] = useState(() => createBrowserContext({ seed: Date.now() }));
   const registry = defaultGames;
   // 按钮标签按浏览器首选语言一次性装配；语言切换需刷新页面，暂不支持运行时切换
   const [buttonLabels] = useState(() => defaultButtonLabels());
