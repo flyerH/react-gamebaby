@@ -1,0 +1,81 @@
+# master push 触发：构建静态产物后通过 rsync 同步到目标 VPS。
+#
+# 所需 secrets（在 GitHub 仓库 Settings → Secrets and variables → Actions 配置）：
+#   SSH_PRIVATE_KEY  —— 部署用私钥（PEM 格式，公钥需提前写入服务器 ~/.ssh/authorized_keys）
+#   SSH_HOST         —— 服务器主机名或 IP
+#   SSH_USER         —— SSH 用户名
+#   SSH_PORT         —— SSH 端口（可选；未配置时默认 22）
+#   DEPLOY_PATH      —— 服务器上项目 web root 的绝对路径（例如 /var/www/react-gamebaby）
+#
+# 详见 docs/DEPLOY.md。
+name: deploy
+
+on:
+  push:
+    branches: [master]
+  # 允许从 Actions 页面手动触发一次（例如回滚后重新部署）
+  workflow_dispatch:
+
+# 同一 ref 重复 push 时，取消前一个正在跑的部署，避免产物竞争
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        # 版本由 package.json 的 packageManager 字段决定，这里不再重复声明
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm test -- --run
+
+      - name: Build
+        run: pnpm build
+
+      - name: Load SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known_hosts
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          port="${SSH_PORT:-22}"
+          ssh-keyscan -p "$port" "$SSH_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Rsync dist to server
+        # -a 归档模式；-z 传输压缩；--delete 清除目标上已不存在的旧文件；
+        # 末尾 dist/ 的斜杠很关键：表示同步"目录内容"而非"目录本身"
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          port="${SSH_PORT:-22}"
+          rsync -avz --delete \
+            -e "ssh -p $port" \
+            dist/ \
+            "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
