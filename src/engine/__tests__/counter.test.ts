@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createCounter, createToggle } from '../counter';
+import { createCounter, createPersistentCounter, createToggle } from '../counter';
+import { createMemoryStorage } from '../storage';
 
 describe('createCounter', () => {
   it('初始值默认为 0', () => {
@@ -49,6 +50,40 @@ describe('createCounter', () => {
     c.set(1);
     expect(a).toHaveBeenCalledWith(1);
     expect(b).toHaveBeenCalledWith(1);
+  });
+});
+
+describe('createPersistentCounter', () => {
+  it('storage 有值时以 storage 为准，忽略 initial', () => {
+    const storage = createMemoryStorage();
+    storage.set('k', 42);
+    const c = createPersistentCounter(storage, 'k', 0);
+    expect(c.value).toBe(42);
+  });
+
+  it('storage 无值时落到 initial，并把 initial 写回', () => {
+    const storage = createMemoryStorage();
+    const c = createPersistentCounter(storage, 'k', 7);
+    expect(c.value).toBe(7);
+    expect(storage.get<number>('k')).toBe(7);
+  });
+
+  it('set / add 变更后写回 storage', () => {
+    const storage = createMemoryStorage();
+    const c = createPersistentCounter(storage, 'k', 0);
+    c.set(10);
+    expect(storage.get<number>('k')).toBe(10);
+    c.add(5);
+    expect(storage.get<number>('k')).toBe(15);
+  });
+
+  it('值未变化不重复写 storage', () => {
+    const storage = createMemoryStorage();
+    const setSpy = vi.spyOn(storage, 'set');
+    const c = createPersistentCounter(storage, 'k', 0);
+    setSpy.mockClear();
+    c.set(0);
+    expect(setSpy).not.toHaveBeenCalled();
   });
 });
 

@@ -2,10 +2,10 @@ import { createCounter, createToggle } from '@/engine/counter';
 import { createInputBus } from '@/engine/input';
 import { mulberry32 } from '@/engine/rng';
 import { createScreen } from '@/engine/screen';
-import { createNullSound } from '@/engine/sound';
-import { createMemoryStorage } from '@/engine/storage';
 import type { HardwareContext } from '@/engine/types';
 
+import { createBrowserSound } from './sound';
+import { createLocalStorage } from './storage';
 import { createRealtimeTicker } from './ticker';
 
 /** createBrowserContext 的可选参数 */
@@ -43,8 +43,8 @@ export function createBrowserContext(opts: BrowserContextOptions): HardwareConte
     screen: createScreen(width, height),
     ticker,
     input: createInputBus(),
-    sound: createNullSound(),
-    storage: createMemoryStorage(),
+    sound: createBrowserSound(),
+    storage: createLocalStorage(),
 
     score: createCounter(0),
     level: createCounter(0),
