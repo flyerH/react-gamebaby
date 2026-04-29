@@ -26,10 +26,18 @@
   box-shadow: 0 3px 3px rgba(0, 0, 0, 0.2);
   padding: 0;
   cursor: pointer;
+  /* 按下 / 松开有颜色与阴影过渡；transform 不带过渡，保持"点击即下压"的紧凑感 */
+  transition:
+    background-color 80ms ease-out,
+    box-shadow 80ms ease-out;
 }
 
 .button:active {
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
+  /* 色深：近似 rgb(168,12,55) 的 85% 亮度 */
+  background-color: rgb(143, 10, 47);
+  /* 下压：整体下移 2px，同时阴影变浅，视觉上像"被按进去" */
+  transform: translateY(2px);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
 }
 
 .buttonTip {
@@ -130,10 +138,16 @@
   box-shadow: 0 3px 3px rgba(0, 0, 0, 0.2);
   padding: 0;
   cursor: pointer;
+  transition:
+    background-color 80ms ease-out,
+    box-shadow 80ms ease-out;
 }
 
+/* :active 必须保留 rotateZ(60deg)，否则按下瞬间按钮会回正 */
 .rotateButton:active {
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
+  background-color: rgb(143, 10, 47);
+  transform: rotateZ(60deg) translateY(2px);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
 }
 
 .rotateTip {
