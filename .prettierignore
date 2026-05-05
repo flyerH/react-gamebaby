@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+.pnpm-store
+pnpm-lock.yaml
+
+# 二进制资源
+*.svg
+*.png
+*.jpg
+*.ico

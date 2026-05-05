@@ -1,0 +1,49 @@
+# CodeRabbit 代码评审配置
+# Schema: https://storage.googleapis.com/coderabbit_public_assets/schema.v2.json
+#
+# 项目规范来自仓库内 AGENTS.md 与 docs/ARCHITECTURE.md，CodeRabbit 会自动读取这两份文件。
+# 本文件只配与项目无关的 CodeRabbit 行为偏好。
+
+language: zh-CN
+tone_instructions: 语气简洁务实，只报告中等及以上严重度的问题，避免夸赞与套话。
+
+reviews:
+  profile: chill
+  poem: false
+  high_level_summary: true
+  sequence_diagrams: false
+
+  # 迁移版本遗留代码（下个版本删）与构建产物无需评审
+  path_filters:
+    - '!src/legacy/**'
+    - '!dist/**'
+    - '!**/*.lock'
+    - '!pnpm-lock.yaml'
+
+  path_instructions:
+    - path: 'src/engine/**'
+      instructions: |
+        L3 Engine 层，严格 DOM-agnostic。禁止出现 React / document / window / HTMLElement 等 DOM 引用。
+        禁止 Math.random / Date.now / performance.now，随机性走 ctx.rng，时间读取走 ctx.now。
+    - path: 'src/games/**'
+      instructions: |
+        L1 游戏层。init / step / render 必须是纯函数，除 ctx 参数外不得有外部副作用或模块级可变状态。
+        确定性约束同 engine。
+    - path: 'src/sdk/**'
+      instructions: |
+        L2 SDK 层。依赖方向 L2 → L3 单向，不得反向依赖 engine 之外的层。
+    - path: 'src/**/*.{ts,tsx}'
+      instructions: |
+        TypeScript 严格模式：禁用 any（用 unknown + 收窄）；优先 readonly 数组与 Readonly<T>；
+        用字面量联合代替 enum；公共 export 必须显式标注类型；禁用 class 组件。
+    - path: 'src/**/__tests__/**'
+      instructions: |
+        测试必须确定性：vi.useFakeTimers + 固定 ctx.rng seed，禁止依赖真实时钟或真随机。
+
+  auto_review:
+    enabled: true
+    drafts: false
+    auto_incremental_review: true
+
+chat:
+  auto_reply: true

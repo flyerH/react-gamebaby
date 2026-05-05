@@ -1,0 +1,93 @@
+/* 掌机外壳与机身
+ * 视觉参考：Brick Game 9999-in-1 真机外壳
+ *
+ * 比例适配：原机是固定尺寸，本实现通过 --device-scale
+ * （由 Device.tsx 中 resize 监听设置）对整机做等比缩放，
+ * 保持 650×950 的固定内部坐标系不变。
+ */
+
+.wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.app {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  margin-left: -325px;
+  margin-top: -475px;
+  display: flex;
+  align-items: center;
+  width: 650px;
+  border-radius: 20px 20px 0 0;
+  box-shadow: inset 0 0 15px 2px #92d3f9;
+  background-color: #4a94c1;
+  transform: scale(var(--device-scale, 1));
+  transform-origin: center center;
+}
+
+.content {
+  width: 650px;
+  height: 950px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.contentTop {
+  padding: 0 10px;
+  text-align: center;
+}
+
+.title {
+  margin: 20px 0 15px;
+  font-size: 28px;
+  text-align: center;
+}
+
+/* 屏幕外框：白色粗边 */
+.screenFrame {
+  width: 490px;
+  display: inline-block;
+  border: 7px solid #fff;
+  padding: 20px;
+}
+
+/* 屏幕内框：3D 蓝色凹陷感（上左深、下右浅） */
+.screenInner3d {
+  border: 8px solid;
+  border-color: #316a8e #5fa0c8 #5fa0c8 #316a8e;
+}
+
+/* LCD 黄绿色底色容器 */
+.screen {
+  background-color: rgb(191, 202, 165);
+  box-shadow: 0 0 0 #4a94c1 inset;
+  border: 1px solid rgba(0, 0, 0, 0.6);
+  display: flex;
+  text-align: left;
+  padding: 10px;
+}
+
+.screenLeft {
+  border: 2px solid #000;
+  padding: 3px;
+  display: flex;
+}
+
+.screenRight {
+  flex: 1;
+  padding-left: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.contentBottom {
+  margin: 20px 20px auto;
+  flex: 1;
+  position: relative;
+}

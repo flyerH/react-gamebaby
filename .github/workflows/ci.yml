@@ -1,0 +1,51 @@
+# PR opened / 新 commit 到分支时跑基础 CI 检查：lint + test + build。
+#
+# 设计要点：
+#   - 单 job 串行跑完（项目测试 < 10s，不需要按 shard 并行）
+#   - pnpm build 内已含 tsc --noEmit（见 package.json），无需单独 typecheck 步骤
+#   - Node 版本锁定 .nvmrc，pnpm 版本锁定 package.json 的 packageManager 字段
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+# 同一分支新 commit 到来时，取消上一次未完成的跑，节省 Actions 额度
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build

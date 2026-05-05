@@ -1,57 +1,79 @@
 {
   "name": "react-gamebaby",
-  "version": "1.0.0",
-  "description": "用React编写的游戏机",
-  "main": "index.js",
-  "scripts": {
-    "start": "webpack-dev-server --config ./config/webpack.dev.conf.js  --inline --colors --progress",
-    "build": "rimraf ./dist/* && webpack --config ./config/webpack.prod.conf.js",
-    "dev": "yarn run start"
-  },
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "A Brick Game 9999-in-1 emulator built with React, and a reference implementation of end-to-end AI-assisted engineering practices.",
   "keywords": [
-    "贪吃蛇",
-    "React"
+    "brick-game",
+    "retro",
+    "emulator",
+    "react",
+    "typescript",
+    "reinforcement-learning",
+    "ai-engineering"
   ],
-  "author": "flyerH",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/flyerH/react-gamebaby.git"
+  },
   "bugs": {
     "url": "https://github.com/flyerH/react-gamebaby/issues"
   },
   "homepage": "https://github.com/flyerH/react-gamebaby#readme",
-  "devDependencies": {
-    "@babel/core": "^7.1.2",
-    "@babel/preset-env": "^7.1.0",
-    "@babel/preset-react": "^7.0.0",
-    "autoprefixer": "^9.2.1",
-    "babel-loader": "^8.0.4",
-    "css-loader": "^1.0.0",
-    "eslint": "^5.7.0",
-    "eslint-config-airbnb": "^17.1.0",
-    "eslint-loader": "^2.1.1",
-    "eslint-plugin-import": "^2.7.0",
-    "eslint-plugin-jsx-a11y": "^6.0.2",
-    "eslint-plugin-react": "^7.1.0",
-    "html-webpack-plugin": "^3.2.0",
-    "postcss-loader": "^3.0.0",
-    "precss": "^3.1.2",
-    "redux-devtools": "^3.4.0",
-    "style-loader": "^0.23.1",
-    "webpack": "^4.20.2",
-    "webpack-cli": "^3.1.2",
-    "webpack-dev-server": "^3.1.11",
-    "webpack-merge": "^4.1.0"
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "test": "vitest run",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "src/**/*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
   },
   "dependencies": {
-    "immutable": "^4.0.0-rc.12",
-    "intl": "^1.2.5",
-    "prop-types": "^15.5.10",
-    "react": "16.6.3",
-    "react-dom": "16.6.3",
-    "react-hot-loader": "^4.3.11",
-    "react-immutable-proptypes": "^2.1.0",
-    "react-intl": "^2.7.2",
-    "react-redux": "^5.0.6",
-    "redux": "^4.0.1",
-    "redux-immutable": "^4.0.0"
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/ui": "^4.1.5",
+    "eslint": "^9.0.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.5.0",
+    "husky": "^9.1.7",
+    "jsdom": "^29.0.2",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.8.3",
+    "sass": "^1.99.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.0",
+    "vite": "^8.0.10",
+    "vitest": "^4.1.5"
+  },
+  "engines": {
+    "node": ">=20.19.0",
+    "pnpm": ">=10.0.0"
+  },
+  "packageManager": "pnpm@10.33.2+sha512.a90faf6feeab71ad6c6e57f94e0fe1a12f5dcc22cd754db40ae9593eb6a3e0b6b12e3540218bb37ae083404b1f2ce6db2a4121e979829b4aff94b99f49da1cf8",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@parcel/watcher"
+    ]
   }
 }

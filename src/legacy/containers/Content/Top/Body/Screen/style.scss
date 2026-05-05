@@ -1,0 +1,51 @@
+.screen {
+  height: 100%;
+  background-color: rgb(191, 202, 165);
+  box-shadow: 0 0 0 #4a94c1 inset;
+  border: 1px solid rgba(0, 0, 0, 0.6);
+  display: flex;
+  text-align: left;
+  padding: 10px;
+  .left {
+    border: 2px solid black;
+    padding: 3px;
+    & > div:last-child {
+      margin-bottom: 0;
+    }
+  }
+  .right {
+    flex: 1;
+  }
+}
+
+.outBlock {
+  height: 19px;
+  margin-bottom: 3px;
+  & > div:first-child {
+    margin-left: 0;
+  }
+}
+
+.block{
+  width: 19px;
+  height: 19px;
+  border: 2px solid rgba(0, 0, 0, 0.3);
+  padding: 2px;
+  display: inline-block;
+  margin-left: 2px;
+  &:after{
+    content: '';
+    display: block;
+    width: 11px;
+    height: 11px;
+    background-color: rgba(0, 0, 0, 0.3);
+  }
+}
+
+.blockBlack{
+  @extend .block;
+  border-color: black;
+  &:after{
+    background-color: black;
+  }
+}

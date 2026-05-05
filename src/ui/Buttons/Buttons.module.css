@@ -1,0 +1,218 @@
+/* 按键区
+ * 复刻 Brick Game 真机按键区
+ *
+ * 设计要点：
+ * - 每个方向按钮是 80×80 红色圆盘，绝对定位在各自坐标
+ * - buttonTip / buttonDir 是按钮的子元素，但用绝对定位落到按钮 *外* 围
+ *   · 4 个 dir（箭头）汇聚到中心，分别指向自己的按钮 → 中心十字
+ *   · 4 个 tip 文字标签绕按钮外侧一圈
+ * - Rotate 是 220×90 椭圆、整体 rotateZ(60deg)，内附两道弯箭头
+ */
+
+.contentBottom {
+  position: relative;
+  height: 300px;
+}
+
+/* ===== 方向键共享样式 ===== */
+
+.button {
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  background-color: rgb(168, 12, 55);
+  border: 1px solid #000;
+  border-radius: 50%;
+  box-shadow: 0 3px 3px rgba(0, 0, 0, 0.2);
+  padding: 0;
+  cursor: pointer;
+  /* 按下 / 松开有颜色与阴影过渡；transform 不带过渡，保持"点击即下压"的紧凑感 */
+  transition:
+    background-color 80ms ease-out,
+    box-shadow 80ms ease-out;
+}
+
+.button:active {
+  /* 色深：近似 rgb(168,12,55) 的 85% 亮度 */
+  background-color: rgb(143, 10, 47);
+  /* 下压：整体下移 2px，同时阴影变浅，视觉上像"被按进去" */
+  transform: translateY(2px);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+}
+
+.buttonTip {
+  position: absolute;
+  width: 80px;
+  text-align: center;
+  margin: 0;
+  font-size: 14px;
+  color: #000;
+  pointer-events: none;
+}
+
+.buttonDir {
+  width: 0;
+  height: 0;
+  position: absolute;
+  pointer-events: none;
+}
+
+/* ===== Top 按钮 ===== */
+.topButton {
+  top: 20px;
+  left: 102px;
+}
+.topButton .buttonTip {
+  top: 15px;
+  left: 85px;
+  text-align: left;
+}
+.topButton .buttonDir {
+  top: 90px;
+  left: 30px;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-bottom: 15px solid #000;
+}
+
+/* ===== Right 按钮 ===== */
+.rightButton {
+  top: 90px;
+  left: 177px;
+}
+.rightButton .buttonTip {
+  top: 85px;
+}
+.rightButton .buttonDir {
+  top: 35px;
+  left: -25px;
+  border-top: 10px solid transparent;
+  border-bottom: 10px solid transparent;
+  border-left: 15px solid #000;
+}
+
+/* ===== Bottom 按钮 ===== */
+.bottomButton {
+  top: 167px;
+  left: 103px;
+}
+.bottomButton .buttonTip {
+  top: 80px;
+}
+.bottomButton .buttonDir {
+  top: -23px;
+  left: 29px;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-top: 15px solid #000;
+}
+
+/* ===== Left 按钮 ===== */
+.leftButton {
+  top: 90px;
+  left: 27px;
+}
+.leftButton .buttonTip {
+  top: 85px;
+}
+.leftButton .buttonDir {
+  top: 35px;
+  left: 90px;
+  border-top: 10px solid transparent;
+  border-right: 15px solid #000;
+  border-bottom: 10px solid transparent;
+}
+
+/* ===== Rotate 椭圆按钮 ===== */
+
+.rotateButton {
+  position: absolute;
+  width: 220px;
+  height: 90px;
+  transform: rotateZ(60deg);
+  top: 90px;
+  right: 60px;
+  background-color: rgb(168, 12, 55);
+  border: 1px solid #000;
+  border-radius: 30% / 70%;
+  box-shadow: 0 3px 3px rgba(0, 0, 0, 0.2);
+  padding: 0;
+  cursor: pointer;
+  transition:
+    background-color 80ms ease-out,
+    box-shadow 80ms ease-out;
+}
+
+/* :active 必须保留 rotateZ(60deg)，否则按下瞬间按钮会回正 */
+.rotateButton:active {
+  background-color: rgb(143, 10, 47);
+  transform: rotateZ(60deg) translateY(2px);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+}
+
+.rotateTip {
+  position: absolute;
+  left: 50px;
+  top: -45px;
+  transform: rotateZ(-95deg);
+  display: inline-block;
+  writing-mode: vertical-lr;
+  margin: 0;
+  font-size: 14px;
+  color: #000;
+  pointer-events: none;
+}
+
+/* 两道弯箭头：用椭圆边 + 三角形组合而成 */
+
+.rotateArrowLeft,
+.rotateArrowRight {
+  position: absolute;
+  pointer-events: none;
+}
+
+.rotateArrowLeft {
+  top: 90px;
+  left: 20px;
+  transform: rotateZ(0deg);
+}
+
+.rotateArrowRight {
+  top: -10px;
+  left: 180px;
+  transform: rotateZ(185deg);
+}
+
+/* 箭头尖（黑色三角），::before 由 rotate 主元素提供 */
+.rotateArrowLeft::before,
+.rotateArrowRight::before {
+  content: '';
+  position: absolute;
+  transform: rotateZ(90deg);
+  border-width: 15px 9px;
+  border-color: transparent transparent #000 transparent;
+  border-style: solid;
+}
+
+/* 箭头的弧线主体：椭圆 border 裁掉一半 */
+.rotateArrowBody {
+  width: 45px;
+  height: 35px;
+  display: inline-block;
+  position: absolute;
+  overflow: hidden;
+  left: -50px;
+  top: -7px;
+  transform: rotateZ(7deg);
+}
+
+.rotateArrowBody::before {
+  content: '';
+  position: absolute;
+  border-radius: 40px / 25px;
+  border: 4px solid #000;
+  height: 44px;
+  width: 70px;
+  left: 10px;
+  top: -30px;
+}

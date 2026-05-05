@@ -1,0 +1,11 @@
+/**
+ * L2 Game SDK —— 游戏开发者对外入口
+ *
+ * 当前只暴露 Game 类型与 Registry 工厂，后续扩展 GameEnv /
+ * draw helpers 等也从本文件 re-export。
+ */
+
+export type { AnyGame, Game, GameEnv, GamePreview, Pixel } from './types';
+export { toGameEnv } from './env';
+export { createRegistry } from './registry';
+export type { GameRegistry } from './registry';
