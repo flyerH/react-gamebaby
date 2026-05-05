@@ -26,8 +26,13 @@ import { currentGame, initialMenuState, type MenuState, selectNext, selectPrev }
 /** 开机动画速度：约每秒 60 像素 */
 const BOOT_TICK_SPEED = 60;
 
-/** Game Over 闪烁速度：每秒 5 次 → 约 400ms 一个闪烁周期 */
-const GAME_OVER_BLINK_SPEED = 5;
+/**
+ * Game Over 死亡动画速度：每秒 30 帧。
+ *
+ * 当前接入的是 Snake 的两阶段动画（爆炸 30 帧 + 填屏 20 帧 ≈ 1.7s），
+ * 每帧推进 1 个 overFrame。继续上调到 40+ 会显得仓促。
+ */
+const GAME_OVER_ANIM_SPEED = 30;
 
 type Mode = 'boot' | 'select' | 'playing';
 
@@ -210,7 +215,7 @@ export function App(): React.ReactElement {
     if (state.mode === 'playing' && state.playingId) {
       const game = registry.get(state.playingId);
       const isOver = game?.isGameOver?.(state.gameState) ?? false;
-      ctx.ticker.setSpeed(isOver ? GAME_OVER_BLINK_SPEED : (game?.tickSpeed ?? BOOT_TICK_SPEED));
+      ctx.ticker.setSpeed(isOver ? GAME_OVER_ANIM_SPEED : (game?.tickSpeed ?? BOOT_TICK_SPEED));
     } else {
       ctx.ticker.setSpeed(BOOT_TICK_SPEED);
     }

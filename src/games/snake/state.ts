@@ -15,10 +15,24 @@ export interface SnakeState {
   /** 是否已死亡 */
   readonly over: boolean;
   /**
-   * game over 后每 tick +1，作为尸体闪烁的相位。
-   * 未结束时恒为 0；App 层据此区分"结束态"来切 Ticker 到闪烁速度。
+   * game over 后每 tick +1，驱动死亡动画相位。
+   * 未结束时恒为 0；App 层据此区分"结束态"来切 Ticker 到动画速度。
    */
   readonly overFrame: number;
+  /**
+   * 死亡爆炸中心；over=false 时无意义（占位 [0,0]）。
+   *
+   * 已 clamp 到 [2, W-3] × [2, H-3]：贴边死亡时若不 clamp，5×5
+   * 爆炸图案有半边越屏丢失，clamp 保证整张图案完整在屏内。
+   */
+  readonly crashCenter: Pixel;
+  /**
+   * 死亡瞬间屏幕上所有亮点的快照（不可变）；over=false 时为空。
+   *
+   * 死亡动画第一阶段保留这些亮点（5×5 爆炸区域内除外），第二阶段
+   * 从底部一行行往上覆盖填亮，最终全屏点亮。
+   */
+  readonly crashSnapshot: ReadonlyArray<Pixel>;
   /** 本局分数 */
   readonly score: number;
 }
