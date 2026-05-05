@@ -10,7 +10,9 @@ import type { Bitmap, BlitMode, Screen, Unsubscribe } from './types';
  * - `buffer` 字段直接暴露 Uint8Array，供渲染器零拷贝读取
  */
 export function createScreen(width: number, height: number): Screen {
-  if (width <= 0 || height <= 0) {
+  // 必须是正整数：浮点尺寸会让 y * width + x 落到 Uint8Array 的对象属性
+  // 而非 typed array 内部 buffer，写入像素静默丢失
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) {
     throw new Error(`非法屏幕尺寸：${String(width)}×${String(height)}`);
   }
   const size = width * height;
@@ -21,7 +23,9 @@ export function createScreen(width: number, height: number): Screen {
     for (const fn of subs) fn();
   };
 
-  const inBounds = (x: number, y: number): boolean => x >= 0 && x < width && y >= 0 && y < height;
+  // 同上：坐标也必须是整数；浮点 x/y 会让索引计算落到对象属性
+  const inBounds = (x: number, y: number): boolean =>
+    Number.isInteger(x) && Number.isInteger(y) && x >= 0 && x < width && y >= 0 && y < height;
 
   return {
     width,

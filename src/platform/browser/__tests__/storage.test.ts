@@ -1,10 +1,14 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createLocalStorage } from '../storage';
 
 describe('createLocalStorage', () => {
   beforeEach(() => {
     localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('set / get 往返 + JSON 序列化', () => {
@@ -42,5 +46,31 @@ describe('createLocalStorage', () => {
     expect(s.get<number>('a')).toBeNull();
     expect(s.get<number>('b')).toBeNull();
     expect(localStorage.getItem('other')).toBe('X');
+  });
+
+  describe('受限存储下静默降级（Safari ITP / 严格 iframe / 配额耗尽）', () => {
+    it('getItem 抛错时 get 返回 null', () => {
+      vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+        throw new Error('SecurityError');
+      });
+      const s = createLocalStorage('test:');
+      expect(s.get<number>('any')).toBeNull();
+    });
+
+    it('removeItem 抛错时 remove 不抛', () => {
+      vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+        throw new Error('SecurityError');
+      });
+      const s = createLocalStorage('test:');
+      expect(() => s.remove('any')).not.toThrow();
+    });
+
+    it('clear 内部访问 length / key / removeItem 抛错时不传播', () => {
+      vi.spyOn(Storage.prototype, 'key').mockImplementation(() => {
+        throw new Error('SecurityError');
+      });
+      const s = createLocalStorage('test:');
+      expect(() => s.clear()).not.toThrow();
+    });
   });
 });

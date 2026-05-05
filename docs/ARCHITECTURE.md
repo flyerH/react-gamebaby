@@ -454,8 +454,9 @@ react-gamebaby/
 │  ├─ rules/                   AI 规范
 │  └─ skills/                  add-game 等
 ├─ .github/
-│  ├─ workflows/               CI
-│  └─ coderabbit.yml           CR 配置
+│  └─ workflows/               CI
+├─ .coderabbit.yaml            CodeRabbit AI CR 配置
+├─ .gemini/                    Gemini Code Assist 配置 + styleguide
 ├─ AGENTS.md                   LLM 入口规范
 ├─ package.json
 ├─ tsconfig.json

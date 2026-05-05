@@ -15,9 +15,18 @@ export function createLocalStorage(prefix = 'gamebaby:'): Storage {
   const backing = resolveBacking();
   const k = (key: string): string => prefix + key;
 
+  // 受限环境（Safari ITP / 严格 iframe / 配额耗尽）下，
+  // localStorage 的所有方法都可能抛 SecurityError / QuotaExceededError。
+  // 用统一兜底：读路径返回 null（视为未命中），写 / 删 / 清路径静默 no-op，
+  // 让上层游戏 / UI 不必处理这些异常态。
   return {
     get<T>(key: string): T | null {
-      const raw = backing.getItem(k(key));
+      let raw: string | null;
+      try {
+        raw = backing.getItem(k(key));
+      } catch {
+        return null;
+      }
       if (raw === null) return null;
       try {
         return JSON.parse(raw) as T;
@@ -34,15 +43,23 @@ export function createLocalStorage(prefix = 'gamebaby:'): Storage {
       }
     },
     remove(key: string): void {
-      backing.removeItem(k(key));
+      try {
+        backing.removeItem(k(key));
+      } catch {
+        // 同上
+      }
     },
     clear(): void {
-      const keys: string[] = [];
-      for (let i = 0; i < backing.length; i++) {
-        const kk = backing.key(i);
-        if (kk !== null && kk.startsWith(prefix)) keys.push(kk);
+      try {
+        const keys: string[] = [];
+        for (let i = 0; i < backing.length; i++) {
+          const kk = backing.key(i);
+          if (kk !== null && kk.startsWith(prefix)) keys.push(kk);
+        }
+        for (const kk of keys) backing.removeItem(kk);
+      } catch {
+        // 同上
       }
-      for (const kk of keys) backing.removeItem(kk);
     },
   };
 }
