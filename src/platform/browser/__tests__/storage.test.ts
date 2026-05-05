@@ -66,11 +66,15 @@ describe('createLocalStorage', () => {
     });
 
     it('clear 内部访问 length / key / removeItem 抛错时不传播', () => {
-      vi.spyOn(Storage.prototype, 'key').mockImplementation(() => {
+      // 必须先预置一个 prefix 键，否则 backing.length === 0 会让 for 循环
+      // 跳过 key() 调用，根本走不到异常分支，测试就成了空过
+      localStorage.setItem('test:a', '1');
+      const keySpy = vi.spyOn(Storage.prototype, 'key').mockImplementation(() => {
         throw new Error('SecurityError');
       });
       const s = createLocalStorage('test:');
       expect(() => s.clear()).not.toThrow();
+      expect(keySpy).toHaveBeenCalled();
     });
   });
 });
