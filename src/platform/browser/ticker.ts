@@ -40,6 +40,13 @@ export function createRealtimeTicker(opts: RealtimeTickerOptions = {}): Ticker {
     now = () => performance.now(),
   } = opts;
 
+  if (!Number.isFinite(initialSpeed) || initialSpeed <= 0) {
+    throw new Error(`initialSpeed 必须是有限正数，得到 ${String(initialSpeed)}`);
+  }
+  if (!Number.isInteger(maxStepsPerFrame) || maxStepsPerFrame <= 0) {
+    throw new Error(`maxStepsPerFrame 必须是正整数，得到 ${String(maxStepsPerFrame)}`);
+  }
+
   let speed = initialSpeed;
   let tickCount = 0;
   let running = false;
@@ -82,11 +89,22 @@ export function createRealtimeTicker(opts: RealtimeTickerOptions = {}): Ticker {
     },
 
     setSpeed(n: number): void {
-      if (n <= 0) throw new Error(`speed 必须 > 0，得到 ${String(n)}`);
+      // 必须是有限正数：NaN / Infinity 会让累加器一发不可收拾
+      if (!Number.isFinite(n) || n <= 0) {
+        throw new Error(`speed 必须是有限正数，得到 ${String(n)}`);
+      }
       speed = n;
     },
 
     start(fn: () => void): void {
+      // 幂等：未 stop 直接再 start 时，先取消上一条 rAF 循环。
+      // 否则 React useEffect 依赖变化会把上一条循环留在浏览器 rAF 队列
+      // 里，新旧两条循环同时推进 onTick，逻辑速度变成双倍且 stop 后只
+      // 能停掉一条。
+      if (rafHandle !== null) {
+        cancelFrame(rafHandle);
+        rafHandle = null;
+      }
       onTick = fn;
       running = true;
       paused = false;

@@ -26,7 +26,15 @@ export interface HeadlessTicker extends Ticker {
   advance(n?: number): number;
 }
 
+/** 公共校验：speed 必须是有限正数，避免 NaN / Infinity 让训练循环卡死 */
+function assertSpeed(n: number, what: string): void {
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new Error(`${what} 必须是有限正数，得到 ${String(n)}`);
+  }
+}
+
 export function createHeadlessTicker(initialSpeed = 30): HeadlessTicker {
+  assertSpeed(initialSpeed, 'initialSpeed');
   let speed = initialSpeed;
   let tickCount = 0;
   let running = false;
@@ -42,7 +50,7 @@ export function createHeadlessTicker(initialSpeed = 30): HeadlessTicker {
     },
 
     setSpeed(n: number): void {
-      if (n <= 0) throw new Error(`speed 必须 > 0，得到 ${String(n)}`);
+      assertSpeed(n, 'speed');
       speed = n;
     },
 
@@ -67,6 +75,9 @@ export function createHeadlessTicker(initialSpeed = 30): HeadlessTicker {
     },
 
     advance(n = 1): number {
+      if (!Number.isInteger(n) || n < 0) {
+        throw new Error(`advance(n) 要求非负整数，得到 ${String(n)}`);
+      }
       if (!running || paused || !onTick) return 0;
       let executed = 0;
       for (let i = 0; i < n; i++) {

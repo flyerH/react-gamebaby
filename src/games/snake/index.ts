@@ -4,7 +4,7 @@ import { init, isGameOver, onButton, render, step } from './logic';
 import { snakePreview } from './preview';
 import type { SnakeState } from './state';
 
-const snake: Game<SnakeState> = {
+export const snake: Game<SnakeState> = {
   id: 'snake',
   name: 'SNAKE',
   preview: snakePreview,
@@ -16,5 +16,3 @@ const snake: Game<SnakeState> = {
   onButton,
   isGameOver,
 };
-
-export default snake;

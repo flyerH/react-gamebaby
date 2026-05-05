@@ -18,6 +18,7 @@ function makeState(partial: Partial<SnakeState>): SnakeState {
     pendingDir: 'right',
     food: [9, 0],
     over: false,
+    won: false,
     overFrame: 0,
     crashCenter: [0, 0],
     crashSnapshot: [],
@@ -167,6 +168,31 @@ describe('snake · step（移动、吃食物、碰撞）', () => {
     const s1 = step(env, s0);
     expect(s1.over).toBe(false);
     expect(s1.body[0]).toEqual([6, 10]);
+  });
+
+  it('蛇身吃满全屏 → over=true & won=true，food=null，crashSnapshot 不含 food', () => {
+    // 极小 2×2 屏幕（4 格）：body 长度=3 时朝最后一格走，吃完后 newBody 占满 4 格
+    const env = makeEnv(2, 2);
+    const s0 = makeState({
+      body: [
+        [0, 0],
+        [0, 1],
+        [1, 1],
+      ],
+      dir: 'right',
+      pendingDir: 'right',
+      food: [1, 0],
+    });
+    const s1 = step(env, s0);
+    expect(s1.over).toBe(true);
+    expect(s1.won).toBe(true);
+    expect(s1.food).toBeNull();
+    expect(s1.body).toHaveLength(4);
+    expect(s1.score).toBe(1);
+    // snapshot 中不应再含食物坐标
+    expect(s1.crashSnapshot.some(([x, y]) => x === 1 && y === 0)).toBe(true); // 它是新头/body
+    // 而不应是"额外的 food 点"
+    expect(s1.crashSnapshot).toHaveLength(s1.body.length);
   });
 
   it('over 态下 step 推进 overFrame；动画播完后保持不变（同引用）', () => {

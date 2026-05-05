@@ -164,4 +164,26 @@ describe('createRealtimeTicker', () => {
     ticker.start(() => {});
     expect(ticker.tickCount).toBe(0);
   });
+
+  it('未 stop 直接再 start 不会留下双倍 rAF 循环', () => {
+    // 回归保护：React useEffect 依赖变化会触发"重 start" 而不先 stop，
+    // 旧实现下两条 loop 共存导致 onTick 每帧被调 2 次。
+    const h = makeHarness();
+    const ticker = createRealtimeTicker({
+      initialSpeed: 10,
+      requestFrame: h.requestFrame,
+      cancelFrame: h.cancelFrame,
+      now: h.now,
+    });
+    const onTick = vi.fn();
+
+    ticker.start(onTick);
+    expect(h.pending()).toBe(1);
+    ticker.start(onTick); // 没 stop，第二次直接 start
+    expect(h.pending()).toBe(1); // 队列里仍只有一条 rAF
+
+    h.advanceMs(100); // 1 tick 的时长
+    h.drain();
+    expect(onTick).toHaveBeenCalledTimes(1); // 不是双倍 2
+  });
 });

@@ -10,10 +10,12 @@ export interface SnakeState {
   readonly dir: Direction;
   /** 等待下一 tick 应用的方向；避免一个 tick 内连按两次导致反向 */
   readonly pendingDir: Direction;
-  /** 食物坐标 */
-  readonly food: Pixel;
-  /** 是否已死亡 */
+  /** 食物坐标；null 表示棋盘已被身体填满（极限通关），不再有空格放食物 */
+  readonly food: Pixel | null;
+  /** 是否已死亡（撞墙 / 撞自身 / 通关填满都视为本局结束） */
   readonly over: boolean;
+  /** 是否通关（蛇身长 = W*H 时由 step 设置）；与 over 同时为 true 表示胜利型结束 */
+  readonly won: boolean;
   /**
    * game over 后每 tick +1，驱动死亡动画相位。
    * 未结束时恒为 0；App 层据此区分"结束态"来切 Ticker 到动画速度。

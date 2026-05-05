@@ -15,7 +15,9 @@ export default defineConfig({
   },
   build: {
     target: 'es2022',
-    sourcemap: true,
+    // 生产产物默认不出 sourcemap：避免 .map 随 dist 同步上线后泄露源码
+    // 映射；本地排障 / CI 调试时可临时开启 vite build --sourcemap
+    sourcemap: false,
     outDir: 'dist',
   },
 });

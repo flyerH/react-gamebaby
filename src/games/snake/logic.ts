@@ -68,6 +68,7 @@ export function init(env: GameEnv): SnakeState {
   );
   env.score.set(0);
 
+  // body 长度 < W*H 时 randomFood 必有解；用 ?? 兜底防极端 1×1 屏幕
   const food = randomFood(env, body) ?? [0, 0];
   return {
     body,
@@ -75,6 +76,7 @@ export function init(env: GameEnv): SnakeState {
     pendingDir: 'right',
     food,
     over: false,
+    won: false,
     overFrame: 0,
     crashCenter: [0, 0],
     crashSnapshot: [],
@@ -82,9 +84,11 @@ export function init(env: GameEnv): SnakeState {
   };
 }
 
-/** 把死亡瞬间屏幕亮点收集为不可变快照（body + food） */
-function makeCrashSnapshot(body: ReadonlyArray<Pixel>, food: Pixel): ReadonlyArray<Pixel> {
-  return [...body.map(([x, y]): Pixel => [x, y]), [food[0], food[1]] as Pixel];
+/** 把死亡瞬间屏幕亮点收集为不可变快照（body + food）；food=null 时跳过食物点 */
+function makeCrashSnapshot(body: ReadonlyArray<Pixel>, food: Pixel | null): ReadonlyArray<Pixel> {
+  const snapshot: Pixel[] = body.map(([x, y]): Pixel => [x, y]);
+  if (food) snapshot.push([food[0], food[1]]);
+  return snapshot;
 }
 
 export function step(env: GameEnv, state: SnakeState): SnakeState {
@@ -116,7 +120,7 @@ export function step(env: GameEnv, state: SnakeState): SnakeState {
     };
   }
 
-  const ate = nx === state.food[0] && ny === state.food[1];
+  const ate = state.food !== null && nx === state.food[0] && ny === state.food[1];
   const newBody: ReadonlyArray<Pixel> = ate
     ? [[nx, ny], ...state.body]
     : [[nx, ny], ...state.body.slice(0, -1)];
@@ -142,7 +146,23 @@ export function step(env: GameEnv, state: SnakeState): SnakeState {
     const newScore = state.score + 1;
     env.score.set(newScore);
     env.sound.play('clear');
-    const newFood = randomFood(env, newBody) ?? state.food;
+    const newFood = randomFood(env, newBody);
+    if (newFood === null) {
+      // 通关：蛇身已填满整个屏幕，无空格再放食物。复用死亡动画，但标记 won=true
+      // 让 isGameOver 一致返回 true、上层可在未来差异化呈现"胜利"画面
+      return {
+        ...state,
+        body: newBody,
+        dir,
+        food: null,
+        score: newScore,
+        over: true,
+        won: true,
+        overFrame: 0,
+        crashCenter: clampCrashCenter([nx, ny], width, height),
+        crashSnapshot: makeCrashSnapshot(newBody, null),
+      };
+    }
     return {
       ...state,
       body: newBody,
@@ -167,7 +187,7 @@ export function render(env: GameEnv, state: SnakeState): void {
 
   if (!state.over) {
     for (const [x, y] of state.body) screen.setPixel(x, y, true);
-    screen.setPixel(state.food[0], state.food[1], true);
+    if (state.food) screen.setPixel(state.food[0], state.food[1], true);
     return;
   }
 

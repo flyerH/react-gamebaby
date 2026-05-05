@@ -23,7 +23,14 @@ export function mulberry32(seed: number): () => number {
  * 返回 [min, max) 之间的整数，基于传入的 rng
  *
  * 该 helper 不自行引入时间源，保持确定性。
+ *
+ * 区间约束：min / max 必须是有限整数，且 max > min。否则直接抛错——
+ * 让游戏 / 训练逻辑里的非法区间在最近调用栈处暴露，避免 `0 - NaN` 这
+ * 种值被静默写入 state 后跨 tick 才发现。
  */
 export function randomInt(rng: () => number, min: number, max: number): number {
+  if (!Number.isInteger(min) || !Number.isInteger(max) || max <= min) {
+    throw new Error(`randomInt: 非法区间 [${String(min)}, ${String(max)})`);
+  }
   return Math.floor(rng() * (max - min)) + min;
 }

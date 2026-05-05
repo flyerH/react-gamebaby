@@ -115,13 +115,14 @@ function reduce(state: AppState, action: Action, deps: ReduceDeps): AppState {
     }
     if (button === 'Start' || button === 'A') {
       const game = currentGame(registry, state.menu);
-      if (!game) return state;
-      const initial = isPlayable(game) ? game.init(env) : null;
+      // 仅 playable 游戏切到 playing；预览占位条目（无 init/step）按下 Start
+      // 直接 no-op，避免落到一个 gameState=null 的"假开局"，TICK 永远 no-op
+      if (!game || !isPlayable(game)) return state;
       return {
         ...state,
         mode: 'playing',
         playingId: game.id,
-        gameState: initial,
+        gameState: game.init(env),
       };
     }
     return state;

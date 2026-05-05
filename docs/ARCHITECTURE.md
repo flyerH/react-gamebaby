@@ -372,9 +372,9 @@ interface Episode {
 
 | 层       | 技术                  | 替代方案            | 理由                                     |
 | -------- | --------------------- | ------------------- | ---------------------------------------- |
-| 语言     | TypeScript 5.x        | JS                  | 接口复杂度高、RL 泛型多                  |
-| 构建     | Vite 5.x              | Webpack 5 / Rspack  | 快、生态新、tfjs 友好                    |
-| UI       | React 18              | Vue / Solid         | 生态成熟、Hooks 模型稳定                 |
+| 语言     | TypeScript 6          | JS                  | 接口复杂度高、RL 泛型多                  |
+| 构建     | Vite 8                | Webpack 5 / Rspack  | 快、生态新、tfjs 友好                    |
+| UI       | React 19              | Vue / Solid         | 生态成熟、Hooks 模型稳定                 |
 | 状态     | Zustand               | Redux Toolkit       | 简单、TS 友好、无样板代码                |
 | 样式     | CSS Modules           | Tailwind            | 像素艺术组件数量少，不需要 utility-first |
 | 音效     | zzfx                  | Howler.js           | 1 KB、参数化合成、适合 8bit 音色         |
@@ -484,7 +484,7 @@ react-gamebaby/
 
 | 天  | 任务                                              | 主要产出           |
 | --- | ------------------------------------------------- | ------------------ |
-| D1  | 基建迁移：Vite + TS + React 18 + Vitest + Actions | 现代化空壳         |
+| D1  | 基建迁移：Vite + TS + React 19 + Vitest + Actions | 现代化空壳         |
 | D2  | L3 engine + L2 SDK + Snake 迁移到新架构           | 贪吃蛇跑起来       |
 | D3  | 像素主题 + 8bit 声音 + SidePanel + Menu 游戏      | 完整外观与交互     |
 | D4  | 模块 1-5（规范 + Skills + 自动 PR + CR + 文档）   | AI 工程基础设施    |

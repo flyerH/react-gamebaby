@@ -73,4 +73,14 @@ describe('randomInt', () => {
     };
     expect(seq(99)).toEqual(seq(99));
   });
+
+  it('非法区间抛错：max <= min / 非整数 / NaN / Infinity', () => {
+    const rng = mulberry32(1);
+    expect(() => randomInt(rng, 5, 5)).toThrow(); // 空区间
+    expect(() => randomInt(rng, 10, 3)).toThrow(); // 反向
+    expect(() => randomInt(rng, 0.5, 10)).toThrow(); // 非整数
+    expect(() => randomInt(rng, 0, 10.5)).toThrow();
+    expect(() => randomInt(rng, NaN, 10)).toThrow();
+    expect(() => randomInt(rng, 0, Infinity)).toThrow();
+  });
 });
