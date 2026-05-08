@@ -21,12 +21,19 @@ export interface ButtonsProps {
 /**
  * Buttons —— 掌机实体按键区
  *
- * DOM 结构模拟真机按键：每个方向按钮是外层 <button> + 两个子节点
+ * DOM 结构模拟真机按键：D-pad 四个方向按钮各自是外层 <button> + 两个子节点
  * （buttonTip 文字标签 + buttonDir 箭头），三者的相对位置由 CSS 绝对定位
  * 落到按钮外围，从而在 4 个按钮的中心围出一个十字形箭头簇。
  *
- * Rotate 按下时 emit 'Start'——与 Enter 键位一致，在菜单里是确认、
- * 在俄罗斯方块里是旋转。
+ * 顶部一行小按钮 START / SOUND / RESET 复刻真机的辅助键位（真机另有
+ * ON/OFF 我们略掉 —— 网页关不掉 tab）。
+ *
+ * 按键到 InputBus 的映射：
+ * - 顶部 START 小按钮 → 'Start'（兼任开/关键 = 真机的 ON/OFF）
+ * - 顶部 SOUND       → 'Sound'
+ * - 顶部 RESET       → 'Reset'
+ * - D-pad 4 个方向键 → 'Up' / 'Down' / 'Left' / 'Right'
+ * - Rotate 大椭圆     → 'A'（游戏内动作键：俄罗斯方块旋转 / 菜单确认 / Snake 启动）
  */
 export function Buttons({
   onInput,
@@ -56,60 +63,99 @@ export function Buttons({
 
   return (
     <div className={styles.contentBottom}>
-      <button
-        type="button"
-        aria-label="Up"
-        className={`${styles.button} ${styles.topButton}`}
-        {...makeHandlers('Up')}
-      >
-        <p className={styles.buttonTip}>{labels.up}</p>
-        <span className={styles.buttonDir} />
-      </button>
+      {/* 顶部一行辅助键：开/关 · 声音 · 重置；每个按钮 + 标签包成 group，
+       * 三个 group 横排在 topControls 内，让 div 自然把文字也包进去 */}
+      <div className={styles.topControls}>
+        <div className={styles.smallButtonGroup}>
+          <button
+            type="button"
+            aria-label="Start"
+            className={styles.smallButton}
+            {...makeHandlers('Start')}
+          />
+          <span className={styles.smallTip}>{labels.start}</span>
+        </div>
+        <div className={styles.smallButtonGroup}>
+          <button
+            type="button"
+            aria-label="Sound"
+            className={styles.smallButton}
+            {...makeHandlers('Sound')}
+          />
+          <span className={styles.smallTip}>{labels.sound}</span>
+        </div>
+        <div className={styles.smallButtonGroup}>
+          <button
+            type="button"
+            aria-label="Reset"
+            className={styles.smallButton}
+            {...makeHandlers('Reset')}
+          />
+          <span className={styles.smallTip}>{labels.reset}</span>
+        </div>
+      </div>
 
-      <button
-        type="button"
-        aria-label="Right"
-        className={`${styles.button} ${styles.rightButton}`}
-        {...makeHandlers('Right')}
-      >
-        <p className={styles.buttonTip}>{labels.right}</p>
-        <span className={styles.buttonDir} />
-      </button>
+      {/* 控制行：D-pad 块 + Rotate 块横排，整体水平居中 */}
+      <div className={styles.controlRow}>
+        <div className={styles.dpadGroup}>
+          <button
+            type="button"
+            aria-label="Up"
+            className={`${styles.button} ${styles.topButton}`}
+            {...makeHandlers('Up')}
+          >
+            <p className={styles.buttonTip}>{labels.up}</p>
+            <span className={styles.buttonDir} />
+          </button>
 
-      <button
-        type="button"
-        aria-label="Down"
-        className={`${styles.button} ${styles.bottomButton}`}
-        {...makeHandlers('Down')}
-      >
-        <p className={styles.buttonTip}>{labels.down}</p>
-        <span className={styles.buttonDir} />
-      </button>
+          <button
+            type="button"
+            aria-label="Right"
+            className={`${styles.button} ${styles.rightButton}`}
+            {...makeHandlers('Right')}
+          >
+            <p className={styles.buttonTip}>{labels.right}</p>
+            <span className={styles.buttonDir} />
+          </button>
 
-      <button
-        type="button"
-        aria-label="Left"
-        className={`${styles.button} ${styles.leftButton}`}
-        {...makeHandlers('Left')}
-      >
-        <p className={styles.buttonTip}>{labels.left}</p>
-        <span className={styles.buttonDir} />
-      </button>
+          <button
+            type="button"
+            aria-label="Down"
+            className={`${styles.button} ${styles.bottomButton}`}
+            {...makeHandlers('Down')}
+          >
+            <p className={styles.buttonTip}>{labels.down}</p>
+            <span className={styles.buttonDir} />
+          </button>
 
-      <button
-        type="button"
-        aria-label="Rotate"
-        className={styles.rotateButton}
-        {...makeHandlers('Start')}
-      >
-        <p className={styles.rotateTip}>{labels.rotate}</p>
-        <span className={styles.rotateArrowLeft}>
-          <span className={styles.rotateArrowBody} />
-        </span>
-        <span className={styles.rotateArrowRight}>
-          <span className={styles.rotateArrowBody} />
-        </span>
-      </button>
+          <button
+            type="button"
+            aria-label="Left"
+            className={`${styles.button} ${styles.leftButton}`}
+            {...makeHandlers('Left')}
+          >
+            <p className={styles.buttonTip}>{labels.left}</p>
+            <span className={styles.buttonDir} />
+          </button>
+        </div>
+
+        <div className={styles.rotateGroup}>
+          <button
+            type="button"
+            aria-label="Rotate"
+            className={styles.rotateButton}
+            {...makeHandlers('A')}
+          >
+            <p className={styles.rotateTip}>{labels.rotate}</p>
+            <span className={styles.rotateArrowLeft}>
+              <span className={styles.rotateArrowBody} />
+            </span>
+            <span className={styles.rotateArrowRight}>
+              <span className={styles.rotateArrowBody} />
+            </span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

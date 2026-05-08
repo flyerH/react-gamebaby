@@ -3,7 +3,7 @@ import { type CSSProperties, type ReactNode, useEffect, useState } from 'react';
 import styles from './Device.module.css';
 
 /** 整机内部坐标系固定尺寸，小于此尺寸的窗口会被等比缩放 */
-const DEVICE_WIDTH = 650;
+const DEVICE_WIDTH = 580;
 const DEVICE_HEIGHT = 950;
 
 function computeScale(): number {
@@ -31,7 +31,7 @@ export interface DeviceProps {
  * 本组件只负责外观与布局，屏幕 / 侧栏 / 按键区等内容由调用方以 slot 形式注入，
  * 这样外壳与内部实现（Canvas renderer、分数、按键映射）完全解耦。
  *
- * 窗口比例适配：小于 650×950 的视窗会通过 CSS 变量 --device-scale
+ * 窗口比例适配：小于 580×950 的视窗会通过 CSS 变量 --device-scale
  * 等比缩放整机。scale 用 useState lazy initializer 在首帧就算好，
  * 避免先以默认 scale=1 渲染一次再 effect 里修正带来的"大 → 小"闪烁。
  */

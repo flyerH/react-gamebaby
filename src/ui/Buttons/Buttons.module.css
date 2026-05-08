@@ -2,16 +2,91 @@
  * 复刻 Brick Game 真机按键区
  *
  * 设计要点：
- * - 每个方向按钮是 80×80 红色圆盘，绝对定位在各自坐标
+ * - 顶部一行 3 个小圆按钮 START / SOUND / RESET（参考真机）
+ * - 中部 D-pad 四向：每个方向按钮是 80×80 红色圆盘，绝对定位在各自坐标
  * - buttonTip / buttonDir 是按钮的子元素，但用绝对定位落到按钮 *外* 围
  *   · 4 个 dir（箭头）汇聚到中心，分别指向自己的按钮 → 中心十字
  *   · 4 个 tip 文字标签绕按钮外侧一圈
- * - Rotate 是 220×90 椭圆、整体 rotateZ(60deg)，内附两道弯箭头
+ * - 右侧 Rotate 是 220×90 椭圆、整体 rotateZ(60deg)，内附两道弯箭头
  */
 
 .contentBottom {
   position: relative;
-  height: 300px;
+}
+
+/* ===== 顶部辅助键容器（开/关 · 声音 · 重置） =====
+ * 独占一行的块级容器；内部用 flex 横排，按钮整体靠右贴近 Rotate
+ * 一侧。下方 .controlRow 用 margin-top 控制间距，不再 padding。 */
+
+.topControls {
+  display: flex;
+  justify-content: flex-end;
+  padding-right: 90px;
+  gap: 22px;
+}
+
+/* 每个小按钮自带文字标签的 group：按钮 + 标签垂直堆叠居中 */
+.smallButtonGroup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.smallButton {
+  width: 30px;
+  height: 30px;
+  background-color: rgb(168, 12, 55);
+  border: 1px solid #000;
+  border-radius: 50%;
+  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
+  padding: 0;
+  cursor: pointer;
+  transition:
+    background-color 80ms ease-out,
+    box-shadow 80ms ease-out;
+}
+
+.smallButton:active {
+  background-color: rgb(143, 10, 47);
+  transform: translateY(1px);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+}
+
+.smallTip {
+  font-size: 11px;
+  color: #000;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* ===== 控制行：D-pad 块 + Rotate 块整体水平居中 ===== */
+
+.controlRow {
+  margin-top: 30px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+}
+
+/* D-pad 块：240×240 容器，内部 4 按钮 absolute 拼成十字 */
+.dpadGroup {
+  position: relative;
+  width: 240px;
+  height: 240px;
+  flex-shrink: 0;
+}
+
+/* Rotate 块：用 flex 把椭圆居中，按钮自身只管 rotateZ */
+.rotateGroup {
+  position: relative;
+  width: 220px;
+  height: 240px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ===== 方向键共享样式 ===== */
@@ -57,10 +132,10 @@
   pointer-events: none;
 }
 
-/* ===== Top 按钮 ===== */
+/* ===== Top 按钮（坐标相对 dpadGroup 240×240）===== */
 .topButton {
-  top: 20px;
-  left: 102px;
+  top: 0;
+  left: 80px;
 }
 .topButton .buttonTip {
   top: 15px;
@@ -77,8 +152,8 @@
 
 /* ===== Right 按钮 ===== */
 .rightButton {
-  top: 90px;
-  left: 177px;
+  top: 80px;
+  left: 160px;
 }
 .rightButton .buttonTip {
   top: 85px;
@@ -93,8 +168,8 @@
 
 /* ===== Bottom 按钮 ===== */
 .bottomButton {
-  top: 167px;
-  left: 103px;
+  top: 160px;
+  left: 80px;
 }
 .bottomButton .buttonTip {
   top: 80px;
@@ -109,8 +184,8 @@
 
 /* ===== Left 按钮 ===== */
 .leftButton {
-  top: 90px;
-  left: 27px;
+  top: 80px;
+  left: 0;
 }
 .leftButton .buttonTip {
   top: 85px;
@@ -126,12 +201,10 @@
 /* ===== Rotate 椭圆按钮 ===== */
 
 .rotateButton {
-  position: absolute;
+  position: relative;
   width: 220px;
   height: 90px;
   transform: rotateZ(60deg);
-  top: 90px;
-  right: 60px;
   background-color: rgb(168, 12, 55);
   border: 1px solid #000;
   border-radius: 30% / 70%;

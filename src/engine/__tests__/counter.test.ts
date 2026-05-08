@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createCounter, createPersistentCounter, createToggle } from '../counter';
+import {
+  createCounter,
+  createPersistentCounter,
+  createPersistentToggle,
+  createToggle,
+} from '../counter';
 import { createMemoryStorage } from '../storage';
 
 describe('createCounter', () => {
@@ -124,5 +129,46 @@ describe('createToggle', () => {
     off();
     t.toggle();
     expect(spy).toHaveBeenCalledExactlyOnceWith(true);
+  });
+});
+
+describe('createPersistentToggle', () => {
+  it('storage 有值时以 storage 为准，忽略 initial', () => {
+    const storage = createMemoryStorage();
+    storage.set('soundOn', false);
+    const t = createPersistentToggle(storage, 'soundOn', true);
+    expect(t.value).toBe(false);
+  });
+
+  it('storage 无值时落到 initial 并写回', () => {
+    const storage = createMemoryStorage();
+    const t = createPersistentToggle(storage, 'soundOn', true);
+    expect(t.value).toBe(true);
+    expect(storage.get<boolean>('soundOn')).toBe(true);
+  });
+
+  it('toggle / set 变更后写回 storage', () => {
+    const storage = createMemoryStorage();
+    const t = createPersistentToggle(storage, 'soundOn', true);
+    t.toggle();
+    expect(storage.get<boolean>('soundOn')).toBe(false);
+    t.set(true);
+    expect(storage.get<boolean>('soundOn')).toBe(true);
+  });
+
+  it('值未变化不重复写 storage', () => {
+    const storage = createMemoryStorage();
+    const setSpy = vi.spyOn(storage, 'set');
+    const t = createPersistentToggle(storage, 'soundOn', true);
+    setSpy.mockClear();
+    t.set(true);
+    expect(setSpy).not.toHaveBeenCalled();
+  });
+
+  it('storage 中存的非 boolean 值视为缺失，回退到 initial', () => {
+    const storage = createMemoryStorage();
+    storage.set('soundOn', 'maybe' as unknown as boolean);
+    const t = createPersistentToggle(storage, 'soundOn', true);
+    expect(t.value).toBe(true);
   });
 });

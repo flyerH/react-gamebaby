@@ -2,7 +2,16 @@ import { describe, it, expect } from 'vitest';
 
 import { createRegistry, type Game } from '@/sdk';
 
-import { currentGame, initialMenuState, selectNext, selectPrev } from '../menu';
+import {
+  currentGame,
+  incLevel,
+  incSpeed,
+  initialMenuState,
+  MENU_LEVEL_MAX,
+  MENU_SPEED_MAX,
+  selectNext,
+  selectPrev,
+} from '../menu';
 
 const mk = (id: string): Game => ({ id, name: id.toUpperCase(), preview: [] });
 
@@ -48,5 +57,43 @@ describe('menu 状态机', () => {
     const s0 = initialMenuState();
     const s1 = selectNext(reg, s0);
     expect(s1).not.toBe(s0);
+  });
+
+  it('初始 speed / level 均为 1', () => {
+    const s = initialMenuState();
+    expect(s.speed).toBe(1);
+    expect(s.level).toBe(1);
+  });
+
+  it('incSpeed 单击递增；达到 MAX 后循环回 1', () => {
+    let s = initialMenuState();
+    for (let i = 1; i <= MENU_SPEED_MAX - 1; i++) {
+      s = incSpeed(s);
+      expect(s.speed).toBe(i + 1);
+    }
+    s = incSpeed(s); // 第 MAX 次：从 MAX 回到 1
+    expect(s.speed).toBe(1);
+    // level 不应被 incSpeed 改动
+    expect(s.level).toBe(1);
+  });
+
+  it('incLevel 单击递增；达到 MAX 后循环回 1', () => {
+    let s = initialMenuState();
+    for (let i = 1; i <= MENU_LEVEL_MAX - 1; i++) {
+      s = incLevel(s);
+      expect(s.level).toBe(i + 1);
+    }
+    s = incLevel(s);
+    expect(s.level).toBe(1);
+    expect(s.speed).toBe(1);
+  });
+
+  it('selectNext / selectPrev 不改 speed / level', () => {
+    const reg = createRegistry([mk('a'), mk('b')]);
+    const s0 = incSpeed(incLevel(initialMenuState())); // speed=2 level=2
+    const s1 = selectNext(reg, s0);
+    expect(s1.speed).toBe(2);
+    expect(s1.level).toBe(2);
+    expect(selectPrev(reg, s1).speed).toBe(2);
   });
 });

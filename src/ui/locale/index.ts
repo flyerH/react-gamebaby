@@ -18,11 +18,32 @@ export interface ButtonLabels {
   readonly left: string;
   readonly right: string;
   readonly rotate: string;
+  readonly start: string;
+  readonly sound: string;
+  readonly reset: string;
 }
 
 export const BUTTON_LABELS: Readonly<Record<Locale, ButtonLabels>> = {
-  'zh-CN': { up: '上', down: '下', left: '左', right: '右', rotate: '旋转' },
-  'en-US': { up: 'Top', down: 'Bottom', left: 'Left', right: 'Right', rotate: 'Rotate' },
+  'zh-CN': {
+    up: '上',
+    down: '下',
+    left: '左',
+    right: '右',
+    rotate: '旋转',
+    start: '开/关',
+    sound: '声音',
+    reset: '重置',
+  },
+  'en-US': {
+    up: 'Top',
+    down: 'Bottom',
+    left: 'Left',
+    right: 'Right',
+    rotate: 'Rotate',
+    start: 'On/Off',
+    sound: 'Sound',
+    reset: 'Reset',
+  },
 };
 
 /**

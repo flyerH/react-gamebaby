@@ -82,3 +82,21 @@ export function createToggle(initial = false): Toggle {
     },
   };
 }
+
+/**
+ * 创建一个持久化 Toggle：从 storage 恢复初值，每次变更写回
+ *
+ * 实现策略与 createPersistentCounter 一致 —— 用 subscribe 劫持写回，
+ * 值未变不重复 I/O。本函数与平台完全解耦：浏览器端注入 localStorage、
+ * 测试 / 训练注入 memory storage 都行。
+ */
+export function createPersistentToggle(storage: Storage, key: string, initial = false): Toggle {
+  const restored = storage.get<boolean>(key);
+  const start = typeof restored === 'boolean' ? restored : initial;
+  const toggle = createToggle(start);
+  if (restored === null) storage.set(key, start);
+  toggle.subscribe((v) => {
+    storage.set(key, v);
+  });
+  return toggle;
+}

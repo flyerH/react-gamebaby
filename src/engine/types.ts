@@ -101,10 +101,38 @@ export interface Toggle {
   subscribe(fn: (v: boolean) => void): Unsubscribe;
 }
 
+/**
+ * 单个音符：频率 + 持续时长。freq=0 表示休止符（停顿不发声）。
+ *
+ * 用于 playMelody 把多音符旋律串成一段开机音 / 菜单 BGM；保持 Hz + 秒
+ * 这种平铺数据，调用方既可以手写谱子也可以由工具生成。
+ */
+export interface Note {
+  /** 频率（Hz）；0 表示该拍为休止符 */
+  readonly freq: number;
+  /** 持续时长（秒） */
+  readonly duration: number;
+}
+
 /** Sound —— 8bit 音效抽象 */
 export interface Sound {
   play(effect: SoundEffect): void;
+  /**
+   * 播放一段音符序列：依次调度每个 Note 在前一拍结束时刻发声。
+   * 返回 cancel 函数，调用后停止尚未发声的音符 + 截断当前音符。
+   * 整段播完后调 cancel 是 no-op。
+   */
+  playMelody(notes: ReadonlyArray<Note>): () => void;
   setEnabled(on: boolean): void;
+  /**
+   * 探测当前环境能否在 *无用户手势* 的上下文里直接发声。
+   *
+   * 浏览器自动播放策略下，刚 mount 的 AudioContext 初始 state 通常是
+   * 'suspended'，调 resume() 后看是否变成 'running' 来判断。返回
+   * true 表示之后调 play / playMelody 会真发声；返回 false 通常意味
+   * 着需要等用户首次手势（按键 / 点击）才能 audio。
+   */
+  canAutoplay(): Promise<boolean>;
   readonly enabled: boolean;
 }
 

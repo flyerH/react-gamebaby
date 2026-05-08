@@ -21,7 +21,7 @@ describe('detectLocale', () => {
 });
 
 describe('BUTTON_LABELS', () => {
-  it('每个 locale 都包含完整 5 个按键标签', () => {
+  it('每个 locale 都包含完整 8 个按键标签（D-pad + Rotate + Start/Sound/Reset 小按钮）', () => {
     for (const locale of Object.keys(BUTTON_LABELS) as (keyof typeof BUTTON_LABELS)[]) {
       const l = BUTTON_LABELS[locale];
       expect(l.up).toBeTruthy();
@@ -29,6 +29,9 @@ describe('BUTTON_LABELS', () => {
       expect(l.left).toBeTruthy();
       expect(l.right).toBeTruthy();
       expect(l.rotate).toBeTruthy();
+      expect(l.start).toBeTruthy();
+      expect(l.sound).toBeTruthy();
+      expect(l.reset).toBeTruthy();
     }
   });
 });
