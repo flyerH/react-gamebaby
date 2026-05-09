@@ -3,7 +3,7 @@
  *
  * 比例适配：原机是固定尺寸，本实现通过 --device-scale
  * （由 Device.tsx 中 resize 监听设置）对整机做等比缩放，
- * 保持 650×950 的固定内部坐标系不变。
+ * 保持 580×950 的固定内部坐标系不变。
  */
 
 .wrapper {
@@ -18,20 +18,25 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  margin-left: -325px;
+  margin-left: -290px;
   margin-top: -475px;
   display: flex;
   align-items: center;
-  width: 650px;
+  width: 580px;
   border-radius: 20px 20px 0 0;
   box-shadow: inset 0 0 15px 2px #92d3f9;
   background-color: #4a94c1;
   transform: scale(var(--device-scale, 1));
   transform-origin: center center;
+  /* 模拟硬件外壳：内部所有文字 / 标签不允许被选中（双击 / 拖选文字会
+     影响"按按钮"的体验）；移动端点按钮的灰色高亮也一并去掉 */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .content {
-  width: 650px;
+  width: 580px;
   height: 950px;
   margin: 0 auto;
   display: flex;
@@ -49,12 +54,12 @@
   text-align: center;
 }
 
-/* 屏幕外框：白色粗边 */
+/* 屏幕外框：白色粗边；宽度 + padding 一起缩，给下方按钮区腾空间 */
 .screenFrame {
-  width: 490px;
+  width: 420px;
   display: inline-block;
   border: 7px solid #fff;
-  padding: 20px;
+  padding: 16px;
 }
 
 /* 屏幕内框：3D 蓝色凹陷感（上左深、下右浅） */

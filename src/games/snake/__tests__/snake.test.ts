@@ -10,7 +10,11 @@ function makeEnv(width = 10, height = 20, seed = 42): GameEnv {
   return toGameEnv(createHeadlessContext({ seed, width, height }));
 }
 
-/** 让用例字面量保持简洁：所有未指定的字段用安全默认 */
+/**
+ * 让用例字面量保持简洁：所有未指定的字段用安全默认。
+ * awaitingFirstMove 默认 false 让大部分 step / onButton 用例直接走"已启动"
+ * 路径；专测"等待启动"的用例自己 partial 设 true。
+ */
 function makeState(partial: Partial<SnakeState>): SnakeState {
   return {
     body: [[0, 0]],
@@ -22,13 +26,15 @@ function makeState(partial: Partial<SnakeState>): SnakeState {
     overFrame: 0,
     crashCenter: [0, 0],
     crashSnapshot: [],
+    awaitingFirstMove: false,
     score: 0,
+    lastOpts: null,
     ...partial,
   };
 }
 
 describe('snake · init', () => {
-  it('初始蛇长 3，朝右，score = 0，overFrame = 0，crashSnapshot 空，食物不压蛇身', () => {
+  it('初始蛇长 3，朝右，score=0，awaitingFirstMove=true，食物不压蛇身', () => {
     const env = makeEnv();
     const s = init(env);
     expect(s.body).toHaveLength(3);
@@ -37,6 +43,7 @@ describe('snake · init', () => {
     expect(s.over).toBe(false);
     expect(s.overFrame).toBe(0);
     expect(s.crashSnapshot).toEqual([]);
+    expect(s.awaitingFirstMove).toBe(true);
     expect(s.score).toBe(0);
     for (const seg of s.body) {
       expect(seg).not.toEqual(s.food);
@@ -195,7 +202,7 @@ describe('snake · step（移动、吃食物、碰撞）', () => {
     expect(s1.crashSnapshot).toHaveLength(s1.body.length);
   });
 
-  it('over 态下 step 推进 overFrame；动画播完后保持不变（同引用）', () => {
+  it('over 态下 step 推进 overFrame（动画期间）', () => {
     const env = makeEnv();
     const s0 = makeState({
       body: [[0, 0]],
@@ -210,20 +217,74 @@ describe('snake · step（移动、吃食物、碰撞）', () => {
       score: 3,
     });
     const s1 = step(env, s0);
-    // 仍在动画中：新引用 + overFrame +1，其余字段引用相同
     expect(s1).not.toBe(s0);
     expect(s1.overFrame).toBe(8);
     expect(s1.body).toBe(s0.body);
     expect(s1.crashCenter).toBe(s0.crashCenter);
     expect(s1.crashSnapshot).toBe(s0.crashSnapshot);
     expect(s1.score).toBe(3);
+  });
 
-    // 推到 50 帧后保持原引用（动画已播完）
+  it('整段动画（爆炸+填屏+清屏=70帧）播完后 step 自动调 init 重开新局，awaitingFirstMove=true', () => {
+    const env = makeEnv();
     const sFinal = makeState({
-      ...s0,
-      overFrame: 50,
+      body: [
+        [3, 5],
+        [2, 5],
+      ],
+      over: true,
+      overFrame: 70,
+      crashCenter: [3, 3],
+      crashSnapshot: [],
+      score: 12,
     });
-    expect(step(env, sFinal)).toBe(sFinal);
+    const s1 = step(env, sFinal);
+    // 自动重开：over=false，body 回到 init 的 3 节
+    expect(s1.over).toBe(false);
+    expect(s1.body).toHaveLength(3);
+    expect(s1.dir).toBe('right');
+    expect(s1.score).toBe(0);
+    expect(s1.awaitingFirstMove).toBe(true);
+    // env.score 也被 init 清零
+    expect(env.score.value).toBe(0);
+  });
+
+  it('自动重开继承死亡前的 lastOpts（speed / level 不被刷成默认）', () => {
+    const env = makeEnv();
+    const sFinal = makeState({
+      over: true,
+      overFrame: 70,
+      lastOpts: { speed: 7, level: 5 },
+    });
+    const s1 = step(env, sFinal);
+    expect(s1.over).toBe(false);
+    // lastOpts 经 init 透传回 state，下次再死再重开仍能继承
+    expect(s1.lastOpts).toEqual({ speed: 7, level: 5 });
+  });
+
+  it('init 接受 opts 参数，存进 state.lastOpts', () => {
+    const env = makeEnv();
+    const s = init(env, { speed: 9, level: 3 });
+    expect(s.lastOpts).toEqual({ speed: 9, level: 3 });
+  });
+
+  it('init 不传 opts 时 state.lastOpts=null（兼容历史调用）', () => {
+    const env = makeEnv();
+    const s = init(env);
+    expect(s.lastOpts).toBeNull();
+  });
+
+  it('awaitingFirstMove=true 时 step 不推进蛇（同引用返回）', () => {
+    const env = makeEnv();
+    const s0 = makeState({
+      body: [
+        [4, 10],
+        [3, 10],
+      ],
+      awaitingFirstMove: true,
+    });
+    const s1 = step(env, s0);
+    expect(s1).toBe(s0);
   });
 });
 
@@ -289,6 +350,32 @@ describe('snake · render（死亡动画）', () => {
       for (let x = 0; x < 10; x++) expect(env.screen.getPixel(x, y)).toBe(true);
     }
   });
+
+  it('清屏阶段 frame=50：顶部 1 行已清空，下方仍全亮；frame=69：全屏已清完', () => {
+    const env = makeEnv();
+    const s50 = makeState({
+      over: true,
+      overFrame: 50,
+      crashCenter: [5, 5],
+      crashSnapshot: [],
+    });
+    render(env, s50);
+    for (let x = 0; x < 10; x++) expect(env.screen.getPixel(x, 0)).toBe(false);
+    for (let x = 0; x < 10; x++) expect(env.screen.getPixel(x, 1)).toBe(true);
+    for (let x = 0; x < 10; x++) expect(env.screen.getPixel(x, 19)).toBe(true);
+
+    // 动画最后一帧（69）：清屏完成，全屏暗；下一帧（70）由 step 转回 init
+    const s69 = makeState({
+      over: true,
+      overFrame: 69,
+      crashCenter: [5, 5],
+      crashSnapshot: [],
+    });
+    render(env, s69);
+    for (let y = 0; y < 20; y++) {
+      for (let x = 0; x < 10; x++) expect(env.screen.getPixel(x, y)).toBe(false);
+    }
+  });
 });
 
 describe('snake · onButton', () => {
@@ -320,5 +407,29 @@ describe('snake · onButton', () => {
     const env = makeEnv();
     const dead = makeState({ ...base, over: true });
     expect(onButton(env, dead, 'Up', 'press')).toBe(dead);
+  });
+
+  it('awaitingFirstMove=true 时方向键启动游戏 + 改向', () => {
+    const env = makeEnv();
+    const idle = makeState({ ...base, awaitingFirstMove: true });
+    const s1 = onButton(env, idle, 'Up', 'press');
+    expect(s1.awaitingFirstMove).toBe(false);
+    expect(s1.dir).toBe('up');
+    expect(s1.pendingDir).toBe('up');
+  });
+
+  it('awaitingFirstMove=true 时反向方向键被拒（仍处于等待状态）', () => {
+    const env = makeEnv();
+    const idle = makeState({ ...base, dir: 'right', awaitingFirstMove: true });
+    const s1 = onButton(env, idle, 'Left', 'press');
+    expect(s1).toBe(idle);
+  });
+
+  it('awaitingFirstMove=true 时非方向键启动游戏但不改向', () => {
+    const env = makeEnv();
+    const idle = makeState({ ...base, dir: 'right', awaitingFirstMove: true });
+    const s1 = onButton(env, idle, 'A', 'press');
+    expect(s1.awaitingFirstMove).toBe(false);
+    expect(s1.dir).toBe('right');
   });
 });

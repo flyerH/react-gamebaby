@@ -24,7 +24,12 @@ export type {
 } from './types';
 
 export { mulberry32, randomInt } from './rng';
-export { createCounter, createToggle } from './counter';
+export {
+  createCounter,
+  createPersistentCounter,
+  createPersistentToggle,
+  createToggle,
+} from './counter';
 export { bitmapFromRows, createScreen } from './screen';
 export { createInputBus } from './input';
 export { createMemoryStorage } from './storage';

@@ -1,4 +1,4 @@
-import { createCounter, createToggle } from '@/engine/counter';
+import { createCounter, createPersistentToggle, createToggle } from '@/engine/counter';
 import { createInputBus } from '@/engine/input';
 import { mulberry32 } from '@/engine/rng';
 import { createScreen } from '@/engine/screen';
@@ -38,20 +38,31 @@ export function createBrowserContext(opts: BrowserContextOptions): HardwareConte
   const { seed, width = 10, height = 20, speed = 30, lives = 3 } = opts;
 
   const ticker = createRealtimeTicker({ initialSpeed: speed });
+  const storage = createLocalStorage();
+  const sound = createBrowserSound();
+
+  // soundOn 持久化：跨刷新保留用户上次的开关偏好，默认开
+  const soundOn = createPersistentToggle(storage, 'soundOn', true);
+  // 启动时同步 sound 实现到持久化值；后续 toggle 变更也驱动 sound.setEnabled，
+  // 让"切换 Sound 键"和"刷新页面恢复偏好"走同一通路
+  sound.setEnabled(soundOn.value);
+  soundOn.subscribe((on) => {
+    sound.setEnabled(on);
+  });
 
   return {
     screen: createScreen(width, height),
     ticker,
     input: createInputBus(),
-    sound: createBrowserSound(),
-    storage: createLocalStorage(),
+    sound,
+    storage,
 
     score: createCounter(0),
     level: createCounter(0),
     speed: createCounter(speed),
     lives: createCounter(lives),
     pause: createToggle(false),
-    soundOn: createToggle(false),
+    soundOn,
 
     rng: mulberry32(seed),
     now: () => ticker.tickCount,

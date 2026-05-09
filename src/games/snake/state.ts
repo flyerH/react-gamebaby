@@ -1,4 +1,4 @@
-import type { GameEnv, Pixel } from '@/sdk';
+import type { GameEnv, GameInitOptions, Pixel } from '@/sdk';
 
 /** 贪吃蛇的四个方向；用联合字面量避免 enum */
 export type Direction = 'up' | 'down' | 'left' | 'right';
@@ -16,6 +16,17 @@ export interface SnakeState {
   readonly over: boolean;
   /** 是否通关（蛇身长 = W*H 时由 step 设置）；与 over 同时为 true 表示胜利型结束 */
   readonly won: boolean;
+  /**
+   * 等待玩家首次按键再开始推进。
+   *
+   * - 进入新局（init）时为 true：蛇放好但不动，玩家按方向键确认启动
+   * - 任何 press 输入会清掉这个标志（方向键还会同时改向）
+   * - step 在 awaitingFirstMove=true 时直接返回原 state，不推进蛇
+   *
+   * 与 over 配合：死亡动画播完 + 清屏后 step 自动返回新一局 init state，
+   * awaitingFirstMove=true，让玩家重开后的第一动是自己按下，不会"还没看清就开跑"。
+   */
+  readonly awaitingFirstMove: boolean;
   /**
    * game over 后每 tick +1，驱动死亡动画相位。
    * 未结束时恒为 0；App 层据此区分"结束态"来切 Ticker 到动画速度。
@@ -37,6 +48,13 @@ export interface SnakeState {
   readonly crashSnapshot: ReadonlyArray<Pixel>;
   /** 本局分数 */
   readonly score: number;
+  /**
+   * 最近一次进入本游戏时菜单选定的 speed / level（来自 GameInitOptions）。
+   *
+   * 死亡动画播完后 step 自动重开新一局会再调一次 init，要把当前难度
+   * "原样传回"避免重置成默认 1/1。null 表示从未传入 opts（极少数场景）。
+   */
+  readonly lastOpts: GameInitOptions | null;
 }
 
 const DIR_VEC: Readonly<Record<Direction, Pixel>> = {

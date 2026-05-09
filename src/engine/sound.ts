@@ -12,9 +12,13 @@ export function createNullSound(): Sound {
     play: () => {
       /* 无实际发声 */
     },
+    playMelody: () => () => {
+      /* 无实际发声，cancel 也是 no-op */
+    },
     setEnabled: (on: boolean) => {
       enabled = on;
     },
+    canAutoplay: () => Promise.resolve(false),
     get enabled() {
       return enabled;
     },

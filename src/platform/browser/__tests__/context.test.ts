@@ -13,7 +13,7 @@ describe('createBrowserContext', () => {
     expect(ctx.score.value).toBe(0);
     expect(ctx.lives.value).toBe(3);
     expect(ctx.pause.value).toBe(false);
-    expect(ctx.soundOn.value).toBe(false);
+    expect(ctx.soundOn.value).toBe(true);
     expect(ctx.now()).toBe(0);
   });
 

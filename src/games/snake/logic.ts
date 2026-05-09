@@ -1,5 +1,5 @@
 import type { Button, ButtonAction } from '@/engine/types';
-import type { GameEnv, Pixel } from '@/sdk';
+import type { GameEnv, GameInitOptions, Pixel } from '@/sdk';
 
 import { type Direction, dirVec, isOpposite, randomFood, type SnakeState } from './state';
 
@@ -44,7 +44,12 @@ const CRASH_PHASE_FRAMES = 2;
 const CRASH_PAINT_FRAMES = 30;
 /** 填屏阶段帧数：屏高 H=20，每帧填 1 行，共 20 帧 */
 const CRASH_FILL_FRAMES = 20;
-const CRASH_TOTAL_FRAMES = CRASH_PAINT_FRAMES + CRASH_FILL_FRAMES;
+/** 清屏阶段帧数：从顶部一行行往下消除已填满的整屏，同样 20 帧 */
+const CRASH_CLEAR_FRAMES = 20;
+/** 爆炸 + 填屏阶段结束、清屏阶段开始的帧号 */
+const CRASH_CLEAR_BEGIN = CRASH_PAINT_FRAMES + CRASH_FILL_FRAMES;
+/** 整段死亡动画总帧数：爆炸 30 + 填屏 20 + 清屏 20 = 70 */
+const CRASH_TOTAL_FRAMES = CRASH_CLEAR_BEGIN + CRASH_CLEAR_FRAMES;
 
 /** 把死亡点 clamp 到 [2, W-3] × [2, H-3]，让 5×5 爆炸图案完整在屏内 */
 function clampCrashCenter(raw: Pixel, width: number, height: number): Pixel {
@@ -56,9 +61,11 @@ function clampCrashCenter(raw: Pixel, width: number, height: number): Pixel {
 /**
  * 初始状态：蛇放在屏幕水平中线偏左，朝右，长度 3
  *
+ * opts 由 App 在进 playing 时传入（菜单选定的 speed / level）；存进
+ * state.lastOpts 让死亡动画后的自动重开能继承同一档位，不至于刷新成 1/1。
  * 同时把 env.score 清零，和 SidePanel 订阅的 Counter 对齐。
  */
-export function init(env: GameEnv): SnakeState {
+export function init(env: GameEnv, opts?: GameInitOptions): SnakeState {
   const { width, height } = env.screen;
   const cy = Math.floor(height / 2);
   const startX = Math.floor(width / 2);
@@ -80,7 +87,9 @@ export function init(env: GameEnv): SnakeState {
     overFrame: 0,
     crashCenter: [0, 0],
     crashSnapshot: [],
+    awaitingFirstMove: true,
     score: 0,
+    lastOpts: opts ?? null,
   };
 }
 
@@ -92,12 +101,19 @@ function makeCrashSnapshot(body: ReadonlyArray<Pixel>, food: Pixel | null): Read
 }
 
 export function step(env: GameEnv, state: SnakeState): SnakeState {
-  // 已结束：动画播放期间推进 overFrame；播完后保持不变（停在最后一帧画面）
-  // App 的 useEffect(state) 需要新引用才会重画，所以播放期间必须返回新对象。
+  // 已结束：动画播放期间推进 overFrame；
+  // 整段动画（爆炸 + 填屏 + 清屏）播完时，step 自动开新一局并停在
+  // awaitingFirstMove —— 玩家按任意键确认才开始动
   if (state.over) {
-    if (state.overFrame >= CRASH_TOTAL_FRAMES) return state;
+    if (state.overFrame >= CRASH_TOTAL_FRAMES) {
+      // 用上次的 opts 重开，保住菜单选定的 speed / level
+      return init(env, state.lastOpts ?? undefined);
+    }
     return { ...state, overFrame: state.overFrame + 1 };
   }
+  // 等待玩家按键启动：step 不推进蛇，画面静止在初始姿态
+  if (state.awaitingFirstMove) return state;
+
   const head = state.body[0];
   if (!head) return state;
 
@@ -145,7 +161,6 @@ export function step(env: GameEnv, state: SnakeState): SnakeState {
   if (ate) {
     const newScore = state.score + 1;
     env.score.set(newScore);
-    env.sound.play('clear');
     const newFood = randomFood(env, newBody);
     if (newFood === null) {
       // 通关：蛇身已填满整个屏幕，无空格再放食物。复用死亡动画，但标记 won=true
@@ -172,7 +187,8 @@ export function step(env: GameEnv, state: SnakeState): SnakeState {
     };
   }
 
-  env.sound.play('move');
+  // 普通移动不再出声 —— 真机蜂鸣器只在按键 / 事件（吃食物 / 死亡）发声，
+  // 不会每个 tick "嘀"一下。按键音改放到 onButton 里
   return { ...state, body: newBody, dir };
 }
 
@@ -215,13 +231,23 @@ export function render(env: GameEnv, state: SnakeState): void {
   // 阶段 2（填屏）：snapshot 排除 5×5 区域（让爆炸炸出的"洞"保留到填亮行
   // 覆盖过来），再从底向上叠加全亮行；如果先画完整 snapshot 会让爆炸结束
   // 那一瞬间蛇身突然"复原"，视觉断裂。
-  for (const [x, y] of crashSnapshot) {
-    if (!inCrashSquare(x, y, crashCenter)) screen.setPixel(x, y, true);
+  if (overFrame < CRASH_CLEAR_BEGIN) {
+    for (const [x, y] of crashSnapshot) {
+      if (!inCrashSquare(x, y, crashCenter)) screen.setPixel(x, y, true);
+    }
+    const filled = Math.min(CRASH_FILL_FRAMES, overFrame - CRASH_PAINT_FRAMES + 1);
+    const fillFrom = height - filled;
+    for (let y = fillFrom; y < height; y++) {
+      for (let x = 0; x < width; x++) screen.setPixel(x, y, true);
+    }
+    return;
   }
 
-  const filled = Math.min(CRASH_FILL_FRAMES, overFrame - CRASH_PAINT_FRAMES + 1);
-  const fillFrom = height - filled;
-  for (let y = fillFrom; y < height; y++) {
+  // 阶段 3（清屏）：从顶部一行行往下消除"已被填亮的整屏"。
+  // 进入这阶段时整屏全亮（snapshot 已被覆盖），不需要再画 snapshot；
+  // 只画 cleared 行往下的部分，让顶部空出。
+  const cleared = Math.min(CRASH_CLEAR_FRAMES, overFrame - CRASH_CLEAR_BEGIN + 1);
+  for (let y = cleared; y < height; y++) {
     for (let x = 0; x < width; x++) screen.setPixel(x, y, true);
   }
 }
@@ -233,6 +259,7 @@ export function onButton(
   action: ButtonAction
 ): SnakeState {
   if (action !== 'press' || state.over) return state;
+
   const nextDir: Direction | null =
     btn === 'Up'
       ? 'up'
@@ -243,6 +270,19 @@ export function onButton(
           : btn === 'Right'
             ? 'right'
             : null;
+
+  // 等待启动：任意 press 解除等待。方向键同时改向（反向键被拒，不解除等待，
+  // 让玩家有机会再按一次正向键）。按键反馈音由 App 层统一发，这里不重复 play
+  if (state.awaitingFirstMove) {
+    if (nextDir && isOpposite(state.dir, nextDir)) return state;
+    return {
+      ...state,
+      awaitingFirstMove: false,
+      pendingDir: nextDir ?? state.pendingDir,
+      dir: nextDir ?? state.dir,
+    };
+  }
+
   if (!nextDir) return state;
   if (isOpposite(state.dir, nextDir)) return state;
   return { ...state, pendingDir: nextDir };

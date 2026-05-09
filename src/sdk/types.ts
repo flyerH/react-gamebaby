@@ -43,6 +43,17 @@ export interface GameEnv {
   readonly lives: Counter;
 }
 
+/**
+ * 起始难度选项 —— 菜单选择阶段累计的 speed / level，进 playing
+ * 时由 App 传入 init。speed / level 都从 1 开始；游戏可只关心其
+ * 中一个。游戏内部通常用 speed 决定 tickSpeed，用 level 决定起始
+ * 形态（Snake：起始障碍砖；Tetris：起始已堆垃圾砖）。
+ */
+export interface GameInitOptions {
+  readonly speed: number;
+  readonly level: number;
+}
+
 export interface Game<S = unknown> {
   /** 机器可读标识，用于路由 / 存档 key，推荐 kebab-case */
   readonly id: string;
@@ -54,11 +65,25 @@ export interface Game<S = unknown> {
   /**
    * 建议的 tick 速度（每秒 tick 数）。App 在进入 playing 态时会把
    * Ticker 调到这个值；未指定时沿用当前速度。
+   *
+   * 与下面的 `tickSpeeds` 二选一：游戏支持 speed 档位选择时优先用
+   * tickSpeeds[speed-1]，否则用本字段。
    */
   readonly tickSpeed?: number;
 
-  /** 构造初始 state；未实现则游戏视为 preview-only 占位 */
-  init?(env: GameEnv): S;
+  /**
+   * 9 档起始 tick 速度（每秒 tick 数），index 与菜单 speed-1 对应。
+   * Brick Game 真机的 SPEED 1-9 对应不同起始速度；越高越快。
+   */
+  readonly tickSpeeds?: readonly number[];
+
+  /**
+   * 构造初始 state；未实现则游戏视为 preview-only 占位。
+   *
+   * opts 的 speed/level 由菜单选择得来，进 playing 时由 App 传入；
+   * 老游戏未实现 opts 参数也兼容（speed/level 均默认 1）。
+   */
+  init?(env: GameEnv, opts?: GameInitOptions): S;
   /** 推进一帧，返回新 state（state 必须不可变） */
   step?(env: GameEnv, state: S): S;
   /** 把当前 state 投影到 env.screen；不修改 state */
