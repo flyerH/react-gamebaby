@@ -11,6 +11,11 @@
   gap: 12px;
 }
 
+/* 模拟真机关机：LCD 没电，整个面板看不见，但仍占位保持 LCD 屏布局不变 */
+.poweredOff {
+  visibility: hidden;
+}
+
 .group {
   display: flex;
   flex-direction: column;

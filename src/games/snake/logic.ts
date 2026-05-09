@@ -1,5 +1,5 @@
 import type { Button, ButtonAction } from '@/engine/types';
-import type { GameEnv, Pixel } from '@/sdk';
+import type { GameEnv, GameInitOptions, Pixel } from '@/sdk';
 
 import { type Direction, dirVec, isOpposite, randomFood, type SnakeState } from './state';
 
@@ -61,9 +61,11 @@ function clampCrashCenter(raw: Pixel, width: number, height: number): Pixel {
 /**
  * 初始状态：蛇放在屏幕水平中线偏左，朝右，长度 3
  *
+ * opts 由 App 在进 playing 时传入（菜单选定的 speed / level）；存进
+ * state.lastOpts 让死亡动画后的自动重开能继承同一档位，不至于刷新成 1/1。
  * 同时把 env.score 清零，和 SidePanel 订阅的 Counter 对齐。
  */
-export function init(env: GameEnv): SnakeState {
+export function init(env: GameEnv, opts?: GameInitOptions): SnakeState {
   const { width, height } = env.screen;
   const cy = Math.floor(height / 2);
   const startX = Math.floor(width / 2);
@@ -87,6 +89,7 @@ export function init(env: GameEnv): SnakeState {
     crashSnapshot: [],
     awaitingFirstMove: true,
     score: 0,
+    lastOpts: opts ?? null,
   };
 }
 
@@ -102,7 +105,10 @@ export function step(env: GameEnv, state: SnakeState): SnakeState {
   // 整段动画（爆炸 + 填屏 + 清屏）播完时，step 自动开新一局并停在
   // awaitingFirstMove —— 玩家按任意键确认才开始动
   if (state.over) {
-    if (state.overFrame >= CRASH_TOTAL_FRAMES) return init(env);
+    if (state.overFrame >= CRASH_TOTAL_FRAMES) {
+      // 用上次的 opts 重开，保住菜单选定的 speed / level
+      return init(env, state.lastOpts ?? undefined);
+    }
     return { ...state, overFrame: state.overFrame + 1 };
   }
   // 等待玩家按键启动：step 不推进蛇，画面静止在初始姿态

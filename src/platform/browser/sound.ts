@@ -260,9 +260,9 @@ export function createBrowserSound(): Sound {
         // Safari 等浏览器在没有手势时 resume() 会 reject
         return false;
       }
-      // String 包一层避开 TS control-flow narrowing：resume 之后 state
-      // 类型应当重新读，但编译器仍按 ensureCtx 返回时的窄类型推
-      return String(ac.state) === 'running';
+      // 用显式断言绕过 TS control-flow narrowing：resume 之后 state 类型
+      // 应当重新读，但编译器仍按 ensureCtx 返回时的窄类型推
+      return (ac.state as AudioContextState) === 'running';
     },
     get enabled() {
       return enabled;

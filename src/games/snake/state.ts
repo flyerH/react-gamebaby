@@ -1,4 +1,4 @@
-import type { GameEnv, Pixel } from '@/sdk';
+import type { GameEnv, GameInitOptions, Pixel } from '@/sdk';
 
 /** 贪吃蛇的四个方向；用联合字面量避免 enum */
 export type Direction = 'up' | 'down' | 'left' | 'right';
@@ -48,6 +48,13 @@ export interface SnakeState {
   readonly crashSnapshot: ReadonlyArray<Pixel>;
   /** 本局分数 */
   readonly score: number;
+  /**
+   * 最近一次进入本游戏时菜单选定的 speed / level（来自 GameInitOptions）。
+   *
+   * 死亡动画播完后 step 自动重开新一局会再调一次 init，要把当前难度
+   * "原样传回"避免重置成默认 1/1。null 表示从未传入 opts（极少数场景）。
+   */
+  readonly lastOpts: GameInitOptions | null;
 }
 
 const DIR_VEC: Readonly<Record<Direction, Pixel>> = {

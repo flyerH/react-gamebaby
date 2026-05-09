@@ -185,9 +185,10 @@ function reduce(state: AppState, action: Action, deps: ReduceDeps): AppState {
     if (button === 'Down') {
       return { ...state, menu: incLevel(state.menu) };
     }
-    if (button === 'Start' || button === 'A') {
+    if (button === 'A') {
+      // Start 由 input 层拦截作 ON/OFF 用，select 进游戏只剩 Rotate（'A'）
       const game = currentGame(registry, state.menu);
-      // 仅 playable 游戏切到 playing；预览占位条目（无 init/step）按下 Start
+      // 仅 playable 游戏切到 playing；预览占位条目（无 init/step）按下 A
       // 直接 no-op，避免落到一个 gameState=null 的"假开局"，TICK 永远 no-op
       if (!game || !isPlayable(game)) return state;
       return {
@@ -200,18 +201,11 @@ function reduce(state: AppState, action: Action, deps: ReduceDeps): AppState {
     return state;
   }
 
-  // playing：game over 下 Start 重开当前局；否则先给游戏处理按键，再考虑退出键
+  // playing：game.onButton 接管按键。原本游戏结束时按 Start 重开局的分支已不
+  // 可达（input 层把 Start 拦截作 POWER_OFF），重开由 Snake step 死亡动画
+  // 自动 init + Reset 回 select 两条路径覆盖
   if (state.playingId) {
     const game = registry.get(state.playingId);
-    if (
-      kind === 'press' &&
-      button === 'Start' &&
-      game &&
-      isPlayable(game) &&
-      game.isGameOver?.(state.gameState)
-    ) {
-      return { ...state, gameState: game.init(env) };
-    }
     if (game?.onButton) {
       const next = game.onButton(env, state.gameState, button, kind);
       if (next !== state.gameState) {
@@ -363,9 +357,13 @@ export function App(): React.ReactElement {
       const isOver = game?.isGameOver?.(state.gameState) ?? false;
       const baseSpeed =
         game?.tickSpeeds?.[state.menu.speed - 1] ?? game?.tickSpeed ?? BOOT_TICK_SPEED;
-      ctx.ticker.setSpeed(
-        isOver ? GAME_OVER_ANIM_SPEED : boost ? baseSpeed * BOOST_FACTOR : baseSpeed
-      );
+      // 优先级：死亡动画速度 > 加速倍率 > 基础速度
+      const effectiveSpeed = isOver
+        ? GAME_OVER_ANIM_SPEED
+        : boost
+          ? baseSpeed * BOOST_FACTOR
+          : baseSpeed;
+      ctx.ticker.setSpeed(effectiveSpeed);
     } else {
       ctx.ticker.setSpeed(BOOT_TICK_SPEED);
     }
@@ -443,6 +441,7 @@ export function App(): React.ReactElement {
         screen={<ContentScreen screen={ctx.screen} cellSize={16} innerSize={9} />}
         side={
           <SidePanel
+            power={state.mode !== 'off'}
             score={score}
             hiScore={hiScore}
             speed={state.menu.speed}

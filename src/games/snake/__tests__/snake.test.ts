@@ -28,6 +28,7 @@ function makeState(partial: Partial<SnakeState>): SnakeState {
     crashSnapshot: [],
     awaitingFirstMove: false,
     score: 0,
+    lastOpts: null,
     ...partial,
   };
 }
@@ -246,6 +247,31 @@ describe('snake · step（移动、吃食物、碰撞）', () => {
     expect(s1.awaitingFirstMove).toBe(true);
     // env.score 也被 init 清零
     expect(env.score.value).toBe(0);
+  });
+
+  it('自动重开继承死亡前的 lastOpts（speed / level 不被刷成默认）', () => {
+    const env = makeEnv();
+    const sFinal = makeState({
+      over: true,
+      overFrame: 70,
+      lastOpts: { speed: 7, level: 5 },
+    });
+    const s1 = step(env, sFinal);
+    expect(s1.over).toBe(false);
+    // lastOpts 经 init 透传回 state，下次再死再重开仍能继承
+    expect(s1.lastOpts).toEqual({ speed: 7, level: 5 });
+  });
+
+  it('init 接受 opts 参数，存进 state.lastOpts', () => {
+    const env = makeEnv();
+    const s = init(env, { speed: 9, level: 3 });
+    expect(s.lastOpts).toEqual({ speed: 9, level: 3 });
+  });
+
+  it('init 不传 opts 时 state.lastOpts=null（兼容历史调用）', () => {
+    const env = makeEnv();
+    const s = init(env);
+    expect(s.lastOpts).toBeNull();
   });
 
   it('awaitingFirstMove=true 时 step 不推进蛇（同引用返回）', () => {

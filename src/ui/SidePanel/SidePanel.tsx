@@ -1,6 +1,12 @@
 import styles from './SidePanel.module.css';
 
 export interface SidePanelProps {
+  /**
+   * 是否通电；false 时整个面板视觉隐藏（visibility: hidden 占位仍在，
+   * LCD 屏布局不变）。模拟真机关机：LCD 没电，所有印刷字 / 数字 / 灯
+   * 都看不见
+   */
+  power?: boolean;
   score?: number;
   hiScore?: number;
   level?: number;
@@ -21,6 +27,7 @@ export interface SidePanelProps {
  * 当前游戏的代号用像素字打在主屏上的 preview 点阵里，我们沿用这种做法。
  */
 export function SidePanel({
+  power = true,
   score = 0,
   hiScore = 0,
   level = 1,
@@ -29,8 +36,9 @@ export function SidePanel({
   pauseMode = false,
   soundOn = false,
 }: SidePanelProps): React.ReactElement {
+  const className = power ? styles.panel : `${styles.panel} ${styles.poweredOff}`;
   return (
-    <div className={styles.panel}>
+    <div className={className}>
       <div className={styles.group}>
         <p className={styles.label}>SCORE</p>
         <p className={styles.value}>{score}</p>
