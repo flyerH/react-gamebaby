@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { createInputBus } from '@/engine/input';
-import type { Button, InputBus } from '@/engine/types';
+import type { Button, ButtonAction, InputBus } from '@/engine/types';
 
 import { bindKeyboardInput, DEFAULT_KEY_MAP } from '../input';
 
@@ -31,7 +31,7 @@ describe('bindKeyboardInput', () => {
   });
 
   it('默认映射把方向键 / 空格 / 回车桥接到对应 Button', () => {
-    const log: Array<[Button, 'press' | 'release']> = [];
+    const log: Array<[Button, ButtonAction]> = [];
     input.subscribe((btn, action) => log.push([btn, action]));
     bindKeyboardInput(input, { target });
 
@@ -58,15 +58,91 @@ describe('bindKeyboardInput', () => {
     expect(fn).not.toHaveBeenCalled();
   });
 
-  it('长按重复 keydown 被 InputBus 去重，只通知一次', () => {
+  it('OS 重复 keydown (e.repeat=true) 被忽略 —— 重复触发由内部 timer 接管', () => {
     const fn = vi.fn();
     input.subscribe(fn);
     bindKeyboardInput(input, { target });
 
-    fireKey(target, 'keydown', 'ArrowUp');
-    fireKey(target, 'keydown', 'ArrowUp');
-    fireKey(target, 'keydown', 'ArrowUp');
+    fireKey(target, 'keydown', 'ArrowUp'); // 首次 → emit press
+    const repeat = new KeyboardEvent('keydown', {
+      key: 'ArrowUp',
+      cancelable: true,
+      bubbles: true,
+      repeat: true,
+    });
+    target.dispatchEvent(repeat);
+    target.dispatchEvent(repeat);
     expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it('游戏键长按：press 后 delay ms 起每 interval ms emit "repeat"', () => {
+    vi.useFakeTimers();
+    const log: Array<[Button, string]> = [];
+    input.subscribe((btn, action) => log.push([btn, action]));
+    bindKeyboardInput(input, { target, repeatDelayMs: 200, repeatIntervalMs: 50 });
+
+    fireKey(target, 'keydown', 'ArrowRight');
+    expect(log).toEqual([['Right', 'press']]);
+    vi.advanceTimersByTime(199);
+    expect(log).toHaveLength(1);
+    // 延迟到期 → 第一次 repeat
+    vi.advanceTimersByTime(1);
+    expect(log[1]).toEqual(['Right', 'repeat']);
+    // 之后每 50ms 一次 repeat
+    vi.advanceTimersByTime(150);
+    expect(log).toHaveLength(5);
+    fireKey(target, 'keyup', 'ArrowRight');
+    vi.advanceTimersByTime(200);
+    expect(log[log.length - 1]).toEqual(['Right', 'release']);
+    vi.useRealTimers();
+  });
+
+  it('A 键（Rotate）也是游戏键 —— 长按生成 repeat 序列，让 Snake 用作快进', () => {
+    vi.useFakeTimers();
+    const log: Array<[Button, string]> = [];
+    input.subscribe((btn, action) => log.push([btn, action]));
+    bindKeyboardInput(input, { target, repeatDelayMs: 100, repeatIntervalMs: 50 });
+
+    fireKey(target, 'keydown', ' '); // 空格 → 'A'
+    expect(log).toEqual([['A', 'press']]);
+    vi.advanceTimersByTime(150); // 100 delay + 50 interval = 2 次 repeat
+    expect(log.filter(([, a]) => a === 'repeat')).toHaveLength(2);
+    vi.useRealTimers();
+  });
+
+  it('控制键（Start / Pause / Sound / Reset）长按不触发 repeat —— 没有"持续按下"语义', () => {
+    vi.useFakeTimers();
+    const fn = vi.fn();
+    input.subscribe(fn);
+    bindKeyboardInput(input, { target, repeatDelayMs: 100, repeatIntervalMs: 50 });
+
+    fireKey(target, 'keydown', 'Enter'); // 'Start'
+    fireKey(target, 'keydown', 'p'); // 'Pause'
+    fireKey(target, 'keydown', 'm'); // 'Sound'
+    fireKey(target, 'keydown', 'r'); // 'Reset'
+    expect(fn).toHaveBeenCalledTimes(4);
+    vi.advanceTimersByTime(500); // 即便等 500ms 也不会再触发
+    expect(fn).toHaveBeenCalledTimes(4);
+    vi.useRealTimers();
+  });
+
+  it('detach 时清掉所有未到期的 timer', () => {
+    vi.useFakeTimers();
+    const fn = vi.fn();
+    input.subscribe(fn);
+    const detach = bindKeyboardInput(input, {
+      target,
+      repeatDelayMs: 50,
+      repeatIntervalMs: 50,
+    });
+
+    fireKey(target, 'keydown', 'ArrowLeft');
+    vi.advanceTimersByTime(50);
+    expect(fn).toHaveBeenCalledTimes(2);
+    detach();
+    vi.advanceTimersByTime(500);
+    expect(fn).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
   });
 
   it('命中映射时默认会 preventDefault', () => {

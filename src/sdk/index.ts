@@ -6,6 +6,7 @@
  */
 
 export type { AnyGame, Game, GameEnv, GameInitOptions, GamePreview, Pixel } from './types';
+export type { Button, ButtonAction } from '@/engine/types';
 export { toGameEnv } from './env';
 export { createRegistry } from './registry';
 export type { GameRegistry } from './registry';

@@ -44,22 +44,13 @@ import {
 const BOOT_TICK_SPEED = 60;
 
 /**
- * 加速键集合：按住任一键 → ticker 速度 × BOOST_FACTOR。Rotate / 同向 / 异向
- * 方向键都算进来，按下时长按持续生效；松开后若集合空则取消加速。
+ * 游戏内动画速度：每秒 30 帧。
  *
- * 选 ticker 提频而不是 step 内一帧两步：保持每帧推进一格的视觉流畅感（用户
- * 反馈"一帧两格"看起来在跳跃），同时切方向时只要新键还按着就不掉 boost
+ * 在 game 进入"动画态"（Snake 死亡爆炸 / Tetris 消行闪烁等）时，App 把 ticker
+ * 切到这个固定值。这样动画节奏不被玩家选的 baseline tickSpeed 拖慢——speed=1
+ * 的慢节奏游戏也能用 ~33ms/帧 干脆的速度播完动画
  */
-const BOOST_KEYS: ReadonlySet<Button> = new Set(['Up', 'Down', 'Left', 'Right', 'A']);
-const BOOST_FACTOR = 3;
-
-/**
- * Game Over 死亡动画速度：每秒 30 帧。
- *
- * 当前接入的是 Snake 的两阶段动画（爆炸 30 帧 + 填屏 20 帧 ≈ 1.7s），
- * 每帧推进 1 个 overFrame。继续上调到 40+ 会显得仓促。
- */
-const GAME_OVER_ANIM_SPEED = 30;
+const ANIM_TICK_SPEED = 30;
 
 /**
  * 应用 mode 状态机：
@@ -201,10 +192,22 @@ function reduce(state: AppState, action: Action, deps: ReduceDeps): AppState {
     return state;
   }
 
-  // playing：game.onButton 接管按键。原本游戏结束时按 Start 重开局的分支已不
-  // 可达（input 层把 Start 拦截作 POWER_OFF），重开由 Snake step 死亡动画
-  // 自动 init + Reset 回 select 两条路径覆盖
+  // playing：Reset 重开当前局；Select 退回菜单；其它走 game.onButton。
+  // 原本游戏结束时按 Start 重开局的分支已不可达（input 层把 Start 拦截
+  // 作 POWER_OFF）。Reset 在 playing 重开 / select 时退回菜单
   if (state.playingId) {
+    if (kind === 'press' && button === 'Reset') {
+      const game = registry.get(state.playingId);
+      if (isPlayable(game)) {
+        return {
+          ...state,
+          gameState: game.init(env, { speed: state.menu.speed, level: state.menu.level }),
+        };
+      }
+    }
+    if (kind === 'press' && button === 'Select') {
+      return { ...state, mode: 'select', playingId: null, gameState: null };
+    }
     const game = registry.get(state.playingId);
     if (game?.onButton) {
       const next = game.onButton(env, state.gameState, button, kind);
@@ -214,9 +217,6 @@ function reduce(state: AppState, action: Action, deps: ReduceDeps): AppState {
     }
   }
 
-  if (kind === 'press' && (button === 'Select' || button === 'Reset')) {
-    return { ...state, mode: 'select', playingId: null, gameState: null };
-  }
   return state;
 }
 
@@ -258,12 +258,6 @@ export function App(): React.ReactElement {
     modeRef.current = state.mode;
   }, [state.mode]);
 
-  // 加速：当前按住的 boost 键集合 + 派生 boost 状态。Ref 跟踪集合，state 触发
-  // ticker 速度 useEffect 重算。多键场景靠集合天然处理：按 Right + 按 Up，
-  // 松开 Right 后 Up 仍按着 → 集合非空 → 仍 boost
-  const pressedBoostRef = useRef<Set<Button>>(new Set());
-  const [boost, setBoost] = useState(false);
-
   // 通电：把"启动旋律"和"切 mode 到 boot"封装成单一动作，让 ON/OFF 按键
   // 触发和 mount 时探测 autoplay 自动触发走同一通路。playMelody 必须在
   // user gesture 同步调用栈内才能被浏览器允许 resume AudioContext
@@ -276,44 +270,70 @@ export function App(): React.ReactElement {
   useEffect(() => {
     const unbind = bindKeyboardInput(ctx.input);
     const unsub = ctx.input.subscribe((button, kind) => {
-      // 关机状态：仅 ON/OFF（emit='Start'）通电，其它按键全部无响应，
-      // 模拟真机"没插电"的表现
-      if (modeRef.current === 'off') {
-        if (kind === 'press' && button === 'Start') powerOn();
-        return;
+      // 控制键（Start / Pause / Sound / Reset）只响 press，repeat / release 无效。
+      // 长按这些键没有"持续"语义；处理完直接 return，不进 reducer
+      if (kind === 'press') {
+        switch (button) {
+          case 'Start':
+            if (modeRef.current === 'off') {
+              powerOn();
+            } else {
+              // 关机：取消旋律 + 重置 pause + state 整体清零
+              melodyCancelRef.current?.();
+              melodyCancelRef.current = null;
+              ctx.pause.set(false);
+              dispatch({ type: 'POWER_OFF' });
+            }
+            return;
+          case 'Pause':
+            // 仅 playing 模式切换暂停，其它模式 no-op 不响 click
+            if (modeRef.current === 'playing') {
+              ctx.pause.toggle();
+              ctx.sound.play('move');
+            }
+            return;
+          case 'Sound':
+            // 先 toggle 后 play：切到 ON 那一下听到 click；切到 OFF 时已静音听不见
+            ctx.soundOn.toggle();
+            ctx.sound.play('move');
+            return;
+          case 'Reset':
+            // Reset 顺带清暂停；reducer 在 playing 模式重开当前局，Reset 自身不响 click
+            if (ctx.pause.value) ctx.pause.set(false);
+            break;
+        }
       }
-      // 已开机时按 ON/OFF = 关机：取消旋律 + 清 boost 集合 + dispatch POWER_OFF。
-      // 不响 click：电源键自身的"咔哒"是物理动作，不该触发 buzzer
-      if (kind === 'press' && button === 'Start') {
-        melodyCancelRef.current?.();
-        melodyCancelRef.current = null;
-        pressedBoostRef.current.clear();
-        setBoost(false);
-        dispatch({ type: 'POWER_OFF' });
-        return;
+
+      // 关机状态：除上面 Start 已处理外，其它按键一律无响应
+      if (modeRef.current === 'off') return;
+
+      // 暂停态拦截游戏键 —— 不让 onButton 改 game state。Reset 已在上面先放行 +
+      // 清了 pause，到这里 ctx.pause.value 已经是 false 不会被拦
+      if (ctx.pause.value && modeRef.current === 'playing') {
+        switch (button) {
+          case 'Up':
+          case 'Down':
+          case 'Left':
+          case 'Right':
+          case 'A':
+          case 'B':
+            return;
+        }
       }
-      // Sound 键：先 toggle 再 play —— "切到 ON 那一下"听到 click 反馈；
-      // 切到 OFF 时 masterGain 已被静音，play 调度的 click 听不见
-      if (kind === 'press' && button === 'Sound') {
-        ctx.soundOn.toggle();
+
+      // 游戏键反馈音：press 和 repeat 都响，让加速期间有"嘀嘀嘀"连击反馈
+      // （对齐 react-tetris move 音节奏）。release 不响（松开本来就没声）。
+      // Reset 不响（控制键已在前面单独处理）
+      if ((kind === 'press' || kind === 'repeat') && button !== 'Reset') {
         ctx.sound.play('move');
-        return;
       }
-      // 其它按键（方向键 / Rotate / Reset）：走 reducer。Reset 由 reducer 在
-      // playing 模式实现"回 select 菜单"；Reset 自身不响 click，其它都响
-      if (kind === 'press' && button !== 'Reset') ctx.sound.play('move');
-      // 开机动画期间任意键先打断旋律，dispatch INPUT 让 reducer 切到 select
+
+      // 开机动画期间任意 press 先打断旋律
       if (kind === 'press' && modeRef.current === 'boot') {
         melodyCancelRef.current?.();
         melodyCancelRef.current = null;
       }
-      // 加速键集合维护：press 加入，release 移除；集合非空 ↔ boost on
-      if (BOOST_KEYS.has(button)) {
-        if (kind === 'press') pressedBoostRef.current.add(button);
-        else pressedBoostRef.current.delete(button);
-        const next = pressedBoostRef.current.size > 0;
-        setBoost((prev) => (prev === next ? prev : next));
-      }
+
       dispatch({ type: 'INPUT', button, kind });
     });
     return () => {
@@ -349,25 +369,22 @@ export function App(): React.ReactElement {
   // ticker 速度跟着 mode / 当前游戏 / 是否 game over 走。
   // playing 态优先用 game.tickSpeeds[speed-1]，回退到 game.tickSpeed，
   // 都没有就沿用开机动画速度（说明这款游戏不关心 tick 节奏）。
-  // boost=true 时整体 × BOOST_FACTOR；死亡动画期间不加速（GAME_OVER 固定速度
-  // 是动画节奏，不能变）
+  // 加速由各游戏自身在 onButton 内处理（如 Snake 的"按键即走 + 跳一次
+  // 自然 tick"），App 层不再统一提频
   useEffect(() => {
     if (state.mode === 'playing' && state.playingId) {
       const game = registry.get(state.playingId);
       const isOver = game?.isGameOver?.(state.gameState) ?? false;
+      // 游戏内动画态优先用 ANIM_TICK_SPEED；isGameOver=true 时也视为动画
+      // （Snake 不必单独实现 isAnimating，省一次样板代码）
+      const isAnimating = isOver || (game?.isAnimating?.(state.gameState) ?? false);
       const baseSpeed =
         game?.tickSpeeds?.[state.menu.speed - 1] ?? game?.tickSpeed ?? BOOT_TICK_SPEED;
-      // 优先级：死亡动画速度 > 加速倍率 > 基础速度
-      const effectiveSpeed = isOver
-        ? GAME_OVER_ANIM_SPEED
-        : boost
-          ? baseSpeed * BOOST_FACTOR
-          : baseSpeed;
-      ctx.ticker.setSpeed(effectiveSpeed);
+      ctx.ticker.setSpeed(isAnimating ? ANIM_TICK_SPEED : baseSpeed);
     } else {
       ctx.ticker.setSpeed(BOOT_TICK_SPEED);
     }
-  }, [state.mode, state.playingId, state.gameState, state.menu.speed, boost, ctx.ticker, registry]);
+  }, [state.mode, state.playingId, state.gameState, state.menu.speed, ctx.ticker, registry]);
 
   // 屏幕渲染
   useEffect(() => {
@@ -428,6 +445,21 @@ export function App(): React.ReactElement {
     useMemo(() => () => ctx.soundOn.value, [ctx.soundOn])
   );
 
+  const paused = useSyncExternalStore(
+    useMemo(() => (notify: () => void) => ctx.pause.subscribe(notify), [ctx.pause]),
+    useMemo(() => () => ctx.pause.value, [ctx.pause])
+  );
+
+  // 暂停状态接 ticker —— playing+paused 时停掉 tick 调度，否则恢复。其它
+  // mode（off/boot/select）不参与 pause 语义；boot 动画始终跑，不让 P 键打断
+  useEffect(() => {
+    if (state.mode === 'playing' && paused) {
+      ctx.ticker.pause();
+    } else {
+      ctx.ticker.resume();
+    }
+  }, [state.mode, paused, ctx.ticker]);
+
   // 本局分数超越 hi-score 时推进。用 ref 式同步调用是安全的：
   // createCounter.set 在值未变时不通知，不会反向触发 score 订阅造成循环。
   useEffect(() => {
@@ -447,6 +479,7 @@ export function App(): React.ReactElement {
             speed={state.menu.speed}
             level={state.menu.level}
             selectMode={state.mode === 'select'}
+            pauseMode={paused}
             soundOn={soundOn}
           />
         }

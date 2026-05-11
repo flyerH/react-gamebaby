@@ -19,6 +19,7 @@ export interface ButtonLabels {
   readonly right: string;
   readonly rotate: string;
   readonly start: string;
+  readonly pause: string;
   readonly sound: string;
   readonly reset: string;
 }
@@ -31,6 +32,7 @@ export const BUTTON_LABELS: Readonly<Record<Locale, ButtonLabels>> = {
     right: '右',
     rotate: '旋转',
     start: '开/关',
+    pause: '暂停',
     sound: '声音',
     reset: '重置',
   },
@@ -41,6 +43,7 @@ export const BUTTON_LABELS: Readonly<Record<Locale, ButtonLabels>> = {
     right: 'Right',
     rotate: 'Rotate',
     start: 'On/Off',
+    pause: 'Pause',
     sound: 'Sound',
     reset: 'Reset',
   },

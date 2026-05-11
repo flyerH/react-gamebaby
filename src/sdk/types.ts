@@ -92,6 +92,18 @@ export interface Game<S = unknown> {
   onButton?(env: GameEnv, state: S, btn: Button, action: ButtonAction): S;
   /** 判定游戏是否结束；App 据此决定是否暂停推进 / 回菜单 */
   isGameOver?(state: S): boolean;
+
+  /**
+   * 当前是否处于"游戏内动画"阶段（如 Snake 死亡爆炸、Tetris 消行闪烁）。
+   *
+   * App 据此把 ticker 切到固定的 ANIM_TICK_SPEED，让动画节奏不被 baseline
+   * tickSpeed 拖慢 —— 玩家选 speed=1 (慢慢玩) 时，消行 / 死亡动画也能用
+   * 固定的 ~50ms/帧 节奏播完，而不是动辄 1~2 秒卡顿
+   *
+   * 默认假定 isGameOver=true 时也算动画期，省一次实现：Snake 不必再实现
+   * 这个方法
+   */
+  isAnimating?(state: S): boolean;
 }
 
 /** 任意游戏的无类型视图，便于 App / Registry 等消费方统一持有 */

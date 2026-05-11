@@ -27,6 +27,7 @@
     "build": "tsc --noEmit && vite build",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "test": "vitest run",
+    "coverage": "vitest run --coverage",
     "prepare": "husky"
   },
   "lint-staged": {
@@ -51,6 +52,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/coverage-v8": "^4.1.5",
     "@vitest/ui": "^4.1.5",
     "eslint": "^9.0.0",
     "eslint-plugin-react-hooks": "^7.1.1",

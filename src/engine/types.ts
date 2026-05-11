@@ -15,11 +15,19 @@ export type Button =
   | 'B'
   | 'Start'
   | 'Select'
+  | 'Pause'
   | 'Sound'
   | 'Reset';
 
-/** 按键动作：按下 / 抬起 */
-export type ButtonAction = 'press' | 'release';
+/**
+ * 按键动作：按下 / 长按重复 / 抬起
+ *
+ * - press   首次按下（每次"全新按键"必发）
+ * - repeat  按住超过起始延迟后由平台层按固定节奏发出；游戏自己决定响应
+ *           不响应（Snake 方向键 + A 都响应；Tetris 方向键响应、A 不响应）
+ * - release 松开
+ */
+export type ButtonAction = 'press' | 'repeat' | 'release';
 
 /** 音效标识符 —— 先给出最小集，后续游戏接入再扩展 */
 export type SoundEffect = 'move' | 'rotate' | 'clear' | 'over' | 'start' | 'pause';
