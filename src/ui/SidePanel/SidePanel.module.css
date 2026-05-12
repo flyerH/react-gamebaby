@@ -36,6 +36,48 @@
   font-weight: normal;
 }
 
+/* Next 预览：与主屏同风格（外框 + 内方块），尺寸约 80% */
+
+.previewGrid {
+  display: inline-grid;
+  grid-template-columns: repeat(4, 13px);
+  column-gap: 2px;
+  row-gap: 2px;
+  margin-top: 2px;
+}
+
+/* 单格外框：13×13，border 模拟 strokeRect */
+.pixelOn,
+.pixelOff {
+  width: 13px;
+  height: 13px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pixelOn {
+  border: 1.5px solid #000;
+}
+
+.pixelOff {
+  border: 1.5px solid rgba(0, 0, 0, 0.15);
+}
+
+/* 内方块：居中 7×7，模拟 fillRect */
+.pixelOn > .pixelInner {
+  width: 7px;
+  height: 7px;
+  background: #000;
+}
+
+.pixelOff > .pixelInner {
+  width: 7px;
+  height: 7px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
 .indicators {
   margin-top: auto;
   display: flex;

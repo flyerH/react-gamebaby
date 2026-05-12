@@ -6,6 +6,8 @@ export type Direction = 'up' | 'down' | 'left' | 'right';
 export interface SnakeState {
   /** 蛇身坐标，body[0] 是头，length ≥ 1 */
   readonly body: ReadonlyArray<Pixel>;
+  /** level > 1 时场地上的障碍砖；蛇撞到视同撞墙 */
+  readonly obstacles: ReadonlyArray<Pixel>;
   /** 当前已生效方向 */
   readonly dir: Direction;
   /** 等待下一 tick 应用的方向；避免一个 tick 内连按两次导致反向 */
@@ -98,10 +100,15 @@ export function isOpposite(a: Direction, b: Direction): boolean {
  * 用 RNG 驱动（env.rng 是可播种 PRNG，便于回放 / RL）；如果屏幕已
  * 被 body 填满则返回 null（极限通关场景，App 可据此判终局）。
  */
-export function randomFood(env: GameEnv, body: ReadonlyArray<Pixel>): Pixel | null {
+export function randomFood(
+  env: GameEnv,
+  body: ReadonlyArray<Pixel>,
+  obstacles: ReadonlyArray<Pixel> = []
+): Pixel | null {
   const { width, height } = env.screen;
   const occupied = new Set<string>();
   for (const [x, y] of body) occupied.add(`${x},${y}`);
+  for (const [x, y] of obstacles) occupied.add(`${x},${y}`);
   const total = width * height;
   if (occupied.size >= total) return null;
 

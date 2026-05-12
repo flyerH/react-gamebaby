@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -15,9 +16,11 @@ export default defineConfig({
   },
   build: {
     target: 'es2022',
-    // 生产产物默认不出 sourcemap：避免 .map 随 dist 同步上线后泄露源码
-    // 映射；本地排障 / CI 调试时可临时开启 vite build --sourcemap
     sourcemap: false,
     outDir: 'dist',
+    rollupOptions: {
+      // 生产构建只打包游戏入口；training.html 仅 dev 时可用
+      input: { main: resolve(import.meta.dirname, 'index.html') },
+    },
   },
 });

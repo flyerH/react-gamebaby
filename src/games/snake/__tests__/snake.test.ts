@@ -18,6 +18,7 @@ function makeEnv(width = 10, height = 20, seed = 42): GameEnv {
 function makeState(partial: Partial<SnakeState>): SnakeState {
   return {
     body: [[0, 0]],
+    obstacles: [],
     dir: 'right',
     pendingDir: 'right',
     food: [9, 0],

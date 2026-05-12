@@ -10,3 +10,6 @@ coverage
 *-error.log
 
 *.tsbuildinfo
+
+# RL 训练产出的模型权重（体积大，不入 Git）
+models/

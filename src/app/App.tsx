@@ -12,6 +12,7 @@ import { createPersistentCounter } from '@/engine/counter';
 import type { Button, ButtonAction, Counter } from '@/engine/types';
 import { defaultGames } from '@/games';
 import { bindKeyboardInput, createBrowserContext } from '@/platform/browser';
+import { createHeadlessContext } from '@/platform/headless';
 import type { Game, GameEnv, GameRegistry } from '@/sdk';
 import { toGameEnv } from '@/sdk';
 import { Buttons } from '@/ui/Buttons';
@@ -44,6 +45,14 @@ import {
 const BOOT_TICK_SPEED = 60;
 
 /**
+ * 选关 demo 视口：在主屏中间留出图标（上 6 行）和编号（下 5 行）的空间。
+ * demo 游戏在 10×DEMO_H 的小场地里跑，渲染时偏移 DEMO_Y 行画到主屏
+ */
+const DEMO_W = 10;
+const DEMO_H = 8;
+const DEMO_Y = 6;
+
+/**
  * 游戏内动画速度：每秒 30 帧。
  *
  * 在 game 进入"动画态"（Snake 死亡爆炸 / Tetris 消行闪烁等）时，App 把 ticker
@@ -69,6 +78,10 @@ interface AppState {
   readonly playingId: string | null;
   /** 具体游戏的内部 state；类型由 Game<S> 的 S 决定，外层用 unknown 持有 */
   readonly gameState: unknown;
+  /** select 模式下自动演示的 state；null = 该游戏没实现 demo */
+  readonly demoState: unknown;
+  /** demo 专用 GameEnv（小屏幕），null = 非 select 态 */
+  readonly demoEnv: GameEnv | null;
 }
 
 /**
@@ -100,7 +113,20 @@ function initialAppState(): AppState {
     menu: initialMenuState(),
     playingId: null,
     gameState: null,
+    demoState: null,
+    demoEnv: null,
   };
+}
+
+/** select 模式下为当前选中游戏创建 demo state；游戏没实现 demoInit 返回 null */
+function initDemo(registry: GameRegistry, menu: MenuState, demoEnv: GameEnv): unknown {
+  const game = currentGame(registry, menu);
+  return game?.demoInit?.(demoEnv) ?? null;
+}
+
+/** 创建 demo 用 GameEnv（10×9 小屏幕），每次重建 seed 不同让演示不重复 */
+function createDemoEnv(): GameEnv {
+  return toGameEnv(createHeadlessContext({ seed: Date.now(), width: DEMO_W, height: DEMO_H }));
 }
 
 /** 判断游戏是否满足"真游戏"条件（init/step 都实现了） */
@@ -135,6 +161,14 @@ function reduce(state: AppState, action: Action, deps: ReduceDeps): AppState {
     if (state.mode === 'boot') {
       return { ...state, boot: stepBoot(anim, state.boot) };
     }
+    if (state.mode === 'select' && state.demoState !== null && state.demoEnv) {
+      const game = currentGame(registry, state.menu);
+      if (game?.demoStep) {
+        const next = game.demoStep(state.demoEnv, state.demoState);
+        if (next === state.demoState) return state;
+        return { ...state, demoState: next };
+      }
+    }
     if (state.mode === 'playing' && state.playingId) {
       const game = registry.get(state.playingId);
       if (isPlayable(game)) {
@@ -157,7 +191,9 @@ function reduce(state: AppState, action: Action, deps: ReduceDeps): AppState {
     if (kind !== 'press') return state;
     // boot 期间任意按键 → 进 select；旋律的 cancel 由 input subscribe
     // 同步触发，与 dispatch 共处一个事件回调内
-    return { ...state, mode: 'select', menu: initialMenuState() };
+    const menu = initialMenuState();
+    const de = createDemoEnv();
+    return { ...state, mode: 'select', menu, demoEnv: de, demoState: initDemo(registry, menu, de) };
   }
 
   if (state.mode === 'select') {
@@ -165,10 +201,14 @@ function reduce(state: AppState, action: Action, deps: ReduceDeps): AppState {
     // Brick Game 真机风格菜单：左右切游戏，上调 speed，下调 level，
     // 全部走"单击递增循环到顶回 1"的语义；没有"反向减少"键
     if (button === 'Left') {
-      return { ...state, menu: selectPrev(registry, state.menu) };
+      const menu = selectPrev(registry, state.menu);
+      const de = createDemoEnv();
+      return { ...state, menu, demoEnv: de, demoState: initDemo(registry, menu, de) };
     }
     if (button === 'Right') {
-      return { ...state, menu: selectNext(registry, state.menu) };
+      const menu = selectNext(registry, state.menu);
+      const de = createDemoEnv();
+      return { ...state, menu, demoEnv: de, demoState: initDemo(registry, menu, de) };
     }
     if (button === 'Up') {
       return { ...state, menu: incSpeed(state.menu) };
@@ -206,7 +246,15 @@ function reduce(state: AppState, action: Action, deps: ReduceDeps): AppState {
       }
     }
     if (kind === 'press' && button === 'Select') {
-      return { ...state, mode: 'select', playingId: null, gameState: null };
+      const de = createDemoEnv();
+      return {
+        ...state,
+        mode: 'select',
+        playingId: null,
+        gameState: null,
+        demoEnv: de,
+        demoState: initDemo(registry, state.menu, de),
+      };
     }
     const game = registry.get(state.playingId);
     if (game?.onButton) {
@@ -381,10 +429,24 @@ export function App(): React.ReactElement {
       const baseSpeed =
         game?.tickSpeeds?.[state.menu.speed - 1] ?? game?.tickSpeed ?? BOOT_TICK_SPEED;
       ctx.ticker.setSpeed(isAnimating ? ANIM_TICK_SPEED : baseSpeed);
+    } else if (state.mode === 'select' && state.demoState !== null) {
+      const game = currentGame(registry, state.menu);
+      const isOver = game?.isGameOver?.(state.demoState) ?? false;
+      const isAnim = isOver || (game?.isAnimating?.(state.demoState) ?? false);
+      const demoSpeed = game?.tickSpeeds?.[2] ?? game?.tickSpeed ?? 3;
+      ctx.ticker.setSpeed(isAnim ? ANIM_TICK_SPEED : demoSpeed);
     } else {
       ctx.ticker.setSpeed(BOOT_TICK_SPEED);
     }
-  }, [state.mode, state.playingId, state.gameState, state.menu.speed, ctx.ticker, registry]);
+  }, [
+    state.mode,
+    state.playingId,
+    state.gameState,
+    state.demoState,
+    state.menu,
+    ctx.ticker,
+    registry,
+  ]);
 
   // 屏幕渲染
   useEffect(() => {
@@ -404,6 +466,15 @@ export function App(): React.ReactElement {
     if (state.mode === 'select') {
       screen.clear();
       const game = currentGame(registry, state.menu);
+      // demo 画到小屏幕，再偏移复制到主屏中间区域
+      if (game?.render && state.demoState !== null && state.demoEnv) {
+        game.render(state.demoEnv, state.demoState);
+        const ds = state.demoEnv.screen;
+        for (let y = 0; y < ds.height; y++)
+          for (let x = 0; x < ds.width; x++)
+            if (ds.getPixel(x, y)) screen.setPixel(x, y + DEMO_Y, true);
+      }
+      // 叠加静态 preview（图标 + 编号）
       if (game) {
         for (const [x, y] of game.preview) screen.setPixel(x, y, true);
       }
@@ -476,6 +547,11 @@ export function App(): React.ReactElement {
             power={state.mode !== 'off'}
             score={score}
             hiScore={hiScore}
+            nextPreview={
+              state.mode === 'playing' && state.playingId
+                ? (registry.get(state.playingId)?.getNextPreview?.(state.gameState) ?? null)
+                : null
+            }
             speed={state.menu.speed}
             level={state.menu.level}
             pauseMode={paused}

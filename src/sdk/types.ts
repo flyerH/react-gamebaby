@@ -104,6 +104,35 @@ export interface Game<S = unknown> {
    * 这个方法
    */
   isAnimating?(state: S): boolean;
+
+  /**
+   * 返回"下一块"预览的像素坐标（相对于 4×4 包围盒左上角）。
+   *
+   * SidePanel 据此在 HI-SCORE 下方画迷你方块预览。不实现则不显示。
+   * 目前只有 Tetris 需要（Snake 没有"下一块"概念）
+   *
+   * TODO: 仅 Tetris 使用，考虑拆为独立接口（如 WithNextPreview<S>），
+   * 避免 Game 接口膨胀——等第三款游戏确认需求后再决定
+   */
+  getNextPreview?(state: S): ReadonlyArray<Pixel> | null;
+
+  /**
+   * 选关界面自动演示：构造 demo 用初始态。
+   *
+   * 实现后 App 在 select 模式下用 ticker 驱动 demoStep，配合已有的
+   * render 把 demo 画面投到主屏，代替静态 preview 像素
+   *
+   * TODO: 目前 demoStep 实现中用 `{ ...init(env), awaitingFirstMove: false }`
+   * 绕过 init 的等待首键设计；应给 init 加 skipAwait 选项使之正式化
+   */
+  demoInit?(env: GameEnv): S;
+
+  /**
+   * 推进一帧 demo：内部自行决定"按什么键" + 调 step，实现自动演示。
+   *
+   * 死亡后可自动重开（复用 game over → init 的已有路径）
+   */
+  demoStep?(env: GameEnv, state: S): S;
 }
 
 /** 任意游戏的无类型视图，便于 App / Registry 等消费方统一持有 */
