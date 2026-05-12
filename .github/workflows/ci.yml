@@ -1,7 +1,8 @@
-# PR opened / 新 commit 到分支时跑基础 CI 检查：lint + test + build。
+# PR opened / 新 commit 到分支时跑基础 CI 检查：lint + test + coverage + build。
 #
 # 设计要点：
 #   - 单 job 串行跑完（项目测试 < 10s，不需要按 shard 并行）
+#   - test 步骤改 coverage：跑测试 + 生成覆盖率，比单独跑省一次启动开销
 #   - pnpm build 内已含 tsc --noEmit（见 package.json），无需单独 typecheck 步骤
 #   - Node 版本锁定 .nvmrc，pnpm 版本锁定 package.json 的 packageManager 字段
 name: ci
@@ -23,6 +24,10 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # 仅本 job 需要 PR 写权限：覆盖率 action 帖评论到 PR
+      pull-requests: write
     timeout-minutes: 10
 
     steps:
@@ -44,8 +49,17 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Test
-        run: pnpm test
+      - name: Test + Coverage
+        run: pnpm coverage
 
       - name: Build
         run: pnpm build
+
+      # 把覆盖率 summary 表帖到 PR comment（仅 PR 触发时跑）。
+      # action 直接读 coverage/coverage-summary.json，无外部服务依赖。
+      - name: PR coverage report
+        if: github.event_name == 'pull_request'
+        uses: davelosert/vitest-coverage-report-action@3c50566c523e04813df28de8f7c48dd97d663f1c # v2.11.2
+        with:
+          json-summary-path: coverage/coverage-summary.json
+          json-final-path: coverage/coverage-final.json

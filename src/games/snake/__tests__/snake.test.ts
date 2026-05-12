@@ -29,6 +29,7 @@ function makeState(partial: Partial<SnakeState>): SnakeState {
     awaitingFirstMove: false,
     score: 0,
     lastOpts: null,
+    skipNextTick: false,
     ...partial,
   };
 }
@@ -397,10 +398,12 @@ describe('snake · onButton', () => {
     expect(onButton(env, base, 'Left', 'press')).toBe(base);
   });
 
-  it('release 与非方向键 无副作用', () => {
+  it('release 无副作用 / 非方向键非 A 无副作用', () => {
     const env = makeEnv();
     expect(onButton(env, base, 'Up', 'release')).toBe(base);
-    expect(onButton(env, base, 'A', 'press')).toBe(base);
+    // 'B' 不在 onButton 处理范围，返回原 state
+    expect(onButton(env, base, 'B', 'press')).toBe(base);
+    // A 不是 release 时会触发"沿当前方向走一格"，单独测试见下面"A 键 Rotate"
   });
 
   it('over 态下按键不生效', () => {
@@ -431,5 +434,119 @@ describe('snake · onButton', () => {
     const s1 = onButton(env, idle, 'A', 'press');
     expect(s1.awaitingFirstMove).toBe(false);
     expect(s1.dir).toBe('right');
+  });
+});
+
+describe('snake · 按键即走（真机加速模式）', () => {
+  it('方向键 press 立即推进一格 + 设 skipNextTick=true', () => {
+    const env = makeEnv();
+    const s0 = makeState({
+      body: [
+        [4, 10],
+        [3, 10],
+        [2, 10],
+      ],
+      dir: 'right',
+      pendingDir: 'right',
+    });
+    // 按右：同向键也触发立即推进
+    const s1 = onButton(env, s0, 'Right', 'press');
+    expect(s1.body[0]).toEqual([5, 10]);
+    expect(s1.body).toHaveLength(3);
+    expect(s1.skipNextTick).toBe(true);
+    expect(s1.dir).toBe('right');
+  });
+
+  it('按异向键：改向 + 立即推进 + skipNextTick=true', () => {
+    const env = makeEnv();
+    const s0 = makeState({
+      body: [
+        [4, 10],
+        [3, 10],
+      ],
+      dir: 'right',
+      pendingDir: 'right',
+    });
+    const s1 = onButton(env, s0, 'Up', 'press');
+    expect(s1.dir).toBe('up');
+    expect(s1.pendingDir).toBe('up');
+    expect(s1.body[0]).toEqual([4, 9]);
+    expect(s1.skipNextTick).toBe(true);
+  });
+
+  it('反向键被拒：不推进、skipNextTick 不变', () => {
+    const env = makeEnv();
+    const s0 = makeState({
+      body: [
+        [4, 10],
+        [3, 10],
+      ],
+      dir: 'right',
+      pendingDir: 'right',
+    });
+    const s1 = onButton(env, s0, 'Left', 'press');
+    expect(s1).toBe(s0);
+  });
+
+  it('skipNextTick=true 时 step 跳过一次推进 + 重置 skipNextTick=false', () => {
+    const env = makeEnv();
+    const s0 = makeState({
+      body: [
+        [4, 10],
+        [3, 10],
+      ],
+      skipNextTick: true,
+    });
+    const s1 = step(env, s0);
+    expect(s1.body).toEqual(s0.body);
+    expect(s1.skipNextTick).toBe(false);
+  });
+
+  it('A 键（Rotate）：沿当前方向走一格（不改向）+ skipNextTick=true', () => {
+    const env = makeEnv();
+    const s0 = makeState({
+      body: [
+        [4, 10],
+        [3, 10],
+        [2, 10],
+      ],
+      dir: 'right',
+      pendingDir: 'right',
+    });
+    const s1 = onButton(env, s0, 'A', 'press');
+    expect(s1.body[0]).toEqual([5, 10]);
+    expect(s1.dir).toBe('right');
+    expect(s1.skipNextTick).toBe(true);
+  });
+
+  it('release 方向键清 skipNextTick：解决松开后第一次 ticker tick 被跳过的停顿', () => {
+    const env = makeEnv();
+    const s0 = makeState({
+      body: [[5, 10]],
+      dir: 'right',
+      pendingDir: 'right',
+      skipNextTick: true,
+    });
+    const s1 = onButton(env, s0, 'Right', 'release');
+    expect(s1.skipNextTick).toBe(false);
+  });
+
+  it('release 时 skipNextTick=false 已经是 false，返回同引用避免无谓渲染', () => {
+    const env = makeEnv();
+    const s0 = makeState({ skipNextTick: false });
+    expect(onButton(env, s0, 'Right', 'release')).toBe(s0);
+  });
+
+  it('按键即走撞墙：over=true，不设 skipNextTick（over 路径下 step 走动画推进）', () => {
+    const env = makeEnv();
+    const s0 = makeState({
+      body: [[9, 10]],
+      dir: 'right',
+      pendingDir: 'right',
+    });
+    // 按右键立即推进会撞右墙
+    const s1 = onButton(env, s0, 'Right', 'press');
+    expect(s1.over).toBe(true);
+    expect(s1.skipNextTick).toBe(false);
   });
 });

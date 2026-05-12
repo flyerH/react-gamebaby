@@ -40,7 +40,7 @@ const CRASH_STATES: ReadonlyArray<ReadonlyArray<ReadonlyArray<number>>> = [
 
 /** 每个爆炸图案在屏幕上停留的 tick 数（<=1 视为每 tick 切图） */
 const CRASH_PHASE_FRAMES = 2;
-/** 爆炸阶段总帧数：30 帧（按 App 的 GAME_OVER_ANIM_SPEED=30 即 1s）*/
+/** 爆炸阶段总帧数：30 帧（按 App 的 ANIM_TICK_SPEED=30 即 1s）*/
 const CRASH_PAINT_FRAMES = 30;
 /** 填屏阶段帧数：屏高 H=20，每帧填 1 行，共 20 帧 */
 const CRASH_FILL_FRAMES = 20;
@@ -90,6 +90,7 @@ export function init(env: GameEnv, opts?: GameInitOptions): SnakeState {
     awaitingFirstMove: true,
     score: 0,
     lastOpts: opts ?? null,
+    skipNextTick: false,
   };
 }
 
@@ -114,6 +115,22 @@ export function step(env: GameEnv, state: SnakeState): SnakeState {
   // 等待玩家按键启动：step 不推进蛇，画面静止在初始姿态
   if (state.awaitingFirstMove) return state;
 
+  // 按键即走的补偿：onButton 已经手动推进一格，跳过这次自然 tick
+  if (state.skipNextTick) {
+    return { ...state, skipNextTick: false };
+  }
+
+  return advance(env, state);
+}
+
+/**
+ * 把蛇沿 pendingDir 推进一格 + 处理墙 / 自撞 / 吃食物 / 通关。
+ *
+ * 抽出这个函数让 step（ticker tick 触发）和 onButton（按键即走）共享同一段
+ * 移动 + 碰撞 + 食物逻辑，避免在两处重复实现。所有副作用（env.score.set /
+ * env.sound.play）都集中在这里
+ */
+function advance(env: GameEnv, state: SnakeState): SnakeState {
   const head = state.body[0];
   if (!head) return state;
 
@@ -252,28 +269,45 @@ export function render(env: GameEnv, state: SnakeState): void {
   }
 }
 
+/** 把 Button 翻译成 Direction；非方向键返回 null */
+function buttonToDir(btn: Button): Direction | null {
+  switch (btn) {
+    case 'Up':
+      return 'up';
+    case 'Down':
+      return 'down';
+    case 'Left':
+      return 'left';
+    case 'Right':
+      return 'right';
+    default:
+      return null;
+  }
+}
+
 export function onButton(
-  _env: GameEnv,
+  env: GameEnv,
   state: SnakeState,
   btn: Button,
   action: ButtonAction
 ): SnakeState {
-  if (action !== 'press' || state.over) return state;
+  if (state.over) return state;
 
-  const nextDir: Direction | null =
-    btn === 'Up'
-      ? 'up'
-      : btn === 'Down'
-        ? 'down'
-        : btn === 'Left'
-          ? 'left'
-          : btn === 'Right'
-            ? 'right'
-            : null;
+  switch (action) {
+    case 'release':
+      // 方向键松开后清 skipNextTick：长按期间最后一次 repeat 留下了 skipNextTick=true，
+      // 如果不清，松开后第一次自然 ticker tick 会被跳过 → 玩家感觉"松开后停顿一拍才走"
+      return state.skipNextTick ? { ...state, skipNextTick: false } : state;
+    case 'press':
+    case 'repeat':
+      break;
+  }
 
-  // 等待启动：任意 press 解除等待。方向键同时改向（反向键被拒，不解除等待，
-  // 让玩家有机会再按一次正向键）。按键反馈音由 App 层统一发，这里不重复 play
+  const nextDir = buttonToDir(btn);
+
+  // 等待启动：仅 press 解除等待，repeat 状态下还停在初始姿态没意义
   if (state.awaitingFirstMove) {
+    if (action !== 'press') return state;
     if (nextDir && isOpposite(state.dir, nextDir)) return state;
     return {
       ...state,
@@ -283,9 +317,27 @@ export function onButton(
     };
   }
 
-  if (!nextDir) return state;
-  if (isOpposite(state.dir, nextDir)) return state;
-  return { ...state, pendingDir: nextDir };
+  // 按键即走：press 和 repeat 都触发"沿目标方向走一格"。Brick-Game 真机
+  // 的 Rotate (A) 在 Snake 里等价于"沿当前方向走一步"，所以也走这条路径
+  switch (btn) {
+    case 'Up':
+    case 'Down':
+    case 'Left':
+    case 'Right': {
+      if (!nextDir || isOpposite(state.dir, nextDir)) return state;
+      const turned: SnakeState = { ...state, pendingDir: nextDir };
+      const moved = advance(env, turned);
+      if (moved.over) return moved;
+      return { ...moved, skipNextTick: true };
+    }
+    case 'A': {
+      const moved = advance(env, state);
+      if (moved.over) return moved;
+      return { ...moved, skipNextTick: true };
+    }
+    default:
+      return state;
+  }
 }
 
 export function isGameOver(state: SnakeState): boolean {

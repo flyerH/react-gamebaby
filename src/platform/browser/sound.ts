@@ -58,12 +58,15 @@ const PRESETS: Partial<Record<SoundEffect, Preset>> = {
 
 /**
  * Sample 切片时间表（秒）。对应 public/sounds/sfx.m4a 的内部布局：
- *   [0       , 0.1437)   move   —— 按键 click
+ *   [0       , 0.1437)   move   —— 按键 click（实际只播前 0.1s）
  *   [0.1437  , 1.2874)   over   —— 死亡嗡鸣
+ *
+ * move duration 0.1s 配合"新 click 触发时截断旧 click"机制（见 play 实现），
+ * 长按时听感是干脆的"嘀-嘀-嘀"而不是叠加糊在一起
  */
 const SAMPLE_URL = 'sounds/sfx.m4a';
 const SAMPLE_RANGES: Partial<Record<SoundEffect, { offset: number; duration: number }>> = {
-  move: { offset: 0, duration: 0.1437 },
+  move: { offset: 0, duration: 0.1 },
   over: { offset: 0.1437, duration: 1.1437 },
 };
 /**
@@ -105,6 +108,9 @@ export function createBrowserSound(): Sound {
   let masterGain: GainNode | null = null;
   let sampleBuffer: AudioBuffer | null = null;
   let sampleLoading = false;
+  // 每个 sample effect 当前在播的 BufferSource —— 新 click 触发时把同 effect
+  // 的旧 BufferSource 截断，避免长按时声音叠在一起糊
+  const activeSamples = new Map<SoundEffect, AudioBufferSourceNode>();
 
   const ensureCtx = (): AudioContext | null => {
     if (audioCtx) return audioCtx;
@@ -164,11 +170,27 @@ export function createBrowserSound(): Sound {
       if (range) {
         // buffer 还没就绪 / 加载失败 → 静默。不 fallback 合成（用户确认合成版完全不像）
         if (!sampleBuffer) return;
+        // 截断同 effect 的上一个 BufferSource（如果它还在播）。常见场景：长按
+        // 方向键时每 100ms 触发一次 move click，旧 click 还在播 → 直接砍掉让
+        // 新 click 接上，听感是干脆的"嘀-嘀-嘀"而不是糊在一起
+        const prev = activeSamples.get(effect);
+        if (prev) {
+          try {
+            prev.stop();
+          } catch {
+            // 已自然结束的 BufferSource 重复 stop 会抛 InvalidStateError，吞掉
+          }
+        }
         const src = ac.createBufferSource();
         src.buffer = sampleBuffer;
         const gainNode = ac.createGain();
         gainNode.gain.value = SAMPLE_GAIN;
         src.connect(gainNode).connect(out(ac));
+        // 自然结束时清登记表，让下次同 effect 触发不再尝试 stop 已结束的节点
+        src.onended = (): void => {
+          if (activeSamples.get(effect) === src) activeSamples.delete(effect);
+        };
+        activeSamples.set(effect, src);
         // when=0 表示立即；offset / duration 单位秒，对齐 sfx.m4a 内部布局
         src.start(0, range.offset, range.duration);
         return;

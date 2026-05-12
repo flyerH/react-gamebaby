@@ -16,14 +16,18 @@ describe('createInputBus', () => {
     expect(spy).toHaveBeenCalledExactlyOnceWith('Up', 'press');
   });
 
-  it('重复 press 同一按键不会重复通知', () => {
+  it('重复 press 同一按键仍通知（让 OS key repeat 序列穿透到订阅者）', () => {
     const bus = createInputBus();
     const spy = vi.fn();
     bus.subscribe(spy);
     bus.emit('A', 'press');
     bus.emit('A', 'press');
     bus.emit('A', 'press');
-    expect(spy).toHaveBeenCalledTimes(1);
+    // press 不去重：调用者收到 3 次通知
+    expect(spy).toHaveBeenCalledTimes(3);
+    // pressed 集合幂等：重复 press 不让 size 变大
+    expect(bus.pressed.has('A')).toBe(true);
+    expect(bus.pressed.size).toBe(1);
   });
 
   it('release 让按键离开 pressed 集合', () => {

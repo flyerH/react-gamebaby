@@ -55,6 +55,19 @@ export interface SnakeState {
    * "原样传回"避免重置成默认 1/1。null 表示从未传入 opts（极少数场景）。
    */
   readonly lastOpts: GameInitOptions | null;
+  /**
+   * "按键即走"补偿标记：onButton 处理方向键时手动推进一格，并把这个标记
+   * 置 true 让紧接着的下一次 step 跳过一次自然推进。
+   *
+   * 行为目的：模拟 Brick Game 真机的按键加速 —— 长按方向键时浏览器持续
+   * 触发 keydown，每次都立即推进一格 + 跳过下一 tick，蛇的移动节奏 ≈
+   * 浏览器 key repeat 频率（通常 30–50ms / 次），比 baseline tick 快得多。
+   * 松开后回到自然 tick 节奏，无 lingering 加速。
+   *
+   * 与 App 层"按住键 ticker × 3"模式相比，按键即走的视觉手感更接近真机：
+   * 按下瞬间反馈、松开立即恢复，没有"加速持续期"
+   */
+  readonly skipNextTick: boolean;
 }
 
 const DIR_VEC: Readonly<Record<Direction, Pixel>> = {

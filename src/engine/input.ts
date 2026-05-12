@@ -7,9 +7,12 @@ import type { Button, ButtonAction, InputBus, Unsubscribe } from './types';
  * 具体输入源由上层适配器调用 `emit(btn, action)` 注入。
  *
  * 语义要点：
- * - 重复 press 同一个按键不会重复通知
- * - release 未被 press 的按键是 no-op
- * - `pressed` 是 live ReadonlySet，订阅者可直接查询当前状态
+ * - press   每次都通知订阅者；同时把按键加入 pressed 集合（幂等）
+ * - repeat  平台层在 press 后按固定节奏 emit 的"长按重复"信号；fire 订阅者
+ *           但不动 pressed 集合（pressed 反映"是否被按住"，与"是否在重复"无关）
+ * - release 仅当 pressed 集合内有该键时通知（防御性，过滤无 press 的 release）
+ *
+ * `pressed` live ReadonlySet 反映"当前是否处于按下态"，订阅者可查询
  */
 export function createInputBus(): InputBus {
   const pressed = new Set<Button>();
@@ -17,12 +20,17 @@ export function createInputBus(): InputBus {
 
   return {
     emit(btn: Button, action: ButtonAction): void {
-      if (action === 'press') {
-        if (pressed.has(btn)) return;
-        pressed.add(btn);
-      } else {
-        if (!pressed.has(btn)) return;
-        pressed.delete(btn);
+      switch (action) {
+        case 'press':
+          pressed.add(btn);
+          break;
+        case 'repeat':
+          // 不动 pressed 集合：repeat 不算"新按下"
+          break;
+        case 'release':
+          if (!pressed.has(btn)) return;
+          pressed.delete(btn);
+          break;
       }
       for (const fn of subs) fn(btn, action);
     },
