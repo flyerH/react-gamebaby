@@ -26,7 +26,7 @@ import type { SnakeState } from './state';
 
 const DEFAULT_SEED = 42;
 const DEFAULT_WIDTH = 10;
-const DEFAULT_HEIGHT = 10;
+const DEFAULT_HEIGHT = 20;
 
 /** 动作空间：四个方向键 */
 const ACTION_SPACE = ['Up', 'Down', 'Left', 'Right'] as const;

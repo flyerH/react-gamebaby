@@ -1,17 +1,12 @@
 /**
  * Snake DQN 训练 CLI
  *
- * 用法：pnpm train [--episodes 5000] [--seed 42] [--out models/snake-dqn]
+ * 用法：pnpm train [--episodes 5000] [--seed 42] [--out models/snake-dqn] [--no-dashboard]
  *
- * 训练循环：
- * 1. 每 episode 重置环境，agent 用 epsilon-greedy 选动作
- * 2. 每步把 transition 推入 ReplayBuffer
- * 3. buffer 够大后定期做 mini-batch 训练
- * 4. 定期打印进度 + 写 JSONL 训练日志
- * 5. 训练结束保存模型
- *
- * 训练日志 `<outDir>/train-log.jsonl` 每行一个 JSON，
- * 可供后续 dashboard 读取绘制 reward 曲线。
+ * 架构：
+ * - 带 dashboard（默认）：主进程启动 Vite dev server，fork 子进程跑训练。
+ *   两个进程通过 JSONL 文件通信，互不阻塞。
+ * - --no-dashboard：单进程直接跑训练，无 Vite。
  */
 
 // tfjs-node 原生后端（C++ 加速）；若未安装自动 fallback 到纯 JS
@@ -24,17 +19,26 @@ try {
 import * as tf from '@tensorflow/tfjs';
 
 import { createSnakeRLEnv } from '@/games/snake/rl';
+import { trainingApiPlugin } from '@/training/vite-plugin';
 
 import { createDQNAgent } from './dqn';
 import { createReplayBuffer } from './replay-buffer';
 
 /* ---------- 命令行参数解析 ---------- */
 
-function parseArgs(): { episodes: number; seed: number; outDir: string } {
+interface TrainArgs {
+  episodes: number;
+  seed: number;
+  outDir: string;
+  dashboard: boolean;
+}
+
+function parseArgs(): TrainArgs {
   const args = process.argv.slice(2);
   let episodes = 3000;
   let seed = 42;
   let outDir = 'models/snake-dqn';
+  let dashboard = true;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -48,30 +52,31 @@ function parseArgs(): { episodes: number; seed: number; outDir: string } {
     } else if (arg === '--out' && next) {
       outDir = next;
       i++;
+    } else if (arg === '--no-dashboard') {
+      dashboard = false;
     }
   }
 
-  return { episodes, seed, outDir };
+  return { episodes, seed, outDir, dashboard };
 }
 
 /* ---------- 训练参数 ---------- */
 
 const FIELD_W = 10;
-const FIELD_H = 10;
+const FIELD_H = 20;
 const BATCH_SIZE = 32;
 const BUFFER_CAPACITY = 50000;
 const MIN_BUFFER_SIZE = 500;
 const TRAIN_EVERY = 4;
 const LOG_INTERVAL = 100;
 
-/* ---------- 主训练循环 ---------- */
+/* ---------- 训练循环（子进程 / 单进程时执行） ---------- */
 
-async function main(): Promise<void> {
+async function runTraining(args: TrainArgs): Promise<void> {
   await tf.ready();
-  const backend = tf.getBackend();
-  console.log(`[训练] tfjs backend: ${backend}`);
+  console.log(`[训练] tfjs backend: ${tf.getBackend()}`);
 
-  const { episodes, seed, outDir } = parseArgs();
+  const { episodes, seed, outDir } = args;
   console.log(`[训练] episodes=${episodes}, seed=${seed}, output=${outDir}`);
 
   const env = createSnakeRLEnv({
@@ -96,22 +101,24 @@ async function main(): Promise<void> {
 
   const buffer = createReplayBuffer(BUFFER_CAPACITY, obsSize);
 
-  // 训练日志（JSONL 格式）
   const fs = await import('fs');
   if (!fs.existsSync(outDir)) {
     fs.mkdirSync(outDir, { recursive: true });
   }
   const logPath = `${outDir}/train-log.jsonl`;
-  const logStream = fs.createWriteStream(logPath, { flags: 'w' });
+  // 用 appendFileSync 逐行写入，确保每条数据立即落盘，Dashboard 实时可见
+  const writeLog = (data: Record<string, unknown>): void => {
+    fs.appendFileSync(logPath, JSON.stringify(data) + '\n');
+  };
+  fs.writeFileSync(logPath, '');
+  writeLog({ totalEpisodes: episodes });
 
-  // 统计
   const recentRewards: number[] = [];
   const recentLengths: number[] = [];
   let totalSteps = 0;
   let recentLoss = 0;
   let lossCount = 0;
 
-  // 训练 CLI 的墙钟计时，不影响游戏确定性
   const startTime = process.hrtime.bigint();
 
   for (let ep = 0; ep < episodes; ep++) {
@@ -153,7 +160,6 @@ async function main(): Promise<void> {
     recentRewards.push(episodeReward);
     recentLengths.push(steps);
 
-    // 每 episode 写一行 JSON 日志
     const logEntry = {
       ep: ep + 1,
       reward: +episodeReward.toFixed(3),
@@ -161,14 +167,23 @@ async function main(): Promise<void> {
       score: rlState.score,
       epsilon: +agent.epsilon.toFixed(4),
     };
-    logStream.write(JSON.stringify(logEntry) + '\n');
+    writeLog(logEntry);
 
-    // 定期打印终端摘要
     if ((ep + 1) % LOG_INTERVAL === 0) {
       const avgReward = recentRewards.reduce((a, b) => a + b, 0) / recentRewards.length;
       const avgLength = recentLengths.reduce((a, b) => a + b, 0) / recentLengths.length;
       const avgLoss = lossCount > 0 ? recentLoss / lossCount : 0;
       const elapsed = (Number(process.hrtime.bigint() - startTime) / 1e9).toFixed(1);
+
+      const summaryEntry = {
+        ep: ep + 1,
+        avgReward: +avgReward.toFixed(3),
+        avgLength: +avgLength.toFixed(1),
+        avgLoss: +avgLoss.toFixed(4),
+        totalSteps,
+        elapsedSec: +elapsed,
+      };
+      writeLog(summaryEntry);
 
       console.log(
         `[ep ${ep + 1}/${episodes}] ` +
@@ -180,7 +195,6 @@ async function main(): Promise<void> {
           `time=${elapsed}s`
       );
 
-      // ASCII 进度条
       const pct = Math.floor(((ep + 1) / episodes) * 40);
       const bar = '█'.repeat(pct) + '░'.repeat(40 - pct);
       console.log(`  [${bar}] ${(((ep + 1) / episodes) * 100).toFixed(0)}%\n`);
@@ -192,15 +206,78 @@ async function main(): Promise<void> {
     }
   }
 
-  logStream.end();
-
-  // 保存模型
   await agent.save(outDir);
   console.log(`[训练] 模型已保存到 ${outDir}/`);
   console.log(`[训练] 日志已写入 ${logPath}`);
 
   agent.dispose();
   console.log('[训练] 完成');
+}
+
+/* ---------- 入口 ---------- */
+
+async function main(): Promise<void> {
+  const args = parseArgs();
+
+  if (args.dashboard) {
+    // 主进程：只跑 Vite，训练 fork 到子进程
+    const fs = await import('fs');
+    if (!fs.existsSync(args.outDir)) {
+      fs.mkdirSync(args.outDir, { recursive: true });
+    }
+    // 先清空旧日志，防止 Dashboard 读到上轮训练的残留数据
+    fs.writeFileSync(`${args.outDir}/train-log.jsonl`, '');
+
+    const { fileURLToPath, URL: NodeURL } = await import('node:url');
+    const { createServer } = await import('vite');
+    const vite = await createServer({
+      configFile: false,
+      root: process.cwd(),
+      plugins: [
+        (await import('@vitejs/plugin-react')).default(),
+        trainingApiPlugin({ dir: args.outDir }),
+      ],
+      resolve: {
+        alias: { '@': fileURLToPath(new NodeURL('..', import.meta.url)) },
+      },
+      server: { port: 8089, open: '/' },
+      appType: 'mpa',
+    });
+    await vite.listen();
+    vite.printUrls();
+
+    // fork 子进程跑训练，继承 tsx loader 和 stdio
+    const { fork } = await import('child_process');
+    const scriptPath = fileURLToPath(import.meta.url);
+    const child = fork(
+      scriptPath,
+      [
+        '--episodes',
+        String(args.episodes),
+        '--seed',
+        String(args.seed),
+        '--out',
+        args.outDir,
+        '--no-dashboard',
+      ],
+      {
+        stdio: 'inherit',
+        execArgv: process.execArgv,
+      }
+    );
+
+    child.on('exit', (code) => {
+      if (code === 0) {
+        console.log('[dashboard] 训练完成，Dashboard 仍在运行（按 Ctrl+C 退出）');
+      } else {
+        console.error(`[训练] 子进程异常退出 (code=${code})`);
+        process.exit(1);
+      }
+    });
+  } else {
+    // 子进程 / --no-dashboard：直接跑训练
+    await runTraining(args);
+  }
 }
 
 main().catch((err: unknown) => {
