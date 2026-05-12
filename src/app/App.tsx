@@ -478,7 +478,6 @@ export function App(): React.ReactElement {
             hiScore={hiScore}
             speed={state.menu.speed}
             level={state.menu.level}
-            selectMode={state.mode === 'select'}
             pauseMode={paused}
             soundOn={soundOn}
           />
