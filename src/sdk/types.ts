@@ -104,6 +104,14 @@ export interface Game<S = unknown> {
    * 这个方法
    */
   isAnimating?(state: S): boolean;
+
+  /**
+   * 返回"下一块"预览的像素坐标（相对于 4×4 包围盒左上角）。
+   *
+   * SidePanel 据此在 HI-SCORE 下方画迷你方块预览。不实现则不显示。
+   * 目前只有 Tetris 需要（Snake 没有"下一块"概念）
+   */
+  getNextPreview?(state: S): ReadonlyArray<Pixel> | null;
 }
 
 /** 任意游戏的无类型视图，便于 App / Registry 等消费方统一持有 */

@@ -75,10 +75,14 @@ export function init(env: GameEnv, opts?: GameInitOptions): SnakeState {
   );
   env.score.set(0);
 
-  // body 长度 < W*H 时 randomFood 必有解；用 ?? 兜底防极端 1×1 屏幕
-  const food = randomFood(env, body) ?? [0, 0];
+  // level > 1：在场地边缘放障碍砖，数量随 level 递增
+  const level = opts?.level ?? 1;
+  const obstacles = generateObstacles(env, level, width, height, body);
+
+  const food = randomFood(env, body, obstacles) ?? [0, 0];
   return {
     body,
+    obstacles,
     dir: 'right',
     pendingDir: 'right',
     food,
@@ -94,9 +98,52 @@ export function init(env: GameEnv, opts?: GameInitOptions): SnakeState {
   };
 }
 
+/**
+ * 根据 level 在场地上生成障碍砖。
+ *
+ * level 1 无障碍；level 2~9 在场地四周（避开蛇初始位置附近）随机放砖，
+ * 数量 = (level-1) * 4。用 rng 保证确定性
+ */
+function generateObstacles(
+  env: GameEnv,
+  level: number,
+  width: number,
+  height: number,
+  body: ReadonlyArray<Pixel>
+): ReadonlyArray<Pixel> {
+  if (level <= 1) return [];
+  const count = (level - 1) * 4;
+  const bodySet = new Set(body.map(([x, y]) => `${x},${y}`));
+  // 蛇头附近 3 格内不放障碍，给玩家反应空间
+  const head = body[0];
+  const safeZone = (x: number, y: number): boolean =>
+    !!head && Math.abs(x - head[0]) <= 3 && Math.abs(y - head[1]) <= 3;
+
+  const result: Pixel[] = [];
+  const placed = new Set<string>();
+  let attempts = 0;
+  while (result.length < count && attempts < count * 10) {
+    attempts++;
+    const x = Math.floor(env.rng() * width);
+    const y = Math.floor(env.rng() * height);
+    const key = `${x},${y}`;
+    if (bodySet.has(key) || placed.has(key) || safeZone(x, y)) continue;
+    placed.add(key);
+    result.push([x, y]);
+  }
+  return result;
+}
+
 /** 把死亡瞬间屏幕亮点收集为不可变快照（body + food）；food=null 时跳过食物点 */
-function makeCrashSnapshot(body: ReadonlyArray<Pixel>, food: Pixel | null): ReadonlyArray<Pixel> {
-  const snapshot: Pixel[] = body.map(([x, y]): Pixel => [x, y]);
+function makeCrashSnapshot(
+  body: ReadonlyArray<Pixel>,
+  food: Pixel | null,
+  obstacles: ReadonlyArray<Pixel> = []
+): ReadonlyArray<Pixel> {
+  const snapshot: Pixel[] = [
+    ...obstacles.map(([x, y]): Pixel => [x, y]),
+    ...body.map(([x, y]): Pixel => [x, y]),
+  ];
   if (food) snapshot.push([food[0], food[1]]);
   return snapshot;
 }
@@ -149,8 +196,23 @@ function advance(env: GameEnv, state: SnakeState): SnakeState {
       over: true,
       overFrame: 0,
       crashCenter: clampCrashCenter(head, width, height),
-      crashSnapshot: makeCrashSnapshot(state.body, state.food),
+      crashSnapshot: makeCrashSnapshot(state.body, state.food, state.obstacles),
     };
+  }
+
+  // 撞障碍砖
+  for (const [ox, oy] of state.obstacles) {
+    if (nx === ox && ny === oy) {
+      env.sound.play('over');
+      return {
+        ...state,
+        dir,
+        over: true,
+        overFrame: 0,
+        crashCenter: clampCrashCenter([nx, ny], width, height),
+        crashSnapshot: makeCrashSnapshot(state.body, state.food, state.obstacles),
+      };
+    }
   }
 
   const ate = state.food !== null && nx === state.food[0] && ny === state.food[1];
@@ -170,7 +232,7 @@ function advance(env: GameEnv, state: SnakeState): SnakeState {
         overFrame: 0,
         crashCenter: clampCrashCenter([nx, ny], width, height),
         // 新头压在身体上，snapshot 用 newBody 让爆炸覆盖最新形态
-        crashSnapshot: makeCrashSnapshot(newBody, state.food),
+        crashSnapshot: makeCrashSnapshot(newBody, state.food, state.obstacles),
       };
     }
   }
@@ -178,7 +240,7 @@ function advance(env: GameEnv, state: SnakeState): SnakeState {
   if (ate) {
     const newScore = state.score + 1;
     env.score.set(newScore);
-    const newFood = randomFood(env, newBody);
+    const newFood = randomFood(env, newBody, state.obstacles);
     if (newFood === null) {
       // 通关：蛇身已填满整个屏幕，无空格再放食物。复用死亡动画，但标记 won=true
       // 让 isGameOver 一致返回 true、上层可在未来差异化呈现"胜利"画面
@@ -192,7 +254,7 @@ function advance(env: GameEnv, state: SnakeState): SnakeState {
         won: true,
         overFrame: 0,
         crashCenter: clampCrashCenter([nx, ny], width, height),
-        crashSnapshot: makeCrashSnapshot(newBody, null),
+        crashSnapshot: makeCrashSnapshot(newBody, null, state.obstacles),
       };
     }
     return {
@@ -219,6 +281,7 @@ export function render(env: GameEnv, state: SnakeState): void {
   screen.clear();
 
   if (!state.over) {
+    for (const [x, y] of state.obstacles) screen.setPixel(x, y, true);
     for (const [x, y] of state.body) screen.setPixel(x, y, true);
     if (state.food) screen.setPixel(state.food[0], state.food[1], true);
     return;

@@ -476,6 +476,11 @@ export function App(): React.ReactElement {
             power={state.mode !== 'off'}
             score={score}
             hiScore={hiScore}
+            nextPreview={
+              state.mode === 'playing' && state.playingId
+                ? (registry.get(state.playingId)?.getNextPreview?.(state.gameState) ?? null)
+                : null
+            }
             speed={state.menu.speed}
             level={state.menu.level}
             pauseMode={paused}

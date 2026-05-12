@@ -52,6 +52,21 @@ function spawnPiece(kind: PieceKind): ActivePiece {
 export function init(env: GameEnv, opts?: GameInitOptions): TetrisState {
   env.score.set(0);
   const grid = new Array<number>(FIELD_WIDTH * FIELD_HEIGHT).fill(0);
+
+  // level > 1：预填垃圾行，每 4 行一组共享同一空位列
+  const level = opts?.level ?? 1;
+  const garbageRows = Math.min((level - 1) * 2, FIELD_HEIGHT - 4);
+  if (garbageRows > 0) {
+    let gapCol = 0;
+    for (let i = 0; i < garbageRows; i++) {
+      if (i % 4 === 0) gapCol = Math.floor(env.rng() * FIELD_WIDTH);
+      const y = FIELD_HEIGHT - 1 - i;
+      for (let x = 0; x < FIELD_WIDTH; x++) {
+        if (x !== gapCol) grid[y * FIELD_WIDTH + x] = 1;
+      }
+    }
+  }
+
   const first = pickKind(env.rng);
   const next = pickKind(env.rng);
   return {

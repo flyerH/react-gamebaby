@@ -1,8 +1,8 @@
-import type { Game } from '@/sdk';
+import type { Game, Pixel } from '@/sdk';
 
 import { init, isAnimating, isGameOver, onButton, render, step } from './logic';
 import { tetrisPreview } from './preview';
-import type { TetrisState } from './state';
+import { TETROMINOES, type TetrisState } from './state';
 
 /**
  * 9 档起始 tick 速度（ticks/second）= 方块自由下落频率。
@@ -23,4 +23,12 @@ export const tetris: Game<TetrisState> = {
   onButton,
   isGameOver,
   isAnimating,
+  getNextPreview(state: TetrisState): ReadonlyArray<Pixel> | null {
+    if (state.over || state.awaitingFirstMove) return null;
+    const shape = TETROMINOES[state.next]?.[0];
+    if (!shape) return null;
+    // 归一化到 y=0 起始，适配 SidePanel 固定 4×2 迷你网格
+    const minY = Math.min(...shape.map(([, y]) => y));
+    return shape.map(([x, y]): Pixel => [x, y - minY]);
+  },
 };
