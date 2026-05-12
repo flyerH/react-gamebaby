@@ -58,6 +58,13 @@ export function Buttons({
   // 不参与 React 重渲染依赖
   const repeatTimersRef = useRef<Map<Button, ReturnType<typeof setTimeout>>>(new Map());
 
+  // 用 ref 持有最新 onInput 引用：递归 setTimeout 闭包捕获的是创建时的值，
+  // 如果 onInput prop 变化，旧闭包会调旧函数。通过 ref 间接访问始终拿到最新
+  const onInputRef = useRef(onInput);
+  useEffect(() => {
+    onInputRef.current = onInput;
+  }, [onInput]);
+
   // 组件 unmount 时清掉所有未到期的 timer —— 防御性，正常 release/cancel
   // 会自己清，但极端情况（用户切走 tab）能兜底
   useEffect(() => {
@@ -80,16 +87,12 @@ export function Buttons({
     (btn: Button) => ({
       onPointerDown: (e: ReactPointerEvent<HTMLButtonElement>): void => {
         e.currentTarget.setPointerCapture(e.pointerId);
-        onInput?.(btn, 'press');
-        if (REPEAT_KEYS.has(btn) && !repeatTimersRef.current.has(btn) && onInput) {
-          // 递归 setTimeout：到期 emit 'repeat' 后 reschedule 下一次（每 100ms），
-          // 首次延迟 250ms。inline 在闭包里避免 useCallback self-reference
-          // 触发 react-hooks/immutability
+        onInputRef.current?.(btn, 'press');
+        if (REPEAT_KEYS.has(btn) && !repeatTimersRef.current.has(btn)) {
           const timers = repeatTimersRef.current;
-          const emit = onInput;
           const schedule = (delay: number): void => {
             const id = setTimeout(() => {
-              emit(btn, 'repeat');
+              onInputRef.current?.(btn, 'repeat');
               schedule(REPEAT_INTERVAL_MS);
             }, delay);
             timers.set(btn, id);
@@ -102,17 +105,17 @@ export function Buttons({
           e.currentTarget.releasePointerCapture(e.pointerId);
         }
         clearRepeat(btn);
-        onInput?.(btn, 'release');
+        onInputRef.current?.(btn, 'release');
       },
       onPointerCancel: (e: ReactPointerEvent<HTMLButtonElement>): void => {
         if (e.currentTarget.hasPointerCapture(e.pointerId)) {
           e.currentTarget.releasePointerCapture(e.pointerId);
         }
         clearRepeat(btn);
-        onInput?.(btn, 'release');
+        onInputRef.current?.(btn, 'release');
       },
     }),
-    [onInput, clearRepeat]
+    [clearRepeat]
   );
 
   return (

@@ -20,12 +20,14 @@ concurrency:
 
 permissions:
   contents: read
-  # PR 评论需要写权限：vitest-coverage-report-action 把覆盖率 summary 帖到 PR
-  pull-requests: write
 
 jobs:
   check:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # 仅本 job 需要 PR 写权限：覆盖率 action 帖评论到 PR
+      pull-requests: write
     timeout-minutes: 10
 
     steps:
@@ -57,7 +59,7 @@ jobs:
       # action 直接读 coverage/coverage-summary.json，无外部服务依赖。
       - name: PR coverage report
         if: github.event_name == 'pull_request'
-        uses: davelosert/vitest-coverage-report-action@v2
+        uses: davelosert/vitest-coverage-report-action@3c50566c523e04813df28de8f7c48dd97d663f1c # v2.11.2
         with:
           json-summary-path: coverage/coverage-summary.json
           json-final-path: coverage/coverage-final.json

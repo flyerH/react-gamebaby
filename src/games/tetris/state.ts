@@ -30,8 +30,8 @@ export interface ActivePiece {
  * 放在右侧 SidePanel。我们的 SidePanel 暂不显示 next 预览（保持 PR
  * 体量），有需要再扩
  */
-export const FIELD_WIDTH = 10;
-export const FIELD_HEIGHT = 20;
+export const FIELD_WIDTH: number = 10;
+export const FIELD_HEIGHT: number = 20;
 
 /**
  * Tetris 完整 state
