@@ -3,7 +3,7 @@ import type { GamePreview } from '@/sdk';
 /**
  * Snake 菜单预览点阵（坐标 [x, y]）
  *
- * 上部一条横向弧形（抽象的蛇头），下部是 A01 的标识点阵。
+ * 上部字母 A（游戏类别），下部 01（游戏编号）。
  * 坐标系：[x, y]（列, 行），与 L3 Screen.setPixel 约定一致。
  */
 export const snakePreview: GamePreview = [

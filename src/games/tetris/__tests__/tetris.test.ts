@@ -21,6 +21,8 @@ function makeEnv(seed = 42): GameEnv {
 /** 用空 grid 起手 state，便于测特定形态 */
 function emptyState(partial: Partial<TetrisState> = {}): TetrisState {
   return {
+    width: FIELD_WIDTH,
+    height: FIELD_HEIGHT,
     grid: new Array<number>(FIELD_WIDTH * FIELD_HEIGHT).fill(0),
     active: { kind: 'T', rotation: 0, x: 3, y: 0 },
     next: 'I',

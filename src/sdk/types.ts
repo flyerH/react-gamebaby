@@ -112,6 +112,21 @@ export interface Game<S = unknown> {
    * 目前只有 Tetris 需要（Snake 没有"下一块"概念）
    */
   getNextPreview?(state: S): ReadonlyArray<Pixel> | null;
+
+  /**
+   * 选关界面自动演示：构造 demo 用初始态。
+   *
+   * 实现后 App 在 select 模式下用 ticker 驱动 demoStep，配合已有的
+   * render 把 demo 画面投到主屏，代替静态 preview 像素
+   */
+  demoInit?(env: GameEnv): S;
+
+  /**
+   * 推进一帧 demo：内部自行决定"按什么键" + 调 step，实现自动演示。
+   *
+   * 死亡后可自动重开（复用 game over → init 的已有路径）
+   */
+  demoStep?(env: GameEnv, state: S): S;
 }
 
 /** 任意游戏的无类型视图，便于 App / Registry 等消费方统一持有 */

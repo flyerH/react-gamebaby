@@ -24,11 +24,8 @@ export interface ActivePiece {
 }
 
 /**
- * 场地宽 / 高：与 Screen 10×20 完全一致，方块直接落在屏上不必分图层。
- *
- * 真机 Brick Game 把"已锁定砖墙"画在 LCD 主屏，把"下一块预览"+ score
- * 放在右侧 SidePanel。我们的 SidePanel 暂不显示 next 预览（保持 PR
- * 体量），有需要再扩
+ * 默认场地宽 / 高：与 Screen 10×20 完全一致。
+ * init 时从 env.screen 取实际尺寸存进 state，支持 demo 用小屏幕
  */
 export const FIELD_WIDTH: number = 10;
 export const FIELD_HEIGHT: number = 20;
@@ -49,6 +46,8 @@ export const FIELD_HEIGHT: number = 20;
  * - lastOpts：菜单选定的 speed / level，用于死亡后自动重开时复用
  */
 export interface TetrisState {
+  readonly width: number;
+  readonly height: number;
   readonly grid: ReadonlyArray<number>;
   readonly active: ActivePiece | null;
   readonly next: PieceKind;
