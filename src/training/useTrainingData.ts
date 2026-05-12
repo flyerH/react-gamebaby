@@ -41,8 +41,12 @@ export function useTrainingData(url: string): TrainingData {
   const [episodes, setEpisodes] = useState<readonly EpisodeData[]>([]);
   const [summaries, setSummaries] = useState<readonly SummaryData[]>([]);
   const lastLineCount = useRef(0);
+  const pollingRef = useRef(false);
 
   const poll = useCallback(async () => {
+    // 上一次 fetch 还没完成时跳过，防止重复处理
+    if (pollingRef.current) return;
+    pollingRef.current = true;
     try {
       const res = await fetch(url);
       if (!res.ok) return;
@@ -80,6 +84,8 @@ export function useTrainingData(url: string): TrainingData {
       }
     } catch {
       // 文件不存在或网络错误，静默重试
+    } finally {
+      pollingRef.current = false;
     }
   }, [url]);
 

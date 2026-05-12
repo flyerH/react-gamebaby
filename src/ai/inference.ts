@@ -9,9 +9,15 @@
 
 import * as tf from '@tensorflow/tfjs';
 
+export interface ModelInfo {
+  readonly params: number;
+  readonly layers: number;
+}
+
 export interface InferenceAgent {
   /** 根据观测选择最优动作（纯贪心，无探索） */
   act(obs: Float32Array): number;
+  readonly info: ModelInfo;
   dispose(): void;
 }
 
@@ -27,7 +33,12 @@ export async function loadInferenceAgent(
 ): Promise<InferenceAgent> {
   const model = await tf.loadLayersModel(modelUrl);
 
+  const params = model.getWeights().reduce((sum, w) => sum + w.size, 0);
+  const info: ModelInfo = { params, layers: model.layers.length };
+
   return {
+    info,
+
     act(obs: Float32Array): number {
       return tf.tidy(() => {
         const input = tf.tensor(obs, [1, obsSize]);

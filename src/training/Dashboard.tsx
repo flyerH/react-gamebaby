@@ -5,7 +5,7 @@
  * 按需引入 echarts 组件，减少 bundle 体积。
  */
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import * as echarts from 'echarts/core';
 import { LineChart, ScatterChart } from 'echarts/charts';
@@ -52,13 +52,25 @@ const AXIS_LABEL = { color: '#666', fontSize: 10 };
 const AXIS_LINE = { lineStyle: { color: '#333' } };
 const SPLIT_LINE = { lineStyle: { color: '#1a1a2e' } };
 
-function useChart(
-  containerRef: React.RefObject<HTMLDivElement | null>
-): React.RefObject<EChartsType | null> {
+/** callback ref 模式：DOM 挂载时初始化 ECharts，卸载时销毁 */
+function useChart(): {
+  chartRef: React.RefObject<EChartsType | null>;
+  bindRef: (el: HTMLDivElement | null) => void;
+} {
   const chartRef = useRef<EChartsType | null>(null);
+  const roRef = useRef<ResizeObserver | null>(null);
 
-  useEffect(() => {
-    const el = containerRef.current;
+  const bindRef = useCallback((el: HTMLDivElement | null) => {
+    // 清理上一次绑定
+    if (chartRef.current) {
+      chartRef.current.dispose();
+      chartRef.current = null;
+    }
+    if (roRef.current) {
+      roRef.current.disconnect();
+      roRef.current = null;
+    }
+
     if (!el) return;
 
     const chart = echarts.init(el, undefined, { renderer: 'canvas' });
@@ -66,28 +78,22 @@ function useChart(
 
     const ro = new ResizeObserver(() => chart.resize());
     ro.observe(el);
+    roRef.current = ro;
+  }, []);
 
-    return () => {
-      ro.disconnect();
-      chart.dispose();
-      chartRef.current = null;
-    };
-  }, [containerRef]);
-
-  return chartRef;
+  return { chartRef, bindRef };
 }
 
 /* ---------- 子图表组件 ---------- */
 
 function RewardChart({ episodes }: { episodes: readonly EpisodeData[] }): React.ReactElement {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const chart = useChart(ref);
+  const { chartRef, bindRef } = useChart();
 
   useEffect(() => {
-    if (!chart.current || episodes.length === 0) return;
+    if (!chartRef.current || episodes.length === 0) return;
     const eps = episodes.map((e) => e.ep);
     const rewards = episodes.map((e) => e.reward);
-    chart.current.setOption(
+    chartRef.current.setOption(
       {
         animation: false,
         grid: GRID,
@@ -115,23 +121,22 @@ function RewardChart({ episodes }: { episodes: readonly EpisodeData[] }): React.
       },
       true
     );
-  }, [chart, episodes]);
+  }, [chartRef, episodes]);
 
   return (
     <div className={styles.chartCard + ' ' + styles.wide}>
       <h3 className={styles.chartTitle}>奖励曲线</h3>
-      <div ref={ref} className={styles.chart} />
+      <div ref={bindRef} className={styles.chart} />
     </div>
   );
 }
 
 function LossChart({ summaries }: { summaries: readonly SummaryData[] }): React.ReactElement {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const chart = useChart(ref);
+  const { chartRef, bindRef } = useChart();
 
   useEffect(() => {
-    if (!chart.current || summaries.length === 0) return;
-    chart.current.setOption(
+    if (!chartRef.current || summaries.length === 0) return;
+    chartRef.current.setOption(
       {
         animation: false,
         grid: GRID,
@@ -169,23 +174,22 @@ function LossChart({ summaries }: { summaries: readonly SummaryData[] }): React.
       },
       true
     );
-  }, [chart, summaries]);
+  }, [chartRef, summaries]);
 
   return (
     <div className={styles.chartCard}>
       <h3 className={styles.chartTitle}>Loss 曲线</h3>
-      <div ref={ref} className={styles.chart} />
+      <div ref={bindRef} className={styles.chart} />
     </div>
   );
 }
 
 function EpsilonChart({ episodes }: { episodes: readonly EpisodeData[] }): React.ReactElement {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const chart = useChart(ref);
+  const { chartRef, bindRef } = useChart();
 
   useEffect(() => {
-    if (!chart.current || episodes.length === 0) return;
-    chart.current.setOption(
+    if (!chartRef.current || episodes.length === 0) return;
+    chartRef.current.setOption(
       {
         animation: false,
         grid: GRID,
@@ -222,24 +226,23 @@ function EpsilonChart({ episodes }: { episodes: readonly EpisodeData[] }): React
       },
       true
     );
-  }, [chart, episodes]);
+  }, [chartRef, episodes]);
 
   return (
     <div className={styles.chartCard}>
       <h3 className={styles.chartTitle}>Epsilon 衰减</h3>
-      <div ref={ref} className={styles.chart} />
+      <div ref={bindRef} className={styles.chart} />
     </div>
   );
 }
 
 function ScoreChart({ episodes }: { episodes: readonly EpisodeData[] }): React.ReactElement {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const chart = useChart(ref);
+  const { chartRef, bindRef } = useChart();
 
   useEffect(() => {
-    if (!chart.current || episodes.length === 0) return;
+    if (!chartRef.current || episodes.length === 0) return;
     const scores = episodes.map((e) => e.score);
-    chart.current.setOption(
+    chartRef.current.setOption(
       {
         animation: false,
         grid: GRID,
@@ -271,24 +274,23 @@ function ScoreChart({ episodes }: { episodes: readonly EpisodeData[] }): React.R
       },
       true
     );
-  }, [chart, episodes]);
+  }, [chartRef, episodes]);
 
   return (
     <div className={styles.chartCard}>
       <h3 className={styles.chartTitle}>分数分布</h3>
-      <div ref={ref} className={styles.chart} />
+      <div ref={bindRef} className={styles.chart} />
     </div>
   );
 }
 
 function LengthChart({ episodes }: { episodes: readonly EpisodeData[] }): React.ReactElement {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const chart = useChart(ref);
+  const { chartRef, bindRef } = useChart();
 
   useEffect(() => {
-    if (!chart.current || episodes.length === 0) return;
+    if (!chartRef.current || episodes.length === 0) return;
     const lengths = episodes.map((e) => e.length);
-    chart.current.setOption(
+    chartRef.current.setOption(
       {
         animation: false,
         grid: GRID,
@@ -320,12 +322,12 @@ function LengthChart({ episodes }: { episodes: readonly EpisodeData[] }): React.
       },
       true
     );
-  }, [chart, episodes]);
+  }, [chartRef, episodes]);
 
   return (
     <div className={styles.chartCard}>
       <h3 className={styles.chartTitle}>Episode 长度</h3>
-      <div ref={ref} className={styles.chart} />
+      <div ref={bindRef} className={styles.chart} />
     </div>
   );
 }
@@ -381,10 +383,32 @@ export function Dashboard({ data }: { data: TrainingData }): React.ReactElement 
 
   const currentEp = lastEp?.ep ?? 0;
   const totalEp = config?.totalEpisodes ?? 0;
+  const done = totalEp > 0 && currentEp >= totalEp;
 
   const recent = episodes.slice(-100);
   const avgReward =
     recent.length > 0 ? (recent.reduce((s, e) => s + e.reward, 0) / recent.length).toFixed(2) : '-';
+
+  // 前端实时计时：收到第一条 episode 时启动，训练完成时停止
+  const startRef = useRef<number | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    if (episodes.length > 0 && startRef.current === null) {
+      startRef.current = Date.now();
+    }
+  }, [episodes.length]);
+
+  useEffect(() => {
+    if (startRef.current === null || done) return;
+    const timer = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startRef.current!) / 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [done, episodes.length]);
+
+  // 训练完成后用服务端精确时间
+  const displayTime = done && lastSum ? formatTime(lastSum.elapsedSec) : formatTime(elapsed);
 
   return (
     <>
@@ -410,11 +434,7 @@ export function Dashboard({ data }: { data: TrainingData }): React.ReactElement 
           value={lastSum ? lastSum.totalSteps.toLocaleString() : '0'}
           color="#c084fc"
         />
-        <StatCard
-          label="训练时间"
-          value={lastSum ? formatTime(lastSum.elapsedSec) : '-'}
-          color="#94a3b8"
-        />
+        <StatCard label="训练时间" value={displayTime} color="#94a3b8" />
       </div>
 
       <div className={styles.chartsGrid}>
