@@ -240,6 +240,11 @@ async function main(): Promise<void> {
     }
     // 先清空旧日志，防止 Dashboard 读到上轮训练的残留数据
     fs.writeFileSync(`${args.outDir}/train-log.jsonl`, '');
+    // 同步清理上一轮残留的回放文件，避免页面在子进程写出新数据之前先回放旧 episode
+    const replayPath = `${args.outDir}/latest-replay.json`;
+    const replayTmpPath = `${args.outDir}/latest-replay.tmp`;
+    if (fs.existsSync(replayPath)) fs.unlinkSync(replayPath);
+    if (fs.existsSync(replayTmpPath)) fs.unlinkSync(replayTmpPath);
 
     const { fileURLToPath, URL: NodeURL } = await import('node:url');
     const { createServer } = await import('vite');

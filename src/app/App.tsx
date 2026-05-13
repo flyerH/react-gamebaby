@@ -11,6 +11,7 @@ import {
 import { createPersistentCounter } from '@/engine/counter';
 import type { Button, ButtonAction, Counter } from '@/engine/types';
 import { defaultGames } from '@/games';
+import type { SnakeState } from '@/games/snake/state';
 import { bindKeyboardInput, createBrowserContext } from '@/platform/browser';
 import { createHeadlessContext } from '@/platform/headless';
 import type { Game, GameEnv, GameRegistry } from '@/sdk';
@@ -48,12 +49,18 @@ const BOOT_TICK_SPEED = 60;
 const AI_ACTION_MAP: readonly Button[] = ['Up', 'Down', 'Left', 'Right'];
 
 /**
- * 延迟加载的 encodeSnakeObs 缓存；加载 AI agent 时同步填入，
- * ticker 回调里直接读取，避免每 tick 都 dynamic import
+ * 延迟加载的 AI 推理桥：加载 agent 时把编码函数和场地尺寸一并填入，
+ * ticker 回调直接读取，避免每 tick 都 dynamic import
  */
-const encodeSnakeObsRef: {
-  current: ((game: unknown, w: number, h: number) => Float32Array) | null;
-} = { current: null };
+interface AIBridge {
+  encode: (game: SnakeState, w: number, h: number) => Float32Array;
+  readonly width: number;
+  readonly height: number;
+}
+const aiBridgeRef: { current: AIBridge | null } = { current: null };
+
+/** 目前唯一支持 AI 自动玩的游戏 id */
+const AI_GAME_ID = 'snake';
 
 /**
  * 选关 demo 视口：在主屏中间留出图标（上 6 行）和编号（下 5 行）的空间。
@@ -352,12 +359,16 @@ export function App(): React.ReactElement {
   const aiAgentRef = useRef<{ act(obs: Float32Array): number; dispose(): void } | null>(null);
   const aiPlayingRef = useRef(state.aiPlaying);
   const gameStateRef = useRef(state.gameState);
+  const playingIdRef = useRef(state.playingId);
   useEffect(() => {
     aiPlayingRef.current = state.aiPlaying;
   }, [state.aiPlaying]);
   useEffect(() => {
     gameStateRef.current = state.gameState;
   }, [state.gameState]);
+  useEffect(() => {
+    playingIdRef.current = state.playingId;
+  }, [state.playingId]);
   const [aiLoading, setAiLoading] = useState(false);
 
   // 通电：把"启动旋律"和"切 mode 到 boot"封装成单一动作，让 ON/OFF 按键
@@ -385,23 +396,26 @@ export function App(): React.ReactElement {
     startAiModeRef.current = () => {
       if (aiAgentRef.current || aiLoadingRef.current) return;
       const gameId = currentGame(registry, menuRef.current)?.id;
-      if (gameId !== 'snake') return;
+      if (gameId !== AI_GAME_ID) return;
 
       setAiLoading(true);
       void (async () => {
         try {
-          const [{ loadInferenceAgent }, { encodeSnakeObs }] = await Promise.all([
-            import('@/ai/inference'),
-            import('@/games/snake/rl'),
-          ]);
-          encodeSnakeObsRef.current = encodeSnakeObs as (
-            game: unknown,
-            w: number,
-            h: number
-          ) => Float32Array;
-          const agent = await loadInferenceAgent('/models/snake-dqn/model.json', 10 * 20 * 3);
+          const inferenceModule = await import('@/ai/inference');
+          const rlModule = await import('@/games/snake/rl');
+          aiBridgeRef.current = {
+            encode: rlModule.encodeSnakeObs,
+            width: rlModule.SNAKE_RL_WIDTH,
+            height: rlModule.SNAKE_RL_HEIGHT,
+          };
+          const obsSize =
+            rlModule.SNAKE_RL_WIDTH * rlModule.SNAKE_RL_HEIGHT * rlModule.SNAKE_RL_CHANNELS;
+          const agent = await inferenceModule.loadInferenceAgent(
+            '/models/snake-dqn/model.json',
+            obsSize
+          );
           aiAgentRef.current = agent;
-          dispatch({ type: 'AI_ENTER', gameId: 'snake' });
+          dispatch({ type: 'AI_ENTER', gameId: AI_GAME_ID });
         } catch (e) {
           console.warn('[AI] 模型加载失败:', e);
         } finally {
@@ -512,18 +526,22 @@ export function App(): React.ReactElement {
       // AI 模式：每 tick 先注入 AI 选择的方向键，再推进游戏。
       // try-catch 防止推理异常阻断 TICK 导致游戏完全冻结
       const agent = aiAgentRef.current;
-      if (agent && aiPlayingRef.current && modeRef.current === 'playing') {
+      const bridge = aiBridgeRef.current;
+      if (
+        agent &&
+        bridge &&
+        aiPlayingRef.current &&
+        modeRef.current === 'playing' &&
+        playingIdRef.current === AI_GAME_ID
+      ) {
         try {
-          const gs = gameStateRef.current as {
-            readonly body: ReadonlyArray<readonly [number, number]>;
-          } | null;
+          // playingId === AI_GAME_ID 已保证 gameState 是 SnakeState
+          const gs = gameStateRef.current as SnakeState | null;
           if (gs?.body) {
-            const obs = encodeSnakeObsRef.current?.(gs, 10, 20);
-            if (obs) {
-              const idx = agent.act(obs);
-              const btn = AI_ACTION_MAP[idx];
-              if (btn) dispatch({ type: 'INPUT', button: btn, kind: 'press' });
-            }
+            const obs = bridge.encode(gs, bridge.width, bridge.height);
+            const idx = agent.act(obs);
+            const btn = AI_ACTION_MAP[idx];
+            if (btn) dispatch({ type: 'INPUT', button: btn, kind: 'press' });
           }
         } catch (e) {
           console.error('[AI] 推理异常:', e);
@@ -660,26 +678,37 @@ export function App(): React.ReactElement {
     if (score > hiCounter.value) hiCounter.set(score);
   }, [score, state.mode, hiCounter]);
 
-  // AI 模式下 game over 后自动重开（等死亡动画播完 ~1s）
-  useEffect(() => {
-    if (!state.aiPlaying || state.mode !== 'playing' || !state.playingId) return;
+  // 把 game over 判断抽成稳定 boolean —— 死亡动画里 gameState 会反复变化，
+  // 但这个 boolean 一旦 true 就稳定到下一局，避免 effect 反复清理重建 setTimeout
+  const aiGameOver = useMemo(() => {
+    if (!state.aiPlaying || state.mode !== 'playing' || !state.playingId) return false;
     const game = registry.get(state.playingId);
-    if (!game?.isGameOver?.(state.gameState)) return;
-    const timer = setTimeout(() => {
-      dispatch({ type: 'AI_ENTER', gameId: state.playingId! });
-    }, 1200);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [state.aiPlaying, state.mode, state.playingId, state.gameState, registry, env]);
+    return !!game?.isGameOver?.(state.gameState);
+  }, [state.aiPlaying, state.mode, state.playingId, state.gameState, registry]);
 
-  // 关机 / 退出 AI 时释放推理 agent
+  // AI 模式下 game over 后自动重开（等死亡动画播完 ~1.2s）
+  useEffect(() => {
+    if (!aiGameOver) return;
+    const timer = setTimeout(() => {
+      dispatch({ type: 'AI_ENTER', gameId: AI_GAME_ID });
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [aiGameOver]);
+
+  // 关机 / 退出 AI 时释放推理 agent。组件卸载也要兜底，避免 WebGL/张量资源泄漏
   useEffect(() => {
     if (!state.aiPlaying && aiAgentRef.current) {
       aiAgentRef.current.dispose();
       aiAgentRef.current = null;
-      encodeSnakeObsRef.current = null;
+      aiBridgeRef.current = null;
     }
+    return () => {
+      if (aiAgentRef.current) {
+        aiAgentRef.current.dispose();
+        aiAgentRef.current = null;
+        aiBridgeRef.current = null;
+      }
+    };
   }, [state.aiPlaying]);
 
   return (

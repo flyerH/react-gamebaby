@@ -230,13 +230,14 @@ export function render(env: GameEnv, state: TetrisState): void {
       for (const [x, y] of pieceCells(state.active)) screen.setPixel(x, y, true);
     }
 
-    // 预览屏：画下一块方块（归一化到 y=0）
+    // 预览屏：画下一块方块（XY 都归一化到 0，避免负坐标越界）
     const { nextScreen } = env;
     nextScreen.clear();
     const nextShape = TETROMINOES[state.next]?.[0];
     if (nextShape) {
+      const minX = Math.min(...nextShape.map(([sx]) => sx));
       const minY = Math.min(...nextShape.map(([, sy]) => sy));
-      for (const [sx, sy] of nextShape) nextScreen.setPixel(sx, sy - minY, true);
+      for (const [sx, sy] of nextShape) nextScreen.setPixel(sx - minX, sy - minY, true);
     }
     return;
   }

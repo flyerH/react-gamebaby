@@ -88,6 +88,7 @@ export function Buttons({
       tabIndex: -1 as const,
       onPointerDown: (e: ReactPointerEvent<HTMLButtonElement>): void => {
         e.currentTarget.setPointerCapture(e.pointerId);
+        e.currentTarget.blur();
         onInputRef.current?.(btn, 'press');
         if (REPEAT_KEYS.has(btn) && !repeatTimersRef.current.has(btn)) {
           const timers = repeatTimersRef.current;

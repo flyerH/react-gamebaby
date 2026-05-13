@@ -153,7 +153,7 @@ export function TrainingApp(): React.ReactElement {
   // 首次挂载：尝试拉取回放
   useEffect(() => {
     let cancelled = false;
-    let retryTimer: ReturnType<typeof setTimeout>;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
     const tryFetch = async (): Promise<void> => {
       const replay = await fetchReplay();
@@ -168,7 +168,7 @@ export function TrainingApp(): React.ReactElement {
     void tryFetch();
     return () => {
       cancelled = true;
-      clearTimeout(retryTimer);
+      if (retryTimer !== undefined) clearTimeout(retryTimer);
     };
   }, [fetchReplay, startReplay]);
 
