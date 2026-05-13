@@ -51,8 +51,15 @@ export interface SnakeRLEnvOptions {
 export function createSnakeRLEnv(opts: SnakeRLEnvOptions = {}): RLEnv<SnakeRLState, SnakeAction> {
   const width = opts.width ?? SNAKE_RL_WIDTH;
   const height = opts.height ?? SNAKE_RL_HEIGHT;
+  // 入口 fail-fast：非法 width/height 不延后到 reset/encodeState 才报
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) {
+    throw new Error(`createSnakeRLEnv: 非法尺寸 width=${width}, height=${height}`);
+  }
   const baseSeed = opts.seed ?? DEFAULT_SEED;
   const maxIdle = opts.maxIdleSteps ?? width * height;
+  if (!Number.isInteger(maxIdle) || maxIdle <= 0) {
+    throw new Error(`createSnakeRLEnv: 非法 maxIdleSteps=${maxIdle}`);
+  }
 
   return {
     actionSpace: ACTION_SPACE,
@@ -134,11 +141,22 @@ export function encodeSnakeObs(game: SnakeState, width: number, height: number):
   const obs = new Float32Array(width * height * SNAKE_RL_CHANNELS);
   /**
    * 越界 = 上游 state 与 width/height 配置不一致的 bug，直接抛错暴露。
-   * 上层 ticker / 训练循环已有 try-catch，不会因此把整个进程搞挂
+   * 上层 ticker / 训练循环已有 try-catch，不会因此把整个进程搞挂。
+   *
+   * label 用字面量联合而非模板字符串，避免训练热路径每次循环都分配新字符串；
+   * 仅在罕见的越界分支才拼接索引信息
    */
-  const writePixel = (offset: number, x: number, y: number, label: string): void => {
+  type PixelLabel = 'head' | 'body' | 'food';
+  const writePixel = (
+    offset: number,
+    x: number,
+    y: number,
+    label: PixelLabel,
+    bodyIndex?: number
+  ): void => {
     if (x < 0 || x >= width || y < 0 || y >= height) {
-      throw new Error(`encodeSnakeObs: ${label} 越界 (${x}, ${y}) vs ${width}×${height}`);
+      const where = label === 'body' ? `body[${bodyIndex ?? -1}]` : label;
+      throw new Error(`encodeSnakeObs: ${where} 越界 (${x}, ${y}) vs ${width}×${height}`);
     }
     obs[offset + y * width + x] = 1;
   };
@@ -149,7 +167,7 @@ export function encodeSnakeObs(game: SnakeState, width: number, height: number):
   const ch1 = width * height;
   for (let i = 1; i < game.body.length; i++) {
     const seg = game.body[i];
-    if (seg) writePixel(ch1, seg[0], seg[1], `body[${i}]`);
+    if (seg) writePixel(ch1, seg[0], seg[1], 'body', i);
   }
 
   if (game.food) writePixel(width * height * 2, game.food[0], game.food[1], 'food');
