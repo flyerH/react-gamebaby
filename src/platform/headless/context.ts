@@ -40,6 +40,7 @@ export function createHeadlessContext(opts: HeadlessContextOptions): HardwareCon
 
   return {
     screen: createScreen(width, height),
+    nextScreen: createScreen(4, 2),
     ticker,
     input: createInputBus(),
     sound: createNullSound(),

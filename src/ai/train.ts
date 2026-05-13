@@ -111,6 +111,11 @@ async function runTraining(args: TrainArgs): Promise<void> {
     fs.appendFileSync(logPath, JSON.stringify(data) + '\n');
   };
   fs.writeFileSync(logPath, '');
+  // 清理上一轮残留的回放文件，避免游戏机播放过期数据
+  const replayTmpPath = `${outDir}/latest-replay.tmp`;
+  const replayPath = `${outDir}/latest-replay.json`;
+  if (fs.existsSync(replayPath)) fs.unlinkSync(replayPath);
+  if (fs.existsSync(replayTmpPath)) fs.unlinkSync(replayTmpPath);
   writeLog({ totalEpisodes: episodes });
 
   const recentRewards: number[] = [];
@@ -125,10 +130,12 @@ async function runTraining(args: TrainArgs): Promise<void> {
     let rlState = env.reset(seed + ep);
     let episodeReward = 0;
     let steps = 0;
+    const actions: number[] = [];
 
     while (true) {
       const obs = env.encodeState(rlState);
       const actionIdx = agent.act(obs);
+      actions.push(actionIdx);
       const action = env.actionSpace[actionIdx]!;
 
       const result = env.step(rlState, action);
@@ -156,6 +163,11 @@ async function runTraining(args: TrainArgs): Promise<void> {
       if (result.done) break;
       rlState = result.state;
     }
+
+    // 同步原子写入：JSON 体很小（< 几 KB），耗时亚毫秒，不影响训练速度
+    const json = JSON.stringify({ ep: ep + 1, seed: seed + ep, actions });
+    fs.writeFileSync(replayTmpPath, json);
+    fs.renameSync(replayTmpPath, replayPath);
 
     recentRewards.push(episodeReward);
     recentLengths.push(steps);
@@ -207,6 +219,7 @@ async function runTraining(args: TrainArgs): Promise<void> {
   }
 
   await agent.save(outDir);
+  writeLog({ done: true });
   console.log(`[训练] 模型已保存到 ${outDir}/`);
   console.log(`[训练] 日志已写入 ${logPath}`);
 

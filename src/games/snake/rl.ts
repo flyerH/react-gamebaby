@@ -101,35 +101,7 @@ export function createSnakeRLEnv(opts: SnakeRLEnvOptions = {}): RLEnv<SnakeRLSta
     },
 
     encodeState(rlState: SnakeRLState): Float32Array {
-      const size = width * height * channels;
-      const obs = new Float32Array(size);
-      const { game } = rlState;
-
-      // 通道 0：蛇头
-      const head = game.body[0];
-      if (head) {
-        const [hx, hy] = head;
-        obs[hy * width + hx] = 1;
-      }
-
-      // 通道 1：蛇身（不含头）
-      const ch1Offset = width * height;
-      for (let i = 1; i < game.body.length; i++) {
-        const seg = game.body[i];
-        if (seg) {
-          const [sx, sy] = seg;
-          obs[ch1Offset + sy * width + sx] = 1;
-        }
-      }
-
-      // 通道 2：食物
-      const ch2Offset = width * height * 2;
-      if (game.food) {
-        const [fx, fy] = game.food;
-        obs[ch2Offset + fy * width + fx] = 1;
-      }
-
-      return obs;
+      return encodeSnakeObs(rlState.game, width, height);
     },
   };
 }
@@ -145,4 +117,38 @@ export interface SnakeRLState {
   readonly env: ReturnType<typeof toGameEnv>;
   readonly score: number;
   readonly idleSteps: number;
+}
+
+/**
+ * 将 SnakeState 编码为 3 通道二值观测向量（与训练时一致）
+ *
+ * 独立函数，供浏览器推理时直接调用（不需要完整 RLEnv）。
+ * 通道 0：蛇头 / 通道 1：蛇身 / 通道 2：食物
+ */
+export function encodeSnakeObs(game: SnakeState, width: number, height: number): Float32Array {
+  const channels = 3;
+  const obs = new Float32Array(width * height * channels);
+
+  const head = game.body[0];
+  if (head) {
+    const [hx, hy] = head;
+    obs[hy * width + hx] = 1;
+  }
+
+  const ch1 = width * height;
+  for (let i = 1; i < game.body.length; i++) {
+    const seg = game.body[i];
+    if (seg) {
+      const [sx, sy] = seg;
+      obs[ch1 + sy * width + sx] = 1;
+    }
+  }
+
+  const ch2 = width * height * 2;
+  if (game.food) {
+    const [fx, fy] = game.food;
+    obs[ch2 + fy * width + fx] = 1;
+  }
+
+  return obs;
 }

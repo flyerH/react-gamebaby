@@ -85,6 +85,7 @@ export function Buttons({
 
   const makeHandlers = useCallback(
     (btn: Button) => ({
+      tabIndex: -1 as const,
       onPointerDown: (e: ReactPointerEvent<HTMLButtonElement>): void => {
         e.currentTarget.setPointerCapture(e.pointerId);
         onInputRef.current?.(btn, 'press');

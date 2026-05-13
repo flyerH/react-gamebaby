@@ -32,6 +32,8 @@ export type GamePreview = ReadonlyArray<Pixel>;
  */
 export interface GameEnv {
   readonly screen: Screen;
+  /** 4×2 预览屏：游戏在 render 里画下一块，UI 订阅变化自动渲染 */
+  readonly nextScreen: Screen;
   readonly input: InputBus;
   readonly sound: Sound;
   readonly rng: () => number;
@@ -104,17 +106,6 @@ export interface Game<S = unknown> {
    * 这个方法
    */
   isAnimating?(state: S): boolean;
-
-  /**
-   * 返回"下一块"预览的像素坐标（相对于 4×4 包围盒左上角）。
-   *
-   * SidePanel 据此在 HI-SCORE 下方画迷你方块预览。不实现则不显示。
-   * 目前只有 Tetris 需要（Snake 没有"下一块"概念）
-   *
-   * TODO: 仅 Tetris 使用，考虑拆为独立接口（如 WithNextPreview<S>），
-   * 避免 Game 接口膨胀——等第三款游戏确认需求后再决定
-   */
-  getNextPreview?(state: S): ReadonlyArray<Pixel> | null;
 
   /**
    * 选关界面自动演示：构造 demo 用初始态。

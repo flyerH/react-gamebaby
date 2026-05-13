@@ -229,8 +229,20 @@ export function render(env: GameEnv, state: TetrisState): void {
     if (state.active) {
       for (const [x, y] of pieceCells(state.active)) screen.setPixel(x, y, true);
     }
+
+    // 预览屏：画下一块方块（归一化到 y=0）
+    const { nextScreen } = env;
+    nextScreen.clear();
+    const nextShape = TETROMINOES[state.next]?.[0];
+    if (nextShape) {
+      const minY = Math.min(...nextShape.map(([, sy]) => sy));
+      for (const [sx, sy] of nextShape) nextScreen.setPixel(sx, sy - minY, true);
+    }
     return;
   }
+
+  // 死亡后清空预览屏
+  env.nextScreen.clear();
 
   // 死亡动画：填屏（自底向上）→ 清屏（自顶向下），各 h 帧
   if (state.overFrame < h) {

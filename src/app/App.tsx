@@ -44,6 +44,17 @@ import {
 /** 开机动画速度：约每秒 60 像素 */
 const BOOT_TICK_SPEED = 60;
 
+/** AI 动作索引 → 按键的映射（与训练时 SnakeRLEnv.actionSpace 顺序一致） */
+const AI_ACTION_MAP: readonly Button[] = ['Up', 'Down', 'Left', 'Right'];
+
+/**
+ * 延迟加载的 encodeSnakeObs 缓存；加载 AI agent 时同步填入，
+ * ticker 回调里直接读取，避免每 tick 都 dynamic import
+ */
+const encodeSnakeObsRef: {
+  current: ((game: unknown, w: number, h: number) => Float32Array) | null;
+} = { current: null };
+
 /**
  * 选关 demo 视口：在主屏中间留出图标（上 6 行）和编号（下 5 行）的空间。
  * demo 游戏在 10×DEMO_H 的小场地里跑，渲染时偏移 DEMO_Y 行画到主屏
@@ -82,6 +93,8 @@ interface AppState {
   readonly demoState: unknown;
   /** demo 专用 GameEnv（小屏幕），null = 非 select 态 */
   readonly demoEnv: GameEnv | null;
+  /** 是否由 AI 控制当前游戏 */
+  readonly aiPlaying: boolean;
 }
 
 /**
@@ -98,7 +111,9 @@ type Action =
   | { type: 'TICK' }
   | { type: 'INPUT'; button: Button; kind: ButtonAction }
   | { type: 'POWER_ON' }
-  | { type: 'POWER_OFF' };
+  | { type: 'POWER_OFF' }
+  | { type: 'AI_ENTER'; gameId: string }
+  | { type: 'AI_EXIT' };
 
 interface ReduceDeps {
   readonly registry: GameRegistry;
@@ -115,6 +130,7 @@ function initialAppState(): AppState {
     gameState: null,
     demoState: null,
     demoEnv: null,
+    aiPlaying: false,
   };
 }
 
@@ -155,6 +171,31 @@ function reduce(state: AppState, action: Action, deps: ReduceDeps): AppState {
   if (action.type === 'POWER_OFF') {
     if (state.mode === 'off') return state;
     return initialAppState();
+  }
+
+  if (action.type === 'AI_ENTER') {
+    const game = registry.get(action.gameId);
+    if (!isPlayable(game)) return state;
+    return {
+      ...state,
+      mode: 'playing',
+      playingId: action.gameId,
+      gameState: game.init(env, { speed: state.menu.speed, level: state.menu.level }),
+      aiPlaying: true,
+    };
+  }
+
+  if (action.type === 'AI_EXIT') {
+    const de = createDemoEnv();
+    return {
+      ...state,
+      mode: 'select',
+      playingId: null,
+      gameState: null,
+      aiPlaying: false,
+      demoEnv: de,
+      demoState: initDemo(registry, state.menu, de),
+    };
   }
 
   if (action.type === 'TICK') {
@@ -252,6 +293,7 @@ function reduce(state: AppState, action: Action, deps: ReduceDeps): AppState {
         mode: 'select',
         playingId: null,
         gameState: null,
+        aiPlaying: false,
         demoEnv: de,
         demoState: initDemo(registry, state.menu, de),
       };
@@ -306,6 +348,18 @@ export function App(): React.ReactElement {
     modeRef.current = state.mode;
   }, [state.mode]);
 
+  // AI 推理相关 refs —— 存在 ref 里避免触发渲染
+  const aiAgentRef = useRef<{ act(obs: Float32Array): number; dispose(): void } | null>(null);
+  const aiPlayingRef = useRef(state.aiPlaying);
+  const gameStateRef = useRef(state.gameState);
+  useEffect(() => {
+    aiPlayingRef.current = state.aiPlaying;
+  }, [state.aiPlaying]);
+  useEffect(() => {
+    gameStateRef.current = state.gameState;
+  }, [state.gameState]);
+  const [aiLoading, setAiLoading] = useState(false);
+
   // 通电：把"启动旋律"和"切 mode 到 boot"封装成单一动作，让 ON/OFF 按键
   // 触发和 mount 时探测 autoplay 自动触发走同一通路。playMelody 必须在
   // user gesture 同步调用栈内才能被浏览器允许 resume AudioContext
@@ -314,6 +368,48 @@ export function App(): React.ReactElement {
     melodyCancelRef.current = ctx.sound.playMelody(BOOT_MELODY);
     dispatch({ type: 'POWER_ON' });
   }, [ctx.sound]);
+
+  // 加载 AI 模型并进入 AI 自动玩模式；通过 ref 暴露给 input subscriber，
+  // 避免 subscriber effect 因 menu/aiLoading 变化而频繁重建
+  const menuRef = useRef(state.menu);
+  const aiLoadingRef = useRef(aiLoading);
+  useEffect(() => {
+    menuRef.current = state.menu;
+  }, [state.menu]);
+  useEffect(() => {
+    aiLoadingRef.current = aiLoading;
+  }, [aiLoading]);
+
+  const startAiModeRef = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    startAiModeRef.current = () => {
+      if (aiAgentRef.current || aiLoadingRef.current) return;
+      const gameId = currentGame(registry, menuRef.current)?.id;
+      if (gameId !== 'snake') return;
+
+      setAiLoading(true);
+      void (async () => {
+        try {
+          const [{ loadInferenceAgent }, { encodeSnakeObs }] = await Promise.all([
+            import('@/ai/inference'),
+            import('@/games/snake/rl'),
+          ]);
+          encodeSnakeObsRef.current = encodeSnakeObs as (
+            game: unknown,
+            w: number,
+            h: number
+          ) => Float32Array;
+          const agent = await loadInferenceAgent('/models/snake-dqn/model.json', 10 * 20 * 3);
+          aiAgentRef.current = agent;
+          dispatch({ type: 'AI_ENTER', gameId: 'snake' });
+        } catch (e) {
+          console.warn('[AI] 模型加载失败:', e);
+        } finally {
+          setAiLoading(false);
+        }
+      })();
+    };
+  });
 
   useEffect(() => {
     const unbind = bindKeyboardInput(ctx.input);
@@ -354,6 +450,12 @@ export function App(): React.ReactElement {
 
       // 关机状态：除上面 Start 已处理外，其它按键一律无响应
       if (modeRef.current === 'off') return;
+
+      // 选关模式按 B：加载模型 → AI 自动玩
+      if (kind === 'press' && button === 'B' && modeRef.current === 'select') {
+        startAiModeRef.current();
+        return;
+      }
 
       // 暂停态拦截游戏键 —— 不让 onButton 改 game state。Reset 已在上面先放行 +
       // 清了 pause，到这里 ctx.pause.value 已经是 false 不会被拦
@@ -407,6 +509,26 @@ export function App(): React.ReactElement {
 
   useEffect(() => {
     ctx.ticker.start(() => {
+      // AI 模式：每 tick 先注入 AI 选择的方向键，再推进游戏。
+      // try-catch 防止推理异常阻断 TICK 导致游戏完全冻结
+      const agent = aiAgentRef.current;
+      if (agent && aiPlayingRef.current && modeRef.current === 'playing') {
+        try {
+          const gs = gameStateRef.current as {
+            readonly body: ReadonlyArray<readonly [number, number]>;
+          } | null;
+          if (gs?.body) {
+            const obs = encodeSnakeObsRef.current?.(gs, 10, 20);
+            if (obs) {
+              const idx = agent.act(obs);
+              const btn = AI_ACTION_MAP[idx];
+              if (btn) dispatch({ type: 'INPUT', button: btn, kind: 'press' });
+            }
+          }
+        } catch (e) {
+          console.error('[AI] 推理异常:', e);
+        }
+      }
       dispatch({ type: 'TICK' });
     });
     return () => {
@@ -538,6 +660,28 @@ export function App(): React.ReactElement {
     if (score > hiCounter.value) hiCounter.set(score);
   }, [score, state.mode, hiCounter]);
 
+  // AI 模式下 game over 后自动重开（等死亡动画播完 ~1s）
+  useEffect(() => {
+    if (!state.aiPlaying || state.mode !== 'playing' || !state.playingId) return;
+    const game = registry.get(state.playingId);
+    if (!game?.isGameOver?.(state.gameState)) return;
+    const timer = setTimeout(() => {
+      dispatch({ type: 'AI_ENTER', gameId: state.playingId! });
+    }, 1200);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [state.aiPlaying, state.mode, state.playingId, state.gameState, registry, env]);
+
+  // 关机 / 退出 AI 时释放推理 agent
+  useEffect(() => {
+    if (!state.aiPlaying && aiAgentRef.current) {
+      aiAgentRef.current.dispose();
+      aiAgentRef.current = null;
+      encodeSnakeObsRef.current = null;
+    }
+  }, [state.aiPlaying]);
+
   return (
     <div className={styles.page}>
       <Device
@@ -547,15 +691,12 @@ export function App(): React.ReactElement {
             power={state.mode !== 'off'}
             score={score}
             hiScore={hiScore}
-            nextPreview={
-              state.mode === 'playing' && state.playingId
-                ? (registry.get(state.playingId)?.getNextPreview?.(state.gameState) ?? null)
-                : null
-            }
+            nextScreen={ctx.nextScreen}
             speed={state.menu.speed}
             level={state.menu.level}
             pauseMode={paused}
             soundOn={soundOn}
+            aiMode={state.aiPlaying}
           />
         }
         buttons={

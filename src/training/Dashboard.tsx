@@ -84,6 +84,19 @@ function useChart(): {
   return { chartRef, bindRef };
 }
 
+/* ---------- 图表标题 + 帮助提示 ---------- */
+
+function ChartTitle({ text, tip }: { text: string; tip: string }): React.ReactElement {
+  return (
+    <h3 className={styles.chartTitle}>
+      {text}
+      <span className={styles.helpIcon} data-tip={tip}>
+        ?
+      </span>
+    </h3>
+  );
+}
+
 /* ---------- 子图表组件 ---------- */
 
 function RewardChart({ episodes }: { episodes: readonly EpisodeData[] }): React.ReactElement {
@@ -125,7 +138,7 @@ function RewardChart({ episodes }: { episodes: readonly EpisodeData[] }): React.
 
   return (
     <div className={styles.chartCard + ' ' + styles.wide}>
-      <h3 className={styles.chartTitle}>奖励曲线</h3>
+      <ChartTitle text="奖励曲线" tip="每轮累计奖励及 100 轮滑动平均，上升表示策略在改善" />
       <div ref={bindRef} className={styles.chart} />
     </div>
   );
@@ -178,7 +191,7 @@ function LossChart({ summaries }: { summaries: readonly SummaryData[] }): React.
 
   return (
     <div className={styles.chartCard}>
-      <h3 className={styles.chartTitle}>Loss 曲线</h3>
+      <ChartTitle text="Loss 曲线" tip="神经网络预测误差，下降表示模型学习到了更准确的价值估计" />
       <div ref={bindRef} className={styles.chart} />
     </div>
   );
@@ -230,7 +243,10 @@ function EpsilonChart({ episodes }: { episodes: readonly EpisodeData[] }): React
 
   return (
     <div className={styles.chartCard}>
-      <h3 className={styles.chartTitle}>Epsilon 衰减</h3>
+      <ChartTitle
+        text="Epsilon 衰减"
+        tip="随机探索概率，高 = 多探索，低 = 多利用已学策略；训练后期应接近 0"
+      />
       <div ref={bindRef} className={styles.chart} />
     </div>
   );
@@ -278,7 +294,10 @@ function ScoreChart({ episodes }: { episodes: readonly EpisodeData[] }): React.R
 
   return (
     <div className={styles.chartCard}>
-      <h3 className={styles.chartTitle}>分数分布</h3>
+      <ChartTitle
+        text="分数分布"
+        tip="每轮游戏内分数（吃到果实数），上升表示蛇存活越久、吃得越多"
+      />
       <div ref={bindRef} className={styles.chart} />
     </div>
   );
@@ -326,7 +345,7 @@ function LengthChart({ episodes }: { episodes: readonly EpisodeData[] }): React.
 
   return (
     <div className={styles.chartCard}>
-      <h3 className={styles.chartTitle}>Episode 长度</h3>
+      <ChartTitle text="Episode 长度" tip="每轮存活步数，越长表示蛇越能避免撞墙/撞自己" />
       <div ref={bindRef} className={styles.chart} />
     </div>
   );

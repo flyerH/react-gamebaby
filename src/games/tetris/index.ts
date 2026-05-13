@@ -1,4 +1,4 @@
-import type { Game, GameEnv, Pixel } from '@/sdk';
+import type { Game, GameEnv } from '@/sdk';
 
 import { init, isAnimating, isGameOver, onButton, render, step } from './logic';
 import { tetrisPreview } from './preview';
@@ -131,14 +131,5 @@ export const tetris: Game<TetrisState> = {
       }
     }
     return step(env, state);
-  },
-
-  getNextPreview(state: TetrisState): ReadonlyArray<Pixel> | null {
-    if (state.over) return null;
-    const shape = TETROMINOES[state.next]?.[0];
-    if (!shape) return null;
-    // 归一化到 y=0 起始，适配 SidePanel 固定 4×2 迷你网格
-    const minY = Math.min(...shape.map(([, y]) => y));
-    return shape.map(([x, y]): Pixel => [x, y - minY]);
   },
 };
