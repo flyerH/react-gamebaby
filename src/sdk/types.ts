@@ -32,8 +32,8 @@ export type GamePreview = ReadonlyArray<Pixel>;
  */
 export interface GameEnv {
   readonly screen: Screen;
-  /** 4×2 预览屏：游戏在 render 里画下一块，UI 订阅变化自动渲染 */
-  readonly nextScreen: Screen;
+  /** 4×2 副屏（AUX）：游戏在 render 里画辅助信息，UI 订阅变化自动渲染 */
+  readonly auxScreen: Screen;
   readonly input: InputBus;
   readonly sound: Sound;
   readonly rng: () => number;

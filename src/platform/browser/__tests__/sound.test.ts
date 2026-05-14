@@ -34,6 +34,7 @@ interface FakeGain {
     setValueAtTime: (v: number, t: number) => void;
     exponentialRampToValueAtTime: (v: number, t: number) => void;
     setTargetAtTime: (target: number, startTime: number, timeConstant: number) => void;
+    cancelScheduledValues: (startTime: number) => void;
   };
   connect: (dst: unknown) => unknown;
 }
@@ -59,6 +60,7 @@ function createFakeAudioContext(): FakeAudioContext {
       setValueAtTime: vi.fn(),
       exponentialRampToValueAtTime: vi.fn(),
       setTargetAtTime: vi.fn(),
+      cancelScheduledValues: vi.fn(),
     },
     connect: vi.fn().mockReturnThis(),
   });
@@ -173,8 +175,21 @@ describe('createBrowserSound', () => {
   it('setEnabled(true) 也会兜底 resume 一次（点 Sound 键的路径）', () => {
     fakeCtx.state = 'suspended';
     const s = createBrowserSound();
+
+    // 首次 setEnabled 会触发 ensureCtx，创建 masterGain
     s.setEnabled(false);
+    const masterGainMock = (
+      fakeCtx.createGain as unknown as { mock: { results: Array<{ value: FakeGain }> } }
+    ).mock.results[0]?.value;
+    expect(masterGainMock).toBeTruthy();
+    expect(masterGainMock?.gain.cancelScheduledValues).toHaveBeenCalledWith(fakeCtx.currentTime);
+    expect(masterGainMock?.gain.value).toBe(0);
+    expect(masterGainMock?.gain.setTargetAtTime).not.toHaveBeenCalled();
+
     s.setEnabled(true);
+    expect(masterGainMock?.gain.cancelScheduledValues).toHaveBeenCalledWith(fakeCtx.currentTime);
+    expect(masterGainMock?.gain.value).toBe(1);
+    expect(masterGainMock?.gain.setTargetAtTime).not.toHaveBeenCalled();
     expect(fakeCtx.resume).toHaveBeenCalledTimes(1);
   });
 

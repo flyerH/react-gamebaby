@@ -380,18 +380,33 @@ export function onButton(
     };
   }
 
-  // 按键即走：press 和 repeat 都触发"沿目标方向走一格"。Brick-Game 真机
-  // 的 Rotate (A) 在 Snake 里等价于"沿当前方向走一步"，所以也走这条路径
+  // 方向键分三种行为，与 Brick-Game 真机对齐：
+  // - 同 pendingDir 的方向键 + repeat（长按）→ 按键即走加速：
+  //   advance + skipNextTick；蛇沿当前方向以浏览器 key-repeat 频率快速走
+  // - 同 pendingDir 的方向键 + press（单点）→ 不加速、不打断 tick 节奏，
+  //   等同 no-op；玩家单点同向键不会让蛇瞬移一格
+  // - 异 pendingDir 的方向键（press / repeat 都一样）→ 只更新 pendingDir，
+  //   不打断 tick 节奏；下一拍 step 才按新方向推进。换方向本身不该理解为
+  //   "想加速"
+  // - 反向键拒绝：检查必须 vs state.dir（上次 tick 实际跑的方向），不能 vs
+  //   pendingDir。否则 dir=right、pendingDir=up（玩家刚按 Up）时再按 Left
+  //   会通过（pendingDir 视角 up vs left 不反向），下次 tick 蛇直接从 right
+  //   跳到 left → 撞身体。这就是 pendingDir / dir 分开存的意义
+  // A 键（Rotate）始终走加速路径（press / repeat 都加速）
   switch (btn) {
     case 'Up':
     case 'Down':
     case 'Left':
     case 'Right': {
-      if (!nextDir || isOpposite(state.dir, nextDir)) return state;
-      const turned: SnakeState = { ...state, pendingDir: nextDir };
-      const moved = advance(env, turned);
-      if (moved.over) return moved;
-      return { ...moved, skipNextTick: true };
+      if (!nextDir) return state;
+      if (isOpposite(state.dir, nextDir)) return state;
+      if (nextDir === state.pendingDir) {
+        if (action !== 'repeat') return state;
+        const moved = advance(env, state);
+        if (moved.over) return moved;
+        return { ...moved, skipNextTick: true };
+      }
+      return { ...state, pendingDir: nextDir };
     }
     case 'A': {
       const moved = advance(env, state);
