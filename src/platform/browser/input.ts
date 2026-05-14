@@ -113,7 +113,7 @@ export function bindKeyboardInput(inputBus: InputBus, opts: BindKeyboardOptions 
   const onDown = (ev: Event): void => {
     const e = ev as KeyboardEvent;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    const btn = keyMap[e.key];
+    const btn = keyMap[e.key] ?? keyMap[e.key.toLowerCase()];
     if (!btn) return;
     if (preventDefault) e.preventDefault();
     if (e.repeat) return; // OS 重复 keydown 由我们的 timer 接管
@@ -126,7 +126,7 @@ export function bindKeyboardInput(inputBus: InputBus, opts: BindKeyboardOptions 
   const onUp = (ev: Event): void => {
     const e = ev as KeyboardEvent;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    const btn = keyMap[e.key];
+    const btn = keyMap[e.key] ?? keyMap[e.key.toLowerCase()];
     if (!btn) return;
     if (preventDefault) e.preventDefault();
     clearRepeat(btn);

@@ -32,6 +32,8 @@ export interface TrainingData {
   readonly config: TrainingConfig | null;
   readonly episodes: readonly EpisodeData[];
   readonly summaries: readonly SummaryData[];
+  /** 训练是否已完成（JSONL 中出现 { done: true }） */
+  readonly done: boolean;
 }
 
 const POLL_MS = 500;
@@ -40,6 +42,7 @@ export function useTrainingData(url: string): TrainingData {
   const [config, setConfig] = useState<TrainingConfig | null>(null);
   const [episodes, setEpisodes] = useState<readonly EpisodeData[]>([]);
   const [summaries, setSummaries] = useState<readonly SummaryData[]>([]);
+  const [done, setDone] = useState(false);
   const lastLineCount = useRef(0);
   const pollingRef = useRef(false);
 
@@ -64,7 +67,9 @@ export function useTrainingData(url: string): TrainingData {
       for (const line of newLines) {
         try {
           const data = JSON.parse(line) as Record<string, unknown>;
-          if ('totalEpisodes' in data) {
+          if ('done' in data && data.done === true) {
+            setDone(true);
+          } else if ('totalEpisodes' in data) {
             setConfig(data as unknown as TrainingConfig);
           } else if ('avgReward' in data) {
             newSummaries.push(data as unknown as SummaryData);
@@ -98,5 +103,5 @@ export function useTrainingData(url: string): TrainingData {
     };
   }, [poll]);
 
-  return { config, episodes, summaries };
+  return { config, episodes, summaries, done };
 }

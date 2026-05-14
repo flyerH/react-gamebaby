@@ -171,6 +171,8 @@ export function createDQNAgent(config: DQNConfig): DQNAgent {
       });
     },
 
+    // TODO: 前向传播在 tidy 和 optimizer.minimize 内各算一次，计算量翻倍；
+    // 应合并为一次，在 minimize 回调内同时取 loss 值
     train(batch: SampledBatch): number {
       const batchSize = batch.actions.length;
 

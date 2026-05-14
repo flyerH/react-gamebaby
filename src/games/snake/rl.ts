@@ -25,8 +25,11 @@ import { init, onButton, step } from './logic';
 import type { SnakeState } from './state';
 
 const DEFAULT_SEED = 42;
-const DEFAULT_WIDTH = 10;
-const DEFAULT_HEIGHT = 20;
+/** 训练 / 推理共用的 Snake RL 场地尺寸；模型按此尺寸训练 */
+export const SNAKE_RL_WIDTH = 10;
+export const SNAKE_RL_HEIGHT = 20;
+/** 观测通道数：蛇头 / 蛇身 / 食物 */
+export const SNAKE_RL_CHANNELS = 3;
 
 /** 动作空间：四个方向键 */
 const ACTION_SPACE = ['Up', 'Down', 'Left', 'Right'] as const;
@@ -46,15 +49,21 @@ export interface SnakeRLEnvOptions {
 }
 
 export function createSnakeRLEnv(opts: SnakeRLEnvOptions = {}): RLEnv<SnakeRLState, SnakeAction> {
-  const width = opts.width ?? DEFAULT_WIDTH;
-  const height = opts.height ?? DEFAULT_HEIGHT;
+  const width = opts.width ?? SNAKE_RL_WIDTH;
+  const height = opts.height ?? SNAKE_RL_HEIGHT;
+  // 入口 fail-fast：非法 width/height 不延后到 reset/encodeState 才报
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) {
+    throw new Error(`createSnakeRLEnv: 非法尺寸 width=${width}, height=${height}`);
+  }
   const baseSeed = opts.seed ?? DEFAULT_SEED;
   const maxIdle = opts.maxIdleSteps ?? width * height;
-  const channels = 3;
+  if (!Number.isInteger(maxIdle) || maxIdle <= 0) {
+    throw new Error(`createSnakeRLEnv: 非法 maxIdleSteps=${maxIdle}`);
+  }
 
   return {
     actionSpace: ACTION_SPACE,
-    observationShape: [width, height, channels],
+    observationShape: [width, height, SNAKE_RL_CHANNELS],
 
     reset(seed?: number): SnakeRLState {
       const ctx = createHeadlessContext({ seed: seed ?? baseSeed, width, height });
@@ -101,35 +110,7 @@ export function createSnakeRLEnv(opts: SnakeRLEnvOptions = {}): RLEnv<SnakeRLSta
     },
 
     encodeState(rlState: SnakeRLState): Float32Array {
-      const size = width * height * channels;
-      const obs = new Float32Array(size);
-      const { game } = rlState;
-
-      // 通道 0：蛇头
-      const head = game.body[0];
-      if (head) {
-        const [hx, hy] = head;
-        obs[hy * width + hx] = 1;
-      }
-
-      // 通道 1：蛇身（不含头）
-      const ch1Offset = width * height;
-      for (let i = 1; i < game.body.length; i++) {
-        const seg = game.body[i];
-        if (seg) {
-          const [sx, sy] = seg;
-          obs[ch1Offset + sy * width + sx] = 1;
-        }
-      }
-
-      // 通道 2：食物
-      const ch2Offset = width * height * 2;
-      if (game.food) {
-        const [fx, fy] = game.food;
-        obs[ch2Offset + fy * width + fx] = 1;
-      }
-
-      return obs;
+      return encodeSnakeObs(rlState.game, width, height);
     },
   };
 }
@@ -145,4 +126,51 @@ export interface SnakeRLState {
   readonly env: ReturnType<typeof toGameEnv>;
   readonly score: number;
   readonly idleSteps: number;
+}
+
+/**
+ * 将 SnakeState 编码为 3 通道二值观测向量（与训练时一致）
+ *
+ * 独立函数，供浏览器推理时直接调用（不需要完整 RLEnv）。
+ * 通道 0：蛇头 / 通道 1：蛇身 / 通道 2：食物
+ */
+export function encodeSnakeObs(game: SnakeState, width: number, height: number): Float32Array {
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) {
+    throw new Error(`encodeSnakeObs: 非法尺寸 width=${width}, height=${height}`);
+  }
+  const obs = new Float32Array(width * height * SNAKE_RL_CHANNELS);
+  /**
+   * 越界 = 上游 state 与 width/height 配置不一致的 bug，直接抛错暴露。
+   * 上层 ticker / 训练循环已有 try-catch，不会因此把整个进程搞挂。
+   *
+   * label 用字面量联合而非模板字符串，避免训练热路径每次循环都分配新字符串；
+   * 仅在罕见的越界分支才拼接索引信息
+   */
+  type PixelLabel = 'head' | 'body' | 'food';
+  const writePixel = (
+    offset: number,
+    x: number,
+    y: number,
+    label: PixelLabel,
+    bodyIndex?: number
+  ): void => {
+    if (x < 0 || x >= width || y < 0 || y >= height) {
+      const where = label === 'body' ? `body[${bodyIndex ?? -1}]` : label;
+      throw new Error(`encodeSnakeObs: ${where} 越界 (${x}, ${y}) vs ${width}×${height}`);
+    }
+    obs[offset + y * width + x] = 1;
+  };
+
+  const head = game.body[0];
+  if (head) writePixel(0, head[0], head[1], 'head');
+
+  const ch1 = width * height;
+  for (let i = 1; i < game.body.length; i++) {
+    const seg = game.body[i];
+    if (seg) writePixel(ch1, seg[0], seg[1], 'body', i);
+  }
+
+  if (game.food) writePixel(width * height * 2, game.food[0], game.food[1], 'food');
+
+  return obs;
 }

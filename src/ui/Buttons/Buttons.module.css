@@ -47,6 +47,10 @@
     box-shadow 80ms ease-out;
 }
 
+.smallButton:focus {
+  outline: none;
+}
+
 .smallButton:active {
   background-color: rgb(143, 10, 47);
   transform: translateY(1px);
@@ -105,6 +109,10 @@
   transition:
     background-color 80ms ease-out,
     box-shadow 80ms ease-out;
+}
+
+.button:focus {
+  outline: none;
 }
 
 .button:active {
@@ -214,6 +222,10 @@
   transition:
     background-color 80ms ease-out,
     box-shadow 80ms ease-out;
+}
+
+.rotateButton:focus {
+  outline: none;
 }
 
 /* :active 必须保留 rotateZ(60deg)，否则按下瞬间按钮会回正 */

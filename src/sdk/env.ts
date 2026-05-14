@@ -12,6 +12,7 @@ import type { GameEnv } from './types';
 export function toGameEnv(ctx: HardwareContext): GameEnv {
   return {
     screen: ctx.screen,
+    nextScreen: ctx.nextScreen,
     input: ctx.input,
     sound: ctx.sound,
     rng: ctx.rng,

@@ -162,6 +162,8 @@ export interface Storage {
  */
 export interface HardwareContext {
   screen: Screen;
+  /** 4×2 预览屏：游戏在 render 里直接画下一块，SidePanel 订阅渲染 */
+  nextScreen: Screen;
   ticker: Ticker;
   input: InputBus;
   sound: Sound;

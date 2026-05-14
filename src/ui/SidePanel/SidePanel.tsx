@@ -1,4 +1,6 @@
-import type { Pixel } from '@/sdk';
+import { useEffect, useReducer } from 'react';
+
+import type { Screen } from '@/engine/types';
 
 import styles from './SidePanel.module.css';
 
@@ -11,33 +13,40 @@ export interface SidePanelProps {
   power?: boolean;
   score?: number;
   hiScore?: number;
-  /**
-   * 下一块方块的预览像素（相对坐标）；null / undefined 表示不显示。
-   * Tetris playing 时由 App 从 TetrisState.next 提取传入
-   */
-  nextPreview?: ReadonlyArray<Pixel> | null;
+  /** 4×2 预览屏 framebuffer；游戏在 render 里画，此组件订阅渲染 */
+  nextScreen?: Screen | null;
   level?: number;
   speed?: number;
   /** 'pause' 指示灯是否点亮 */
   pauseMode?: boolean;
   /** 'sound' 指示灯是否点亮（反映 ctx.soundOn） */
   soundOn?: boolean;
+  /** 'AI' 指示灯是否点亮 */
+  aiMode?: boolean;
 }
 
 /**
- * 固定 4×2 的迷你像素网格，与主屏同风格（外框 + 内方块）但缩小到 ~80%。
- * 始终占位，有数据时亮格子、没数据时全暗阴影
+ * 固定 4×2 的迷你像素网格，与主屏同风格（外框 + 内方块）。
+ * 订阅 Screen buffer 变化触发 re-render，用 DOM span 模拟像素
  */
 function NextPreview({
-  pixels,
+  screen,
 }: {
-  readonly pixels: ReadonlyArray<Pixel> | null | undefined;
+  readonly screen: Screen | null | undefined;
 }): React.ReactElement {
-  const set = new Set(pixels?.map(([x, y]) => `${x},${y}`) ?? []);
+  const [, forceUpdate] = useReducer((c: number) => c + 1, 0);
+
+  useEffect(() => {
+    if (!screen) return;
+    return screen.subscribe(forceUpdate);
+  }, [screen]);
+
+  const cols = screen?.width ?? 4;
+  const rows = screen?.height ?? 2;
   const cells: React.ReactElement[] = [];
-  for (let y = 0; y < 2; y++) {
-    for (let x = 0; x < 4; x++) {
-      const lit = set.has(`${x},${y}`);
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const lit = screen ? screen.getPixel(x, y) : false;
       cells.push(
         <span key={`${x},${y}`} className={lit ? styles.pixelOn : styles.pixelOff}>
           <span className={styles.pixelInner} />
@@ -59,11 +68,12 @@ export function SidePanel({
   power = true,
   score = 0,
   hiScore = 0,
-  nextPreview,
+  nextScreen,
   level = 1,
   speed = 1,
   pauseMode = false,
   soundOn = false,
+  aiMode = false,
 }: SidePanelProps): React.ReactElement {
   const className = power ? styles.panel : `${styles.panel} ${styles.poweredOff}`;
   return (
@@ -78,7 +88,7 @@ export function SidePanel({
       </div>
       <div className={styles.group}>
         <p className={styles.label}>NEXT</p>
-        <NextPreview pixels={nextPreview} />
+        <NextPreview screen={nextScreen} />
       </div>
       <div className={styles.group}>
         <p className={styles.label}>LEVEL</p>
@@ -90,6 +100,7 @@ export function SidePanel({
       </div>
 
       <div className={styles.indicators}>
+        <p className={aiMode ? styles.indicatorOn : styles.indicatorOff}>AI</p>
         <p className={pauseMode ? styles.indicatorOn : styles.indicatorOff}>PAUSE</p>
         <p className={soundOn ? styles.indicatorOn : styles.indicatorOff}>SOUND</p>
       </div>
