@@ -369,6 +369,13 @@ export function App(): React.ReactElement {
   useEffect(() => {
     playingIdRef.current = state.playingId;
   }, [state.playingId]);
+
+  // 切换游戏 / 退出 playing 时清空副屏，避免上一款游戏残留的辅助像素
+  // （新游戏的 render 会在下一帧覆盖；不写副屏的游戏自然保持空白）
+  useEffect(() => {
+    ctx.auxScreen.clear();
+  }, [state.playingId, ctx.auxScreen]);
+
   const [aiLoading, setAiLoading] = useState(false);
 
   // 通电：把"启动旋律"和"切 mode 到 boot"封装成单一动作，让 ON/OFF 按键
@@ -376,9 +383,10 @@ export function App(): React.ReactElement {
   // user gesture 同步调用栈内才能被浏览器允许 resume AudioContext
   const powerOn = useCallback(() => {
     if (modeRef.current !== 'off') return;
-    melodyCancelRef.current = ctx.sound.playMelody(BOOT_MELODY);
+    // 用户静音时开机不触发旋律，避免任何浏览器音频时序抖动导致的漏声
+    melodyCancelRef.current = ctx.soundOn.value ? ctx.sound.playMelody(BOOT_MELODY) : null;
     dispatch({ type: 'POWER_ON' });
-  }, [ctx.sound]);
+  }, [ctx.sound, ctx.soundOn]);
 
   // 加载 AI 模型并进入 AI 自动玩模式；通过 ref 暴露给 input subscriber，
   // 避免 subscriber effect 因 menu/aiLoading 变化而频繁重建
@@ -428,20 +436,24 @@ export function App(): React.ReactElement {
   useEffect(() => {
     const unbind = bindKeyboardInput(ctx.input);
     const unsub = ctx.input.subscribe((button, kind) => {
+      // 关机：只允许"按 Start 通电"。其它任何 press / repeat / release 全
+      // 部忽略 —— 关机状态下不应再切 Sound / 改暂停 / 触发 reducer。这一
+      // 条必须早于下面的 press 控制键 switch，否则 case 'Sound' 会先于
+      // 关机检查把 soundOn 翻掉
+      if (modeRef.current === 'off') {
+        if (kind === 'press' && button === 'Start') powerOn();
+        return;
+      }
       // 控制键（Start / Pause / Sound / Reset）只响 press，repeat / release 无效。
       // 长按这些键没有"持续"语义；处理完直接 return，不进 reducer
       if (kind === 'press') {
         switch (button) {
           case 'Start':
-            if (modeRef.current === 'off') {
-              powerOn();
-            } else {
-              // 关机：取消旋律 + 重置 pause + state 整体清零
-              melodyCancelRef.current?.();
-              melodyCancelRef.current = null;
-              ctx.pause.set(false);
-              dispatch({ type: 'POWER_OFF' });
-            }
+            // 通电态按 Start = 关机：取消旋律 + 重置 pause + state 整体清零
+            melodyCancelRef.current?.();
+            melodyCancelRef.current = null;
+            ctx.pause.set(false);
+            dispatch({ type: 'POWER_OFF' });
             return;
           case 'Pause':
             // 仅 playing 模式切换暂停，其它模式 no-op 不响 click
@@ -461,9 +473,6 @@ export function App(): React.ReactElement {
             break;
         }
       }
-
-      // 关机状态：除上面 Start 已处理外，其它按键一律无响应
-      if (modeRef.current === 'off') return;
 
       // 选关模式按 B：加载模型 → AI 自动玩
       if (kind === 'press' && button === 'B' && modeRef.current === 'select') {
@@ -720,7 +729,7 @@ export function App(): React.ReactElement {
             power={state.mode !== 'off'}
             score={score}
             hiScore={hiScore}
-            nextScreen={ctx.nextScreen}
+            auxScreen={ctx.auxScreen}
             speed={state.menu.speed}
             level={state.menu.level}
             pauseMode={paused}

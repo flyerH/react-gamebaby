@@ -171,68 +171,43 @@ export function createDQNAgent(config: DQNConfig): DQNAgent {
       });
     },
 
-    // TODO: 前向传播在 tidy 和 optimizer.minimize 内各算一次，计算量翻倍；
-    // 应合并为一次，在 minimize 回调内同时取 loss 值
     train(batch: SampledBatch): number {
       const batchSize = batch.actions.length;
+      const optimizer = (qNetwork as tf.Sequential).optimizer;
 
-      const loss = tf.tidy(() => {
-        const obsTensor = tf.tensor(batch.obs, [batchSize, flatSize]);
-        const nextObsTensor = tf.tensor(batch.nextObs, [batchSize, flatSize]);
-        const actionsTensor = tf.tensor1d(batch.actions, 'int32');
-        const rewardsTensor = tf.tensor1d(batch.rewards);
-        const donesTensor = tf.tensor1d(batch.dones);
-
-        // target Q 值：r + gamma * max_a' Q_target(s', a') * (1 - done)
-        const nextQValues = targetNetwork.predict(nextObsTensor) as tf.Tensor;
-        const maxNextQ = nextQValues.max(1);
-        const targets = rewardsTensor.add(
-          maxNextQ.mul(tf.scalar(gamma)).mul(tf.scalar(1).sub(donesTensor))
-        );
-
-        // 当前 Q 值：只取对应 action 的 Q
-        const currentQValues = qNetwork.predict(obsTensor) as tf.Tensor;
-        const actionMask = tf.oneHot(actionsTensor, numActions);
-        const currentQ = currentQValues.mul(actionMask).sum(1);
-
-        // TD loss
-        const tdError = targets.sub(currentQ);
-        return tdError.square().mean();
-      });
-
-      const lossValue = loss.dataSync()[0] ?? 0;
-
-      // 反向传播
+      // 输入张量在 minimize 闭包内被引用，闭包外 dispose
       const obsTensor = tf.tensor(batch.obs, [batchSize, flatSize]);
       const actionsTensor = tf.tensor1d(batch.actions, 'int32');
       const rewardsTensor = tf.tensor1d(batch.rewards);
       const nextObsTensor = tf.tensor(batch.nextObs, [batchSize, flatSize]);
       const donesTensor = tf.tensor1d(batch.dones);
 
-      const optimizer = (qNetwork as tf.Sequential).optimizer;
+      // target Q 在 minimize 闭包外先算好：targetNetwork 不参与梯度，提前算
+      // 既避免重复前向，也防止 minimize 把 targetNetwork 的权重误当成可训练变量
+      const targets = tf.tidy(() => {
+        const nextQValues = targetNetwork.predict(nextObsTensor) as tf.Tensor;
+        const maxNextQ = nextQValues.max(1);
+        return rewardsTensor.add(maxNextQ.mul(tf.scalar(gamma)).mul(tf.scalar(1).sub(donesTensor)));
+      });
 
-      optimizer.minimize(() => {
+      // minimize 一次性完成前向 + 反向 + 取 loss（returnCost=true）
+      const lossTensor = optimizer.minimize(() => {
         const currentQValues = qNetwork.predict(obsTensor) as tf.Tensor;
         const actionMask = tf.oneHot(actionsTensor, numActions);
         const currentQ = currentQValues.mul(actionMask).sum(1);
-
-        const nextQValues = targetNetwork.predict(nextObsTensor) as tf.Tensor;
-        const maxNextQ = nextQValues.max(1);
-        const targets = rewardsTensor.add(
-          maxNextQ.mul(tf.scalar(gamma)).mul(tf.scalar(1).sub(donesTensor))
-        );
-
         const tdLoss: tf.Scalar = targets.sub(currentQ).square().mean();
         return tdLoss;
-      });
+      }, /* returnCost */ true);
 
-      // 手动清理
+      const lossValue = lossTensor ? (lossTensor.dataSync()[0] ?? 0) : 0;
+
+      lossTensor?.dispose();
+      targets.dispose();
       obsTensor.dispose();
       actionsTensor.dispose();
       rewardsTensor.dispose();
       nextObsTensor.dispose();
       donesTensor.dispose();
-      loss.dispose();
 
       trainStepCount++;
 

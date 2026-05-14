@@ -34,6 +34,7 @@ interface FakeGain {
     setValueAtTime: (v: number, t: number) => void;
     exponentialRampToValueAtTime: (v: number, t: number) => void;
     setTargetAtTime: (target: number, startTime: number, timeConstant: number) => void;
+    cancelScheduledValues: (startTime: number) => void;
   };
   connect: (dst: unknown) => unknown;
 }
@@ -59,6 +60,7 @@ function createFakeAudioContext(): FakeAudioContext {
       setValueAtTime: vi.fn(),
       exponentialRampToValueAtTime: vi.fn(),
       setTargetAtTime: vi.fn(),
+      cancelScheduledValues: vi.fn(),
     },
     connect: vi.fn().mockReturnThis(),
   });

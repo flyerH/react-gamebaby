@@ -438,8 +438,8 @@ describe('snake · onButton', () => {
   });
 });
 
-describe('snake · 按键即走（真机加速模式）', () => {
-  it('方向键 press 立即推进一格 + 设 skipNextTick=true', () => {
+describe('snake · 方向键：长按同向加速，单点不加速，异向只切方向', () => {
+  it('同 pendingDir 方向键 + press（单点）→ 不加速、不打断 tick 节奏（同引用返回）', () => {
     const env = makeEnv();
     const s0 = makeState({
       body: [
@@ -450,15 +450,62 @@ describe('snake · 按键即走（真机加速模式）', () => {
       dir: 'right',
       pendingDir: 'right',
     });
-    // 按右：同向键也触发立即推进
     const s1 = onButton(env, s0, 'Right', 'press');
+    expect(s1).toBe(s0);
+  });
+
+  it('同 pendingDir 方向键 + repeat（长按）→ 加速：advance + skipNextTick=true', () => {
+    const env = makeEnv();
+    const s0 = makeState({
+      body: [
+        [4, 10],
+        [3, 10],
+        [2, 10],
+      ],
+      dir: 'right',
+      pendingDir: 'right',
+    });
+    const s1 = onButton(env, s0, 'Right', 'repeat');
     expect(s1.body[0]).toEqual([5, 10]);
     expect(s1.body).toHaveLength(3);
     expect(s1.skipNextTick).toBe(true);
-    expect(s1.dir).toBe('right');
   });
 
-  it('按异向键：改向 + 立即推进 + skipNextTick=true', () => {
+  it('异 pendingDir 方向键 → 只改 pendingDir，不推进、不设 skipNextTick', () => {
+    const env = makeEnv();
+    const s0 = makeState({
+      body: [
+        [4, 10],
+        [3, 10],
+        [2, 10],
+      ],
+      dir: 'right',
+      pendingDir: 'right',
+    });
+    const s1 = onButton(env, s0, 'Up', 'press');
+    expect(s1.pendingDir).toBe('up');
+    expect(s1.dir).toBe('right');
+    expect(s1.body).toBe(s0.body);
+    expect(s1.skipNextTick).toBe(false);
+  });
+
+  it('异向 repeat 也仅切方向，不打断 tick 节奏（避免长按换方向意外加速）', () => {
+    const env = makeEnv();
+    const s0 = makeState({
+      body: [
+        [4, 10],
+        [3, 10],
+      ],
+      dir: 'right',
+      pendingDir: 'right',
+    });
+    const s1 = onButton(env, s0, 'Up', 'repeat');
+    expect(s1.pendingDir).toBe('up');
+    expect(s1.body).toBe(s0.body);
+    expect(s1.skipNextTick).toBe(false);
+  });
+
+  it('先按 Up 换方向，长按 Up（repeat）触发加速（pendingDir 已 = up）', () => {
     const env = makeEnv();
     const s0 = makeState({
       body: [
@@ -469,38 +516,45 @@ describe('snake · 按键即走（真机加速模式）', () => {
       pendingDir: 'right',
     });
     const s1 = onButton(env, s0, 'Up', 'press');
-    expect(s1.dir).toBe('up');
     expect(s1.pendingDir).toBe('up');
-    expect(s1.body[0]).toEqual([4, 9]);
-    expect(s1.skipNextTick).toBe(true);
+    expect(s1.body).toBe(s0.body);
+    const s2 = onButton(env, s1, 'Up', 'repeat');
+    expect(s2.body[0]).toEqual([4, 9]);
+    expect(s2.skipNextTick).toBe(true);
   });
 
-  it('反向键被拒：不推进、skipNextTick 不变', () => {
+  it('先按 Up 换方向，再单点 Up（press）不加速（仅 repeat 加速）', () => {
     const env = makeEnv();
     const s0 = makeState({
+      dir: 'right',
+      pendingDir: 'up',
       body: [
         [4, 10],
         [3, 10],
       ],
-      dir: 'right',
-      pendingDir: 'right',
     });
+    const s1 = onButton(env, s0, 'Up', 'press');
+    expect(s1).toBe(s0);
+  });
+
+  it('反向键 vs 上次 tick 的 dir 拒绝：dir=right 按 left 拒（pendingDir 是 right）', () => {
+    const env = makeEnv();
+    const s0 = makeState({ dir: 'right', pendingDir: 'right' });
+    expect(onButton(env, s0, 'Left', 'press')).toBe(s0);
+  });
+
+  it('反向键 vs dir 检查（关键保护）：dir=right、pendingDir=up 时再按 Left 仍被拒，避免 tick 间夹角 180° 急转撞身体', () => {
+    const env = makeEnv();
+    const s0 = makeState({ dir: 'right', pendingDir: 'up' });
     const s1 = onButton(env, s0, 'Left', 'press');
     expect(s1).toBe(s0);
   });
 
-  it('skipNextTick=true 时 step 跳过一次推进 + 重置 skipNextTick=false', () => {
+  it('反向 pendingDir 但非反向 dir 的方向键允许：dir=right、pendingDir=up 时按 Down 通过（蛇下次 tick 直接 right→down 不撞身体）', () => {
     const env = makeEnv();
-    const s0 = makeState({
-      body: [
-        [4, 10],
-        [3, 10],
-      ],
-      skipNextTick: true,
-    });
-    const s1 = step(env, s0);
-    expect(s1.body).toEqual(s0.body);
-    expect(s1.skipNextTick).toBe(false);
+    const s0 = makeState({ dir: 'right', pendingDir: 'up' });
+    const s1 = onButton(env, s0, 'Down', 'press');
+    expect(s1.pendingDir).toBe('down');
   });
 
   it('A 键（Rotate）：沿当前方向走一格（不改向）+ skipNextTick=true', () => {
@@ -520,7 +574,21 @@ describe('snake · 按键即走（真机加速模式）', () => {
     expect(s1.skipNextTick).toBe(true);
   });
 
-  it('release 方向键清 skipNextTick：解决松开后第一次 ticker tick 被跳过的停顿', () => {
+  it('skipNextTick=true 时 step 跳过一次推进 + 重置 skipNextTick=false', () => {
+    const env = makeEnv();
+    const s0 = makeState({
+      body: [
+        [4, 10],
+        [3, 10],
+      ],
+      skipNextTick: true,
+    });
+    const s1 = step(env, s0);
+    expect(s1.body).toEqual(s0.body);
+    expect(s1.skipNextTick).toBe(false);
+  });
+
+  it('方向键 release 清 skipNextTick：避免松开后首拍 ticker 被跳过', () => {
     const env = makeEnv();
     const s0 = makeState({
       body: [[5, 10]],
@@ -538,15 +606,14 @@ describe('snake · 按键即走（真机加速模式）', () => {
     expect(onButton(env, s0, 'Right', 'release')).toBe(s0);
   });
 
-  it('按键即走撞墙：over=true，不设 skipNextTick（over 路径下 step 走动画推进）', () => {
+  it('同向键 repeat 加速撞墙：over=true，不设 skipNextTick（over 路径下 step 走动画推进）', () => {
     const env = makeEnv();
     const s0 = makeState({
       body: [[9, 10]],
       dir: 'right',
       pendingDir: 'right',
     });
-    // 按右键立即推进会撞右墙
-    const s1 = onButton(env, s0, 'Right', 'press');
+    const s1 = onButton(env, s0, 'Right', 'repeat');
     expect(s1.over).toBe(true);
     expect(s1.skipNextTick).toBe(false);
   });
