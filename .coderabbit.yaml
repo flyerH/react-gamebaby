@@ -13,9 +13,8 @@ reviews:
   high_level_summary: true
   sequence_diagrams: false
 
-  # 迁移版本遗留代码（下个版本删）与构建产物无需评审
+  # 构建产物 / 锁文件无需评审
   path_filters:
-    - '!src/legacy/**'
     - '!dist/**'
     - '!**/*.lock'
     - '!pnpm-lock.yaml'

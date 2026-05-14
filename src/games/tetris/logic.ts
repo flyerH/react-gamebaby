@@ -230,20 +230,20 @@ export function render(env: GameEnv, state: TetrisState): void {
       for (const [x, y] of pieceCells(state.active)) screen.setPixel(x, y, true);
     }
 
-    // 预览屏：画下一块方块（XY 都归一化到 0，避免负坐标越界）
-    const { nextScreen } = env;
-    nextScreen.clear();
+    // 副屏：画下一块方块（XY 都归一化到 0，避免负坐标越界）
+    const { auxScreen } = env;
+    auxScreen.clear();
     const nextShape = TETROMINOES[state.next]?.[0];
     if (nextShape) {
       const minX = Math.min(...nextShape.map(([sx]) => sx));
       const minY = Math.min(...nextShape.map(([, sy]) => sy));
-      for (const [sx, sy] of nextShape) nextScreen.setPixel(sx - minX, sy - minY, true);
+      for (const [sx, sy] of nextShape) auxScreen.setPixel(sx - minX, sy - minY, true);
     }
     return;
   }
 
-  // 死亡后清空预览屏
-  env.nextScreen.clear();
+  // 死亡后清空副屏
+  env.auxScreen.clear();
 
   // 死亡动画：填屏（自底向上）→ 清屏（自顶向下），各 h 帧
   if (state.overFrame < h) {

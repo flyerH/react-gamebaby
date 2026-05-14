@@ -6,7 +6,6 @@
 have_fun: false
 
 ignore_patterns:
-  - 'src/legacy/**'
   - 'dist/**'
   - 'pnpm-lock.yaml'
   - '**/*.lock'

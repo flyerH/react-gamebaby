@@ -13,8 +13,8 @@ export interface SidePanelProps {
   power?: boolean;
   score?: number;
   hiScore?: number;
-  /** 4×2 预览屏 framebuffer；游戏在 render 里画，此组件订阅渲染 */
-  nextScreen?: Screen | null;
+  /** 4×2 副屏 framebuffer；游戏在 render 里画辅助信息，此组件订阅渲染 */
+  auxScreen?: Screen | null;
   level?: number;
   speed?: number;
   /** 'pause' 指示灯是否点亮 */
@@ -29,7 +29,7 @@ export interface SidePanelProps {
  * 固定 4×2 的迷你像素网格，与主屏同风格（外框 + 内方块）。
  * 订阅 Screen buffer 变化触发 re-render，用 DOM span 模拟像素
  */
-function NextPreview({
+function AuxPreview({
   screen,
 }: {
   readonly screen: Screen | null | undefined;
@@ -68,7 +68,7 @@ export function SidePanel({
   power = true,
   score = 0,
   hiScore = 0,
-  nextScreen,
+  auxScreen,
   level = 1,
   speed = 1,
   pauseMode = false,
@@ -87,8 +87,8 @@ export function SidePanel({
         <p className={styles.value}>{hiScore}</p>
       </div>
       <div className={styles.group}>
-        <p className={styles.label}>NEXT</p>
-        <NextPreview screen={nextScreen} />
+        <p className={styles.label}>AUX</p>
+        <AuxPreview screen={auxScreen} />
       </div>
       <div className={styles.group}>
         <p className={styles.label}>LEVEL</p>
