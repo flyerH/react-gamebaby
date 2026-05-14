@@ -368,7 +368,7 @@ export function App(): React.ReactElement {
   }, [state.gameState]);
   useEffect(() => {
     playingIdRef.current = state.playingId;
-  }, [state.playingId]);
+  }, [state.playingId, ctx.auxScreen]);
 
   // 切换游戏 / 退出 playing 时清空副屏，避免上一款游戏残留的辅助像素
   // （新游戏的 render 会在下一帧覆盖；不写副屏的游戏自然保持空白）

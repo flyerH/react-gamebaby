@@ -182,32 +182,44 @@ export function createDQNAgent(config: DQNConfig): DQNAgent {
       const nextObsTensor = tf.tensor(batch.nextObs, [batchSize, flatSize]);
       const donesTensor = tf.tensor1d(batch.dones);
 
-      // target Q 在 minimize 闭包外先算好：targetNetwork 不参与梯度，提前算
-      // 既避免重复前向，也防止 minimize 把 targetNetwork 的权重误当成可训练变量
-      const targets = tf.tidy(() => {
-        const nextQValues = targetNetwork.predict(nextObsTensor) as tf.Tensor;
-        const maxNextQ = nextQValues.max(1);
-        return rewardsTensor.add(maxNextQ.mul(tf.scalar(gamma)).mul(tf.scalar(1).sub(donesTensor)));
-      });
+      let targets: tf.Tensor | null = null;
+      let lossTensor: tf.Scalar | null = null;
+      let lossValue = 0;
 
-      // minimize 一次性完成前向 + 反向 + 取 loss（returnCost=true）
-      const lossTensor = optimizer.minimize(() => {
-        const currentQValues = qNetwork.predict(obsTensor) as tf.Tensor;
-        const actionMask = tf.oneHot(actionsTensor, numActions);
-        const currentQ = currentQValues.mul(actionMask).sum(1);
-        const tdLoss: tf.Scalar = targets.sub(currentQ).square().mean();
-        return tdLoss;
-      }, /* returnCost */ true);
+      try {
+        // target Q 在 minimize 闭包外先算好：targetNetwork 不参与梯度，提前算
+        // 既避免重复前向，也防止 minimize 把 targetNetwork 的权重误当成可训练变量
+        targets = tf.tidy(() => {
+          const nextQValues = targetNetwork.predict(nextObsTensor) as tf.Tensor;
+          const maxNextQ = nextQValues.max(1);
+          return rewardsTensor.add(
+            maxNextQ.mul(tf.scalar(gamma)).mul(tf.scalar(1).sub(donesTensor))
+          );
+        });
 
-      const lossValue = lossTensor ? (lossTensor.dataSync()[0] ?? 0) : 0;
+        // minimize 一次性完成前向 + 反向 + 取 loss（returnCost=true）
+        lossTensor = optimizer.minimize(
+          () =>
+            tf.tidy(() => {
+              const currentQValues = qNetwork.predict(obsTensor) as tf.Tensor;
+              const actionMask = tf.oneHot(actionsTensor, numActions);
+              const currentQ = currentQValues.mul(actionMask).sum(1);
+              const tdLoss: tf.Scalar = targets!.sub(currentQ).square().mean();
+              return tdLoss;
+            }),
+          /* returnCost */ true
+        );
 
-      lossTensor?.dispose();
-      targets.dispose();
-      obsTensor.dispose();
-      actionsTensor.dispose();
-      rewardsTensor.dispose();
-      nextObsTensor.dispose();
-      donesTensor.dispose();
+        lossValue = lossTensor ? (lossTensor.dataSync()[0] ?? 0) : 0;
+      } finally {
+        lossTensor?.dispose();
+        targets?.dispose();
+        obsTensor.dispose();
+        actionsTensor.dispose();
+        rewardsTensor.dispose();
+        nextObsTensor.dispose();
+        donesTensor.dispose();
+      }
 
       trainStepCount++;
 

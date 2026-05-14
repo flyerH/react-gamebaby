@@ -272,7 +272,7 @@ export function createBrowserSound(): Sound {
         // 后才生效，届时会从旧值（1）起跳 —— 若 on=false 仍会短暂出声。
         // suspended 期间直接写目标值并清除已有自动化，resume 时从正确电平
         // 开始，不产生过渡噪声（此时没有任何正在播放的声音，不存在硬切咔哒声）
-        masterGain.gain.cancelScheduledValues(0);
+        masterGain.gain.cancelScheduledValues(ac.currentTime);
         masterGain.gain.value = on ? 1 : 0;
       } else {
         // 运行中：平滑过渡 ~30ms 避免硬切的"咔哒"声
