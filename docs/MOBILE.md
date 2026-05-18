@@ -17,6 +17,8 @@
 - `android/` 原生工程（`screenOrientation="portrait"` 锁竖屏）
 - `@capacitor/app` 插件 → 监听系统返回键
 
+> **关于 cap sync 生成的文件**：`android/capacitor.settings.gradle` 与 `android/app/capacitor.build.gradle` 不进版本库（`android/.gitignore` 已排除）。这俩由 `cap sync` 在本机生成，且 pnpm 严格隔离布局下路径含 hash，跨机器 / 依赖图变化时 hash 会漂移，提交进库会引入虚假 diff。下面所有 `pnpm mobile:*` 命令（除 `mobile:dev:android`）都自带 cap sync，正常入口零摩擦；**但首次 clone 仓库后，如果想直接用 Android Studio 打开 `android/` 工程，必须先跑一次 `pnpm mobile:sync` 让 gradle 文件落地，否则 Studio 同步会找不到 Capacitor 插件**。
+
 ## 2. 常用命令
 
 ```bash

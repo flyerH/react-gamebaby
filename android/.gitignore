@@ -99,3 +99,10 @@ app/src/main/assets/public
 app/src/main/assets/capacitor.config.json
 app/src/main/assets/capacitor.plugins.json
 app/src/main/res/xml/config.xml
+
+# Generated Gradle files —— Capacitor 模板默认提交，但内容随 cap sync 重新生成；
+# pnpm 严格隔离布局下路径含 hash（@capacitor+android@x.y.z_@capacitor+core@x.y.z），
+# 跨机器 / 依赖图变化时 hash 会漂移，提交进库会引入虚假 diff 与 build 冲突。
+# 跟同级 capacitor.config.json 等保持一致，让 cap sync 在本地负责生成
+capacitor.settings.gradle
+app/capacitor.build.gradle
