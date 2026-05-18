@@ -16,7 +16,8 @@ const config: CapacitorConfig = {
     ...(remoteUrl ? { url: remoteUrl, cleartext: false } : {}),
   },
   android: {
-    // 允许混合内容（少量调试用）；生产构建里按需收紧
+    // 不允许 https 页面拉 http 子资源（生产模式默认就是 false，这里显式声明
+    // 让审计文件一眼看到；本地调试若遇到 http-only 第三方接口可临时改 true）
     allowMixedContent: false,
     // Android 端 WebView 背景色（同上）
     backgroundColor: '#4a94c1',

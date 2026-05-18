@@ -47,8 +47,10 @@ export function bindBackButton(opts: BindBackButtonOptions): Unsubscribe {
           let handled = false;
           try {
             handled = await opts.handler();
-          } catch {
-            // 应用层 handler 抛错时按"未处理"算，触发退出兜底但不冒泡
+          } catch (err) {
+            // 应用层 handler 抛错时按"未处理"算，触发退出兜底但不冒泡；
+            // 真机调试时 console 拿得到，不至于 silent fail 难定位
+            console.error('[bindBackButton] handler 抛错，按未处理处理：', err);
           }
           // await 期间组件可能已经 unmount → 解绑 → cancelled=true，
           // 此时即便 handler 报告"未处理"也不能再 exitApp，否则 React StrictMode
