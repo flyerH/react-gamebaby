@@ -1,3 +1,4 @@
+import { Dialog } from '@capacitor/dialog';
 import {
   useCallback,
   useEffect,
@@ -12,14 +13,14 @@ import { createPersistentCounter } from '@/engine/counter';
 import type { Button, ButtonAction, Counter } from '@/engine/types';
 import { defaultGames } from '@/games';
 import type { SnakeState } from '@/games/snake/state';
-import { bindKeyboardInput, createBrowserContext } from '@/platform/browser';
+import { bindBackButton, bindKeyboardInput, createBrowserContext } from '@/platform/browser';
 import { createHeadlessContext } from '@/platform/headless';
 import type { Game, GameEnv, GameRegistry } from '@/sdk';
 import { toGameEnv } from '@/sdk';
 import { Buttons } from '@/ui/Buttons';
 import { ContentScreen } from '@/ui/ContentScreen';
 import { Device } from '@/ui/Device';
-import { defaultButtonLabels } from '@/ui/locale';
+import { defaultButtonLabels, defaultDialogLabels } from '@/ui/locale';
 import { SidePanel } from '@/ui/SidePanel';
 
 import {
@@ -332,8 +333,10 @@ export function App(): React.ReactElement {
   // 可以读非确定性源；需要重现的训练 / 测试走 createHeadlessContext({ seed })。
   const [ctx] = useState(() => createBrowserContext({ seed: Date.now() }));
   const registry = defaultGames;
-  // 按钮标签按浏览器首选语言一次性装配；语言切换需刷新页面，暂不支持运行时切换
+  // 按钮标签 / 弹窗文案按浏览器首选语言一次性装配；语言切换需刷新页面，
+  // 暂不支持运行时切换。机身按键、退出确认弹窗共享同一份 locale 检测
   const [buttonLabels] = useState(() => defaultButtonLabels());
+  const [dialogLabels] = useState(() => defaultDialogLabels());
   const env = useMemo<GameEnv>(() => toGameEnv(ctx), [ctx]);
   const anim = useMemo(
     () => createBootAnimation(ctx.screen.width, ctx.screen.height),
@@ -514,6 +517,41 @@ export function App(): React.ReactElement {
       unbind();
     };
   }, [ctx, powerOn]);
+
+  // Android 系统返回键 / 边缘手势 → 按当前 mode 给不同语义：
+  //   playing                → emit 'Select'（退回菜单），复用按键状态机
+  //   off / boot / select    → 弹原生 AlertDialog 确认 → 是 → exitApp；否 → 留在原状态
+  //
+  // 关键设计点：屏幕上的"关机按钮"（emit Start）和系统返回键 / 边缘右滑是两条
+  // 独立路径——前者只切到 off 态（屏幕黑，App 留前台），永不弹窗、永不退出 App；
+  // 后者明确表达"我要退出 App"的意图，所以在所有非游戏态都给确认窗。这样
+  // "按关机 → 再右滑想退出"是顺畅的两步动作，而不是被 off 状态吞掉的死路。
+  //
+  // 用 @capacitor/dialog 而不是 window.confirm 是为了让按钮文字（"退出"/"取消"）
+  // 走 locale，符合中文用户预期；浏览器原生 confirm 的 OK/Cancel 按钮文字不可定制。
+  // Web 环境下 @capacitor/dialog 会 fallback 到 window.confirm；bindBackButton 内部
+  // 也有 try/catch 兜底，让本 effect 在普通浏览器构建里也安全 no-op。
+  useEffect(() => {
+    const unbind = bindBackButton({
+      handler: async () => {
+        const mode = modeRef.current;
+        if (mode === 'playing') {
+          ctx.input.emit('Select', 'press');
+          return true;
+        }
+        const { value } = await Dialog.confirm({
+          title: dialogLabels.exitTitle,
+          message: dialogLabels.exitMessage,
+          okButtonTitle: dialogLabels.exitOk,
+          cancelButtonTitle: dialogLabels.exitCancel,
+        });
+        return !value;
+      },
+    });
+    return () => {
+      unbind();
+    };
+  }, [ctx.input, dialogLabels]);
 
   // mount 时探测能否 autoplay。常见情况：用户已和站点交互过 / 浏览器允许此源
   // autoplay，AudioContext.resume() 后立即变 'running'，那就直接通电；首次访问 /

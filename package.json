@@ -25,6 +25,11 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "mobile:sync": "pnpm build && cap sync android",
+    "mobile:android": "pnpm build && cap sync android && cap open android",
+    "mobile:run:android": "pnpm build && cap run android",
+    "mobile:run:android:online": "pnpm build && CAP_REMOTE_URL=https://gamebaby.strawtc.cn cap run android",
+    "mobile:dev:android": "cap run android -l --port 8088 --host localhost --forwardPorts 8088:8088",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
@@ -41,12 +46,17 @@
     ]
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/core": "^8.3.4",
+    "@capacitor/dialog": "^8.0.1",
     "@tensorflow/tfjs": "^4.22.0",
     "echarts": "^6.0.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.3.4",
     "@eslint/js": "^9.39.4",
     "@tensorflow/tfjs-node": "^4.22.0",
     "@testing-library/jest-dom": "^6.9.1",
@@ -71,7 +81,9 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.0",
     "vite": "^8.0.10",
-    "vitest": "^4.1.5"
+    "vite-plugin-pwa": "^1.3.0",
+    "vitest": "^4.1.5",
+    "workbox-window": "^7.4.1"
   },
   "engines": {
     "node": ">=20.19.0",

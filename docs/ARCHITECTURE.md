@@ -426,7 +426,10 @@ interface Episode {
 react-gamebaby/
 ├─ docs/
 │  ├─ ARCHITECTURE.md          本文档
-│  └─ DEPLOY.md                master 自动部署到 VPS 流程
+│  ├─ DEPLOY.md                master 自动部署到 VPS 流程
+│  └─ MOBILE.md                Capacitor 移动端开发说明（当前仅 Android）
+├─ android/                    Capacitor Android 原生工程
+├─ capacitor.config.ts         Capacitor 壳层配置
 ├─ public/
 │  └─ sounds/sfx.m4a           move / over 的预录 PCM 切片源
 ├─ models/                     训练产物（Snake DQN model.json + weights）
@@ -519,6 +522,7 @@ react-gamebaby/
 - App 状态机：off / boot / select / playing 四态 + 开机旋律 + 选关 demo + AI 自动玩
 - AI：tfjs-node 训练（`pnpm train`）+ tfjs 浏览器推理 + 训练 dashboard（`training.html`）
 - AI 工程基础设施：`AGENTS.md` + 各层 `AGENTS.md` + `.cursor/skills/add-game/` + CodeRabbit / Gemini Code Assist + GitHub Actions（lint/test/build/部署）
+- 移动端壳：Capacitor 8（`android/`），复用同一套 Web 游戏逻辑与 UI；锁竖屏、安全区适配、系统返回键映射到 InputBus（`src/platform/browser/back-button.ts`）；iOS 暂不在迭代范围内
 
 Backlog（顺序无承诺）：
 
@@ -526,6 +530,10 @@ Backlog（顺序无承诺）：
 - 第二款 RL 游戏（Tetris RL env）
 - Playwright MCP 驱动 visual regression
 - PR 阶段的模型回归门禁（推理胜率 / Episode 长度退化即拦截）
+- Android 启动闪屏 / 状态栏插件（`@capacitor/splash-screen` / `@capacitor/status-bar`）
+- Android 后台 `pause` 事件下挂起 ticker、首次手势解锁 AudioContext 等行为收敛到 `src/platform/mobile/`
+- Android 打包发布流水线（签名、AAB 产物、内测分发）
+- iOS 端：评估上架成本与 Web 体验差异后再开（`pnpm cap add ios` 即可恢复）
 
 ---
 

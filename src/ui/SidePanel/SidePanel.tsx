@@ -87,7 +87,6 @@ export function SidePanel({
         <p className={styles.value}>{hiScore}</p>
       </div>
       <div className={styles.group}>
-        <p className={styles.label}>AUX</p>
         <AuxPreview screen={auxScreen} />
       </div>
       <div className={styles.group}>
