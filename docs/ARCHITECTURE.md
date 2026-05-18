@@ -531,7 +531,7 @@ Backlog（顺序无承诺）：
 - Playwright MCP 驱动 visual regression
 - PR 阶段的模型回归门禁（推理胜率 / Episode 长度退化即拦截）
 - Android 启动闪屏 / 状态栏插件（`@capacitor/splash-screen` / `@capacitor/status-bar`）
-- Android 后台 `pause` 事件下挂起 ticker、首次手势解锁 AudioContext 等行为收敛到 `src/platform/mobile/`
+- 把移动端专属代码（当前散在 `src/platform/browser/back-button.ts`）抽到独立的 `src/platform/mobile/`，并补齐：Android 后台 `pause` 事件下挂起 ticker、首次手势解锁 AudioContext 等行为
 - Android 打包发布流水线（签名、AAB 产物、内测分发）
 - iOS 端：评估上架成本与 Web 体验差异后再开（`pnpm cap add ios` 即可恢复）
 

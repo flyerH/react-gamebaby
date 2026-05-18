@@ -34,16 +34,28 @@ export interface BindBackButtonOptions {
 export function bindBackButton(opts: BindBackButtonOptions): Unsubscribe {
   let handle: PluginListenerHandle | null = null;
   let cancelled = false;
+  let inFlight = false;
 
   void (async () => {
     try {
       const h = await CapacitorApp.addListener('backButton', () => {
+        // 并发保护：即便用户连续狂按返回键，也只让最早一次走完异步流程，
+        // 避免弹两个确认框 / 重复 exitApp
+        if (cancelled || inFlight) return;
+        inFlight = true;
         void (async () => {
           let handled = false;
           try {
             handled = await opts.handler();
           } catch {
             // 应用层 handler 抛错时按"未处理"算，触发退出兜底但不冒泡
+          }
+          // await 期间组件可能已经 unmount → 解绑 → cancelled=true，
+          // 此时即便 handler 报告"未处理"也不能再 exitApp，否则 React StrictMode
+          // / HMR cleanup 路径会误退应用
+          if (cancelled) {
+            inFlight = false;
+            return;
           }
           if (!handled) {
             try {
@@ -52,6 +64,7 @@ export function bindBackButton(opts: BindBackButtonOptions): Unsubscribe {
               // 非 Android / 不允许 exitApp 的环境吞掉
             }
           }
+          inFlight = false;
         })();
       });
       if (cancelled) {
