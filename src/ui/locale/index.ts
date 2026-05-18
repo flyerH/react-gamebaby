@@ -1,12 +1,16 @@
 /**
- * UI 层 i18n —— 仅覆盖实体按键等"机身印刷文字"的标签
+ * UI 层 i18n —— 覆盖"机身印刷文字"标签 + 弹窗文案
  *
  * 设计范围：
  * - Brick Game 真机机身印刷的是英文；LCD 屏幕内一律英文大写（像素字风格），
  *   所以 SidePanel 的 SCORE / HI-SCORE 等**不走 i18n**，刻意保持英文。
- * - 只有机身按键外围的文字标签（上 / 下 / 左 / 右 / 旋转）会随语言切换。
+ * - 机身按键外围的文字标签（上 / 下 / 左 / 右 / 旋转）随语言切换。
+ * - 系统弹窗（如 Android 右滑退出确认）随语言切换，让原生 AlertDialog 的
+ *   按钮文字与系统语境一致——浏览器原生 confirm 的"OK/Cancel"不可定制，
+ *   所以这部分只对 Capacitor 原生壳生效。
  *
- * 新增语种时只需在 BUTTON_LABELS 里补一条，detectLocale 按前缀匹配落回 en-US。
+ * 新增语种时只需在 BUTTON_LABELS / DIALOG_LABELS 里各补一条，detectLocale
+ * 按前缀匹配落回 en-US。
  */
 
 export type Locale = 'zh-CN' | 'en-US';
@@ -21,6 +25,13 @@ export interface ButtonLabels {
   readonly pause: string;
   readonly sound: string;
   readonly reset: string;
+}
+
+export interface DialogLabels {
+  readonly exitTitle: string;
+  readonly exitMessage: string;
+  readonly exitOk: string;
+  readonly exitCancel: string;
 }
 
 export const BUTTON_LABELS: Readonly<Record<Locale, ButtonLabels>> = {
@@ -48,6 +59,21 @@ export const BUTTON_LABELS: Readonly<Record<Locale, ButtonLabels>> = {
   },
 };
 
+export const DIALOG_LABELS: Readonly<Record<Locale, DialogLabels>> = {
+  'zh-CN': {
+    exitTitle: '退出 GameBaby',
+    exitMessage: '确认要退出 App 吗？',
+    exitOk: '退出',
+    exitCancel: '取消',
+  },
+  'en-US': {
+    exitTitle: 'Quit GameBaby',
+    exitMessage: 'Are you sure you want to close the app?',
+    exitOk: 'Quit',
+    exitCancel: 'Cancel',
+  },
+};
+
 /**
  * 按 navigator.language 主标签选语言
  *
@@ -65,4 +91,9 @@ export function detectLocale(
 /** 按当前 navigator 的首选语言返回按键标签，App 层默认装配用 */
 export function defaultButtonLabels(): ButtonLabels {
   return BUTTON_LABELS[detectLocale()];
+}
+
+/** 按当前 navigator 的首选语言返回弹窗文案 */
+export function defaultDialogLabels(): DialogLabels {
+  return DIALOG_LABELS[detectLocale()];
 }

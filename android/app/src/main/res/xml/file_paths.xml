@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider 路径白名单：当前项目不主动通过 FileProvider 共享任何文件，
+     这里仅保留 Capacitor 模板自带的 provider 占位以便未来加 @capacitor/camera /
+     @capacitor/share 等插件时能直接复用；路径收窄到具体子目录而不是 path="."，
+     遵循最小权限原则 —— 仅暴露应用自有的 Pictures / images 子目录，避免根目录
+     与缓存根被外部 app 通过 content:// URI 读到 -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <external-path name="my_images" path="Pictures/" />
+    <cache-path name="my_cache_images" path="images/" />
+</paths>

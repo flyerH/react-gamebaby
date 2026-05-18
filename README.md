@@ -36,6 +36,21 @@ pnpm lint            # ESLint
 pnpm build           # tsc --noEmit + Vite production build
 ```
 
+## 移动端 App（Android）
+
+项目已接入 Capacitor 原生壳，可复用同一套 Web UI + Engine 逻辑打包成 Android App。
+iOS 暂不在当前迭代范围内（架构上保留扩展空间，后续按需再加）。
+
+```bash
+pnpm mobile:sync                     # 先 build，再同步到 android/
+pnpm mobile:android                  # 同步并打开 Android Studio 工程
+pnpm mobile:run:android              # 生产构建并运行到已连接设备/模拟器
+pnpm mobile:run:android:online       # 装一个直接加载线上域名的 APK（无需电脑常开）
+pnpm dev + pnpm mobile:dev:android   # 真机 livereload 开发（前端改动即时热更）
+```
+
+详细流程见 [`docs/MOBILE.md`](docs/MOBILE.md)。
+
 ## 部署
 
 master 每次 push 自动通过 GitHub Actions 构建并 rsync 到 VPS，详见 [`docs/DEPLOY.md`](docs/DEPLOY.md)。

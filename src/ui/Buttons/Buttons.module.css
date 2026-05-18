@@ -12,6 +12,10 @@
 
 .contentBottom {
   position: relative;
+  /* 设计稿固有间距：与屏幕区上方留 30px、左右 20px inset；按钮组的下方
+   * 不再有底距 —— "屏幕+按钮整体" 由父级 .content (justify-content: center)
+   * 在机身内垂直居中，多余空间均分到上下，机身蓝色看起来像加长版掌机 */
+  margin: 30px 20px 0;
 }
 
 /* ===== 顶部辅助键容器（开/关 · 声音 · 重置） =====
@@ -42,6 +46,9 @@
   box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
   padding: 0;
   cursor: pointer;
+  /* touch-action: none —— 禁止浏览器把按下后的拖动 / 双指捏合解释为
+   * 滚动 / 缩放手势，避免长按时 PointerCancel 导致 release 漏发 */
+  touch-action: none;
   transition:
     background-color 80ms ease-out,
     box-shadow 80ms ease-out;
@@ -67,7 +74,7 @@
 /* ===== 控制行：D-pad 块 + Rotate 块整体水平居中 ===== */
 
 .controlRow {
-  margin-top: 30px;
+  margin-top: 15px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -82,11 +89,21 @@
   flex-shrink: 0;
 }
 
-/* Rotate 块：用 flex 把椭圆居中，按钮自身只管 rotateZ */
+/* Rotate 块：用 flex 把椭圆居中，按钮自身只管 rotateZ。
+ * 视觉相对真机 220×90 椭圆缩到 0.85（187×76 视觉）；再叠 rotateZ(60deg)
+ * 后视觉外接矩形 ≈ 160×200（水平投影 187·cos60°+76.5·sin60°）。
+ *
+ * 容器宽 175 略大于实际视觉外接宽 160（保守留 ~7.5px 容差，避免
+ * rotateButton layout 220 → transform 后视觉边沿与 D-pad 贴得太近），
+ * 比原 187 收紧 12px → 在 controlRow justify-content: center 下整体
+ * 右移 6px，纠正旋转后 Rotate 自带"右内边距"造成的视觉偏左。
+ *
+ * 按钮内部 magic px（rotateTip / arrowLeft / arrowRight）全都通过
+ * transform: scale 一起缩，不需要逐个改坐标 */
 .rotateGroup {
   position: relative;
-  width: 220px;
-  height: 240px;
+  width: 175px;
+  height: 204px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -105,6 +122,8 @@
   box-shadow: 0 3px 3px rgba(0, 0, 0, 0.2);
   padding: 0;
   cursor: pointer;
+  /* 同 .smallButton：禁手势穿透，长按 D-pad 不被解释为滚动 */
+  touch-action: none;
   /* 按下 / 松开有颜色与阴影过渡；transform 不带过渡，保持"点击即下压"的紧凑感 */
   transition:
     background-color 80ms ease-out,
@@ -212,13 +231,16 @@
   position: relative;
   width: 220px;
   height: 90px;
-  transform: rotateZ(60deg);
+  /* scale 0.85 把整个椭圆 + 内部子元素一起缩，layout 由 .rotateGroup 决定 */
+  transform: scale(0.85) rotateZ(60deg);
   background-color: rgb(168, 12, 55);
   border: 1px solid #000;
   border-radius: 30% / 70%;
   box-shadow: 0 3px 3px rgba(0, 0, 0, 0.2);
   padding: 0;
   cursor: pointer;
+  /* 与 D-pad 一致：避免触屏滑动手势打断长按 */
+  touch-action: none;
   transition:
     background-color 80ms ease-out,
     box-shadow 80ms ease-out;
@@ -228,10 +250,10 @@
   outline: none;
 }
 
-/* :active 必须保留 rotateZ(60deg)，否则按下瞬间按钮会回正 */
+/* :active 必须保留 scale + rotateZ，否则按下瞬间按钮会变大并回正 */
 .rotateButton:active {
   background-color: rgb(143, 10, 47);
-  transform: rotateZ(60deg) translateY(2px);
+  transform: scale(0.85) rotateZ(60deg) translateY(2px);
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
 }
 
@@ -263,8 +285,8 @@
 }
 
 .rotateArrowRight {
-  top: -10px;
-  left: 180px;
+  top: -8px;
+  left: 160px;
   transform: rotateZ(185deg);
 }
 

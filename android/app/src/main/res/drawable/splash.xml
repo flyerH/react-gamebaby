@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  启动 splash —— layer-list drawable
+  上一版用各尺寸 splash.png（cap add android 默认产物），
+  从单张 1024×1024 居中裁切到不同长宽比时会切到主体。
+  改成两层组合（纯蓝背景 + 居中 logo bitmap）后，Android 自动按 dp 摆放，
+  任意尺寸 / 横竖屏都不会切到主体。
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 背景：机身蓝 -->
+    <item>
+        <color android:color="@color/ic_launcher_background" />
+    </item>
+
+    <!-- 中央 logo：splash_logo 是紧凑版（无 adaptive 安全区 padding），
+         在不会被 mask 的 splash 场景下能更大地展示设备主体。
+         尺寸限制成 240dp 居中显示。layer-list item 的 width/height 需 API 23+，
+         本工程 minSdk=24 已满足 -->
+    <item
+        android:width="240dp"
+        android:height="240dp"
+        android:gravity="center">
+        <bitmap
+            android:src="@drawable/splash_logo"
+            android:gravity="fill" />
+    </item>
+</layer-list>

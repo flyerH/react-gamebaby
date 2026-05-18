@@ -1,33 +1,46 @@
 /* 掌机外壳与机身
  * 视觉参考：Brick Game 9999-in-1 真机外壳
  *
- * 比例适配：原机是固定尺寸，本实现通过 --device-scale
- * （由 Device.tsx 中 resize 监听设置）对整机做等比缩放，
- * 保持 580×950 的固定内部坐标系不变。
+ * 适配策略（H5 + 移动端原生壳通用，"内容安全宽"驱动）：
+ * - 580 宽度作为内部坐标系（按钮 / 屏幕的绝对定位都基于这个宽度）
+ * - --device-scale 由 Device.tsx 按 SAFE_WIDTH=480（按钮组实际占用宽）算
+ *   而非整机 580：窄屏上机身两侧 50px 蓝边可被 wrapper 裁掉，按钮组永远
+ *   完整可见
+ * - 整机 layout 高度 = max(950px, 容器高/scale)，反向补偿 scale 让 transform
+ *   缩放后视觉高度恰好填满容器
+ * - 内部 .content 是 flex column 居中：屏幕 + 按钮作为整体居中
+ *
+ * 例（数值随 SAFE_WIDTH 算法：min(1, w/510)）：
+ *   PC 1440×900       scale=0.947  layout=950   视觉=549×900（高度兜底）
+ *   平板 768×1024     scale=1      layout=1024  视觉=580×1024（不缩放）
+ *   手机 360×800      scale=0.706  layout=1133  视觉=409×800（机身蓝边可见 ~9）
  */
 
 .wrapper {
   position: relative;
   width: 100%;
   height: 100%;
-  min-height: 100vh;
   overflow: hidden;
+  /* 居中 + 顶部对齐：与 .app 的 transform-origin: top center 配合，
+   * 缩放后顶端贴齐 wrapper 顶端，左右自动居中 */
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
 }
 
 .app {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  margin-left: -290px;
-  margin-top: -475px;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   width: 580px;
+  /* 反向补偿 scale：layout 高度被 scale 后正好等于 wrapper 高度。
+   * 同时保留 950 最低高度，避免窄高屏下内容被挤掉
+   * （950 = 屏幕 ~540 + 按钮 ~360 + 间距 ~50，再低就放不下） */
+  height: max(950px, calc(100% / var(--device-scale, 1)));
   border-radius: 20px 20px 0 0;
   box-shadow: inset 0 0 15px 2px #92d3f9;
   background-color: #4a94c1;
   transform: scale(var(--device-scale, 1));
-  transform-origin: center center;
+  transform-origin: top center;
   /* 模拟硬件外壳：内部所有文字 / 标签不允许被选中（双击 / 拖选文字会
      影响"按按钮"的体验）；移动端点按钮的灰色高亮也一并去掉 */
   user-select: none;
@@ -37,19 +50,32 @@
 
 .content {
   width: 580px;
-  height: 950px;
+  height: 100%;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
+  /* 屏幕区 + 按钮区作为一组内容整体在机身内垂直居中：
+   * - PC 横屏（窗口高 ≈ 950）：整机几乎贴满，上下空白很小
+   * - 手机竖屏（layout 高被 scale 反向撑大到 1290+）：屏幕/按钮组合保持
+   *   设计稿固有间距，多出的纵向空间均分到上下，看起来像"加长机身、内容居中"
+   *
+   * 不能用 align-items: center，否则 contentTop 内部 inline-block 的
+   * screenFrame 会因 stretch 默认值变形 */
+  justify-content: center;
 }
 
+/* 屏幕区：title + screenFrame，固定高度由内容撑开 */
 .contentTop {
   padding: 0 10px;
   text-align: center;
+  flex-shrink: 0;
 }
 
 .title {
-  margin: 20px 0 15px;
+  /* 下间距按 device-scale 反比例补偿：scale=1（PC）保持 15px，
+   * 手机 scale≈0.71 时撑到 ~38px，scale 缩回后视觉间距 ~27px，
+   * 比 PC 视觉大近一倍，避免窄屏下标题贴屏幕 */
+  margin: 20px 0 calc(15px + 80px * (1 - var(--device-scale, 1)));
   font-size: 28px;
   text-align: center;
 }
@@ -91,8 +117,17 @@
   flex-direction: column;
 }
 
+/* 按钮区：紧跟屏幕区下方，按 Buttons 自身高度排版。父级 .content 的
+ * justify-content: center 把"屏幕区 + 按钮区"作为整体居中，多出的纵向
+ * 空间均分到上下空白，按钮区与屏幕区之间保持设计稿固定间距 */
 .contentBottom {
-  margin: 20px 20px auto;
-  flex: 1;
+  flex-shrink: 0;
   position: relative;
+  /* 手机上 .app layout 高度被反向撑大，多余纵向空间在 .content 居中算法
+   * 里均分到上下；这里给末尾 flex item 加一段"额外底部空白"，让居中点
+   * 整体上移、视觉上"内容偏上、底部更宽松"。
+   * - scale ≥ 0.9（PC / 平板）：max() 取 0，不影响 PC 居中
+   * - scale ≈ 0.71（典型手机）：~76px layout → 视觉 ~54px，内容视觉
+   *   上移 ~27px */
+  margin-bottom: max(0px, calc(400px * (0.9 - var(--device-scale, 1))));
 }

@@ -16,6 +16,8 @@ export { createRealtimeTicker } from './ticker';
 export type { RealtimeTickerOptions } from './ticker';
 export { bindKeyboardInput, DEFAULT_KEY_MAP } from './input';
 export type { BindKeyboardOptions } from './input';
+export { bindBackButton } from './back-button';
+export type { BackButtonHandler, BindBackButtonOptions } from './back-button';
 export { createLocalStorage } from './storage';
 export { createBrowserSound } from './sound';
 export { createBrowserContext } from './context';
