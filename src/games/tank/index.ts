@@ -61,7 +61,7 @@ export const tank: Game<TankState> = {
   id: 'tank',
   name: 'TANK',
   preview: tankPreview,
-  // 各实体节奏由游戏内毫秒累加器折算，ticker 固定跑逻辑帧率即可，与 speed 档无关
+  // 快慢由各实体自己的间隔决定，ticker 固定 30 帧/秒即可，与 speed 档无关
   tickSpeed: TICK_HZ,
   init,
   step,

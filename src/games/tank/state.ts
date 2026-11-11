@@ -110,7 +110,7 @@ export interface TankState {
   readonly lastOpts: GameInitOptions | null;
 }
 
-/** 固定逻辑帧率；各实体按毫秒累加器折算自己的节奏，和 App 的动画帧率一致 */
+/** 固定 30 帧/秒，和 App 的动画帧率一致；各实体每帧累计毫秒，累计满自己的间隔才行动 */
 export const TICK_HZ = 30;
 export const FRAME_MS = 1000 / TICK_HZ;
 
