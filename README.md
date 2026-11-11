@@ -10,7 +10,7 @@
 - **像素级复刻真机外观**：10×20 LCD 阴影格 + 真机外壳 + D-pad / Rotate / Pause / Sound / Reset 物理按键 + WebAudio sample + Oscillator 合成的 8-bit 音效。
 - **多游戏统一架构**：Snake / Tetris / Tank 共享同一套 `Game<S>` 接口；新游戏只需实现 `init / step / render / onButton`，自动接入菜单 / Ticker / 输入总线 / 持久化 / 音效。
 - **可玩 + 可训练**：浏览器跑游戏，Node 跑 RL 训练（DQN + tfjs-node），同一份 engine / SDK 代码两端复用；Snake 的训练模型可在站内"AI 自动玩"加载。
-- **AI 工程化协作**：[`AGENTS.md`](AGENTS.md) 编码规范 + Cursor Skills（如 `add-game` 骨架生成）+ 自动 PR Code Review（CodeRabbit + Gemini Code Assist）+ master push 自动部署到 VPS。
+- **AI 工程化协作**：[`AGENTS.md`](AGENTS.md) 编码规范 + Cursor Skills（如 `add-game` 骨架生成）+ 自动 PR Code Review（CodeRabbit）+ master push 自动部署到 VPS。
 
 ## 架构总览
 

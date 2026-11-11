@@ -50,7 +50,7 @@
 ├────────────────────────────────────────────────────────────────────┤
 │ L1  Games                                           纯函数、可插拔 │
 │                                                                    │
-│   snake/    tetris/                                                │
+│   snake/    tetris/    tank/                                       │
 └────────────────────────────────────────────────────────────────────┘
 
          ↓ engine / sdk / games 两端复用；平台差异锁在 platform/ ↓
@@ -392,7 +392,7 @@ interface Episode {
 | 1   | **编码规范**  | `AGENTS.md` + `.cursor/rules/*.mdc` | 项目根 + 各层目录 `AGENTS.md`，pre-commit `eslint --fix` + `prettier --write`                |
 | 2   | **Skills**    | Cursor Skills                       | `.cursor/skills/add-game/`：新游戏骨架生成 + Registry 注册                                   |
 | 3   | **自动 PR**   | `gh` CLI                            | AI 助手按 `AGENTS.md` 走"先 CR 再 `gh pr create`"流程，不要求 GitHub App                     |
-| 4   | **远端 CR**   | CodeRabbit + Gemini Code Assist     | `.coderabbit.yaml` / `.gemini/`，PR 自动评论 + 与本地规则互补                                |
+| 4   | **远端 CR**   | CodeRabbit                          | `.coderabbit.yaml`，PR 自动评论 + 与本地规则互补                                             |
 | 5   | **RL 玩游戏** | tfjs-node 训练 + tfjs 推理 + DQN    | `src/ai/`（dqn/replay/train/inference）+ `src/games/snake/rl.ts`，模型在 `models/snake-dqn/` |
 | 6   | **训练 UI**   | Vite 多入口 + ECharts               | `training.html` + `src/training/`，浏览器端可视化训练曲线                                    |
 | 7   | **AI 测试**   | Vitest 4 + jsdom + AudioContext 桩  | `__tests__/` 全层覆盖，含 RL 网络结构、状态机、声音通路                                      |
@@ -403,20 +403,20 @@ interface Episode {
 
 ## 7. 技术栈
 
-| 层      | 技术                                             | 理由                                                           |
-| ------- | ------------------------------------------------ | -------------------------------------------------------------- |
-| 语言    | TypeScript 6                                     | 接口复杂度高、RL 泛型多                                        |
-| 构建    | Vite 8                                           | 快、生态新、tfjs 友好                                          |
-| UI      | React 19                                         | 生态成熟、Hooks 模型稳定                                       |
-| 状态    | useReducer + Zustand（按需）                     | App 主状态机用 useReducer 已够；跨组件共享留 Zustand 槽位      |
-| 样式    | CSS Modules                                      | 像素艺术组件数量少，不需要 utility-first                       |
-| 音效    | WebAudio (sample + Oscillator)                   | move/over 走预录 sample 切片保证还原度，其它走单 OSC 节省体积  |
-| RL 训练 | @tensorflow/tfjs-node                            | 同 JS 全栈、engine 代码复用                                    |
-| RL 推理 | @tensorflow/tfjs                                 | 配套、模型格式一致                                             |
-| 训练 UI | training.html + ECharts                          | 直接用 Vite 多入口在浏览器跑训练 + 可视化，不引服务端依赖      |
-| 测试    | Vitest 4 + jsdom                                 | Vite 原生、ESM 友好；jsdom 跑 React 组件层 + AudioContext 桩   |
-| Lint    | ESLint 9 (flat) + Prettier 3                     | flat config + 项目级硬规则（no-restricted-globals 拦截随机源） |
-| CI      | GitHub Actions + CodeRabbit / Gemini Code Assist | master push 自动构建 + rsync 部署；PR 自动双 AI Review         |
+| 层      | 技术                           | 理由                                                           |
+| ------- | ------------------------------ | -------------------------------------------------------------- |
+| 语言    | TypeScript 6                   | 接口复杂度高、RL 泛型多                                        |
+| 构建    | Vite 8                         | 快、生态新、tfjs 友好                                          |
+| UI      | React 19                       | 生态成熟、Hooks 模型稳定                                       |
+| 状态    | useReducer + Zustand（按需）   | App 主状态机用 useReducer 已够；跨组件共享留 Zustand 槽位      |
+| 样式    | CSS Modules                    | 像素艺术组件数量少，不需要 utility-first                       |
+| 音效    | WebAudio (sample + Oscillator) | move/over 走预录 sample 切片保证还原度，其它走单 OSC 节省体积  |
+| RL 训练 | @tensorflow/tfjs-node          | 同 JS 全栈、engine 代码复用                                    |
+| RL 推理 | @tensorflow/tfjs               | 配套、模型格式一致                                             |
+| 训练 UI | training.html + ECharts        | 直接用 Vite 多入口在浏览器跑训练 + 可视化，不引服务端依赖      |
+| 测试    | Vitest 4 + jsdom               | Vite 原生、ESM 友好；jsdom 跑 React 组件层 + AudioContext 桩   |
+| Lint    | ESLint 9 (flat) + Prettier 3   | flat config + 项目级硬规则（no-restricted-globals 拦截随机源） |
+| CI      | GitHub Actions + CodeRabbit    | master push 自动构建 + rsync 部署；PR 自动 AI Review           |
 
 ---
 
@@ -458,7 +458,8 @@ react-gamebaby/
 │  │  └─ registry.ts           defaultGames 注册表
 │  ├─ games/                   L1 Games（纯函数）
 │  │  ├─ snake/                state / logic / index / rl
-│  │  └─ tetris/               state / logic / index
+│  │  ├─ tetris/               state / logic / index
+│  │  └─ tank/                 state / logic / index
 │  ├─ ui/                      L4 UI
 │  │  ├─ Device/               外壳容器
 │  │  ├─ ContentScreen/        Canvas2D 主屏渲染
@@ -486,7 +487,6 @@ react-gamebaby/
 │  └─ skills/                  add-game 等技能
 ├─ .github/workflows/          CI（lint + test + build + 部署）
 ├─ .coderabbit.yaml            CodeRabbit AI CR 配置
-├─ .gemini/                    Gemini Code Assist 配置 + styleguide
 ├─ AGENTS.md                   编码规范 / 协作流程（人 + AI 共同遵守）
 ├─ index.html                  游戏入口
 ├─ training.html               训练 dashboard 入口
@@ -517,11 +517,11 @@ react-gamebaby/
 - L3 Engine 接口 + 跨平台通用实现（Screen / Ticker / InputBus / Counter / Toggle / Sound / Storage / RNG）
 - Platform 双实现：`headless`（Node 训练 / Vitest）+ `browser`（含 WebAudio Sound、LocalStorage、键盘 long-press repeat 节奏）
 - L2 SDK：`Game<S>` 接口、`GameEnv` 投影、`defaultGames` 注册表
-- L1 Games：Snake（含 RL 适配 `rl.ts`）+ Tetris
+- L1 Games：Snake（含 RL 适配 `rl.ts`）+ Tetris + Tank
 - L4 UI：Device / ContentScreen（Canvas2D）/ SidePanel / Buttons + 多语言按钮标签
 - App 状态机：off / boot / select / playing 四态 + 开机旋律 + 选关 demo + AI 自动玩
 - AI：tfjs-node 训练（`pnpm train`）+ tfjs 浏览器推理 + 训练 dashboard（`training.html`）
-- AI 工程基础设施：`AGENTS.md` + 各层 `AGENTS.md` + `.cursor/skills/add-game/` + CodeRabbit / Gemini Code Assist + GitHub Actions（lint/test/build/部署）
+- AI 工程基础设施：`AGENTS.md` + 各层 `AGENTS.md` + `.cursor/skills/add-game/` + CodeRabbit + GitHub Actions（lint/test/build/部署）
 - 移动端壳：Capacitor 8（`android/`），复用同一套 Web 游戏逻辑与 UI；锁竖屏、安全区适配、系统返回键映射到 InputBus（`src/platform/browser/back-button.ts`）；iOS 暂不在迭代范围内
 
 Backlog（顺序无承诺）：
