@@ -50,7 +50,7 @@
 ├────────────────────────────────────────────────────────────────────┤
 │ L1  Games                                           纯函数、可插拔 │
 │                                                                    │
-│   snake/    tetris/                                                │
+│   snake/    tetris/    tank/                                       │
 └────────────────────────────────────────────────────────────────────┘
 
          ↓ engine / sdk / games 两端复用；平台差异锁在 platform/ ↓
@@ -458,7 +458,8 @@ react-gamebaby/
 │  │  └─ registry.ts           defaultGames 注册表
 │  ├─ games/                   L1 Games（纯函数）
 │  │  ├─ snake/                state / logic / index / rl
-│  │  └─ tetris/               state / logic / index
+│  │  ├─ tetris/               state / logic / index
+│  │  └─ tank/                 state / logic / index
 │  ├─ ui/                      L4 UI
 │  │  ├─ Device/               外壳容器
 │  │  ├─ ContentScreen/        Canvas2D 主屏渲染
@@ -517,7 +518,7 @@ react-gamebaby/
 - L3 Engine 接口 + 跨平台通用实现（Screen / Ticker / InputBus / Counter / Toggle / Sound / Storage / RNG）
 - Platform 双实现：`headless`（Node 训练 / Vitest）+ `browser`（含 WebAudio Sound、LocalStorage、键盘 long-press repeat 节奏）
 - L2 SDK：`Game<S>` 接口、`GameEnv` 投影、`defaultGames` 注册表
-- L1 Games：Snake（含 RL 适配 `rl.ts`）+ Tetris
+- L1 Games：Snake（含 RL 适配 `rl.ts`）+ Tetris + Tank
 - L4 UI：Device / ContentScreen（Canvas2D）/ SidePanel / Buttons + 多语言按钮标签
 - App 状态机：off / boot / select / playing 四态 + 开机旋律 + 选关 demo + AI 自动玩
 - AI：tfjs-node 训练（`pnpm train`）+ tfjs 浏览器推理 + 训练 dashboard（`training.html`）
