@@ -5,7 +5,7 @@
 # 本文件只配与项目无关的 CodeRabbit 行为偏好。
 
 language: zh-CN
-tone_instructions: 语气简洁务实，只报告中等及以上严重度的问题，避免夸赞与套话。
+tone_instructions: 语气简洁务实，只报告中等及以上严重度的问题，避免夸赞与套话；不评论本次改动未触及的既有代码。
 
 reviews:
   profile: chill

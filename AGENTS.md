@@ -45,7 +45,7 @@ pre-commit 钩子会自动对 staged 文件跑 `eslint --fix` + `prettier --writ
   1. `git log origin/master..HEAD` 看提交，`git diff origin/master..HEAD` 看改动
   2. 按本文件 + `docs/ARCHITECTURE.md` 做一次中文评审，列高价值问题
   3. 用户修完或确认无问题后，再 `gh pr create`
-- 远程侧由 CodeRabbit 与 Gemini Code Assist（均为 GitHub App）自动复审，配置文件在 `.coderabbit.yaml` / `.gemini/`；AI 本地 CR 与远程 App CR 互为补充
+- 远程侧由 CodeRabbit（GitHub App）自动复审，配置文件在 `.coderabbit.yaml`；AI 本地 CR 与远程 App CR 互为补充
 - **AI 修复 CR 问题后必须收尾**：
   1. 已修复的 review thread 要 resolve（通过 GraphQL `resolveReviewThread`）
   2. PR body 中的 test plan checklist 要据实打勾
