@@ -25,6 +25,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    environment:
+      name: Production
+      url: https://gamebaby.strawtc.cn/
 
     steps:
       - name: Checkout

@@ -263,6 +263,21 @@ export function createBrowserSound(): Sound {
         }
       };
     },
+    suspend(): void {
+      // 进入后台：挂起 AudioContext 冻结音频时钟并停声。不动 enabled，
+      // 回前台 resume 后用户的声音偏好保持不变。ensureCtx 不新建（尚未
+      // 初始化就没有可挂起的东西），只在已有 running 上下文时挂起
+      if (audioCtx && audioCtx.state === 'running') {
+        void audioCtx.suspend();
+      }
+    },
+    resume(): void {
+      // 回到前台：仅恢复被挂起的上下文时钟。是否出声仍由 masterGain
+      // （enabled）决定；用户静音时恢复后依旧无声
+      if (audioCtx && audioCtx.state === 'suspended') {
+        void audioCtx.resume();
+      }
+    },
     setEnabled(on: boolean): void {
       enabled = on;
       const ac = ensureCtx();

@@ -1,0 +1,39 @@
+/* DomScreen：主点阵的保留式 DOM 像素格渲染器
+ * 每格是长期存在的 DOM 节点，亮灭由订阅回调命令式切 data-on 属性，
+ * 不随游戏 tick 重建元素。视觉沿用真机 LCD 阴影格：外框 + 内方块，
+ * 熄灭态也画出（半透明底色）。
+ * 尺寸与颜色由组件通过 --cs-* 自定义属性注入。
+ */
+
+.grid {
+  display: grid;
+  grid-auto-rows: var(--cs-cell);
+  /* 去掉 inline 元素间的空白基线影响，纯 grid 布局不受换行空格干扰 */
+  line-height: 0;
+}
+
+/* 单格外框：cellSize×cellSize，border 模拟 canvas 的 strokeRect */
+.cell {
+  width: var(--cs-cell);
+  height: var(--cs-cell);
+  box-sizing: border-box;
+  border: var(--cs-stroke) solid var(--cs-off);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cell[data-on='1'] {
+  border-color: var(--cs-on);
+}
+
+/* 内方块：居中 innerSize×innerSize，模拟 canvas 的 fillRect */
+.inner {
+  width: var(--cs-inner);
+  height: var(--cs-inner);
+  background: var(--cs-off);
+}
+
+.cell[data-on='1'] > .inner {
+  background: var(--cs-on);
+}

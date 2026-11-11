@@ -10,9 +10,9 @@ if (!rootElement) {
   throw new Error('未找到 #root 挂载点');
 }
 
-// 原生壳（Android WebView）下给 <html> 加 marker，让 CSS 区别于纯网页版：
+// 混合应用（Capacitor Android WebView）下给 <html> 加 marker，让 CSS 区别于纯网页版：
 // - 网页版：body 背景 azure 不变，机身居中 + 四周浅蓝
-// - 原生壳：舞台背景填机身蓝，避免缩放后上下露出 azure 大空白
+// - 混合应用：舞台背景填机身蓝，避免缩放后上下露出 azure 大空白
 if (Capacitor.isNativePlatform()) {
   document.documentElement.classList.add('is-native');
 }

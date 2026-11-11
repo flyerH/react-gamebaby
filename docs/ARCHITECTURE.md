@@ -29,7 +29,7 @@
 │ L4  UI Shell                                   纯视图，订阅 Screen │
 │                                                                    │
 │   Device (外壳)                                                    │
-│     ├─ ContentScreen   10×20 主屏，Canvas2D 渲染                   │
+│     ├─ ContentScreen   10×20 主屏，DOM 像素格渲染                 │
 │     ├─ SidePanel       Score / Hi / Aux / Speed / Level            │
 │     └─ Buttons         方向键 + 功能键 + 触屏按钮                  │
 ├────────────────────────────────────────────────────────────────────┤
@@ -60,7 +60,7 @@
 │ (src/platform/browser/ + ui/)    │     │ (src/platform/headless/)         │
 │                                  │     │                                  │
 │ RealtimeTicker                   │     │ HeadlessTicker                   │
-│ Canvas renderer + <Device/>      │     │ Screen buffer only (无渲染)      │
+│ DOM renderer + <Device/>         │     │ Screen buffer only (无渲染)      │
 │ Keyboard / Touch InputBus 桥接   │     │ Policy 驱动 InputBus             │
 │ WebAudio Sound (sample +         │     │ Null Sound                       │
 │   oscillator)                    │     │                                  │
@@ -320,15 +320,19 @@ ctx.ticker.start(() => dispatch({ type: 'TICK' }));
 
 ### 4.2 Renderer
 
-当前 L4 的 `ContentScreen` 用 **Canvas2D** 实现：`<canvas>` + `fillRect` 绘 LCD 阴影格背景与点亮像素。订阅 `Screen.subscribe` 在 buffer 变化时重绘整块（200 像素，开销可忽略）。
+`ContentScreen` 通过 `renderer` prop（`'dom'` | `'canvas'`，默认 `'dom'`）选择具体渲染器，样式默认值只在这一处补齐。默认的 `DomScreen` 是 **保留式 DOM 像素格**：`width×height` 个长期存在的 `<div>` 格子（外框 + 内方块，熄灭态按半透明底色画出），模拟真机 LCD 阴影格。格子在尺寸不变时只创建一次，不随游戏 tick 重建；订阅 `Screen.subscribe` 后**命令式只切"发生亮灭变化"的格子**的 `data-on` 属性，配合 Screen 的 `batch()`（见下）把每帧 DOM 写入压到"变化格数"量级。
 
-**规划支持多 renderer 切换**：DOM / Canvas2D / WebGL 三选一，运行时切换。三者都基于 `Screen.subscribe` + `Screen.buffer` 平行实现，只换视图层不动数据：
+**通知批处理（`Screen.batch`）**：单次 `setPixel` 默认立即通知，但一次 `game.render()` 常做上百次 `setPixel`，逐次通知会让渲染器整屏重画上百遍。App 的渲染 effect 把整段 render 包在 `screen.batch(() => auxScreen.batch(paint))` 里，使主屏 / 副屏每逻辑帧各只通知订阅者一次。该语义在 L3 引擎内实现（DOM-agnostic），Web / 原生 / 小游戏渲染器共享。
 
-| Renderer | 实现要点                            | 适用                  |
-| -------- | ----------------------------------- | --------------------- |
-| DOM      | 200 个 `<div>` + CSS                | 调试 / 单像素可检查   |
-| Canvas2D | `<canvas>` + `fillRect`（当前默认） | 性能 / 主题绘制       |
-| WebGL    | 原生 shader 或 Three.js             | 后续 CRT 滤镜等可选项 |
+`CanvasScreen` 订阅后整屏重画，位图按 `devicePixelRatio` 放大保证高分屏清晰。绘制逻辑抽在纯函数 `drawLcd(ctx, screen, style)` 里，只依赖最小 2D 绘图接口 `LcdContext2D`，不绑定 DOM 类型，微信 / 抖音小游戏的 canvas 可直接复用。
+
+**多 renderer 切换**：三者都基于 `Screen.subscribe` + `Screen.buffer` 平行实现，只换视图层不动数据。DOM / Canvas2D 已落地，运行时切换的 UI 入口与 WebGL 待做：
+
+| Renderer | 实现要点                        | 状态           | 适用                         |
+| -------- | ------------------------------- | -------------- | ---------------------------- |
+| DOM      | `width×height` 个 `<div>` + CSS | 已实现（默认） | 真机 LCD 质感 / 单像素可检查 |
+| Canvas2D | `<canvas>` + `drawLcd`          | 已实现         | 大点阵 / 主题绘制 / 小游戏   |
+| WebGL    | 原生 shader 或 Three.js         | 待做           | 后续 CRT 滤镜等可选项        |
 
 主题系统（点亮像素颜色 / 形状）也走类似机制 —— 留作后续迭代。
 
@@ -429,7 +433,7 @@ react-gamebaby/
 │  ├─ DEPLOY.md                master 自动部署到 VPS 流程
 │  └─ MOBILE.md                Capacitor 移动端开发说明（当前仅 Android）
 ├─ android/                    Capacitor Android 原生工程
-├─ capacitor.config.ts         Capacitor 壳层配置
+├─ capacitor.config.ts         Capacitor 配置
 ├─ public/
 │  └─ sounds/sfx.m4a           move / over 的预录 PCM 切片源
 ├─ models/                     训练产物（Snake DQN model.json + weights）
@@ -462,7 +466,7 @@ react-gamebaby/
 │  │  └─ tank/                 state / logic / index
 │  ├─ ui/                      L4 UI
 │  │  ├─ Device/               外壳容器
-│  │  ├─ ContentScreen/        Canvas2D 主屏渲染
+│  │  ├─ ContentScreen/        DOM 像素格主屏渲染
 │  │  ├─ SidePanel/            分数 / hi-score / aux 副屏 / speed / level 等
 │  │  ├─ Buttons/              方向键 + 功能键面板
 │  │  └─ locale/               按钮标签 i18n（按浏览器首选语言一次装配）
@@ -518,15 +522,15 @@ react-gamebaby/
 - Platform 双实现：`headless`（Node 训练 / Vitest）+ `browser`（含 WebAudio Sound、LocalStorage、键盘 long-press repeat 节奏）
 - L2 SDK：`Game<S>` 接口、`GameEnv` 投影、`defaultGames` 注册表
 - L1 Games：Snake（含 RL 适配 `rl.ts`）+ Tetris + Tank
-- L4 UI：Device / ContentScreen（Canvas2D）/ SidePanel / Buttons + 多语言按钮标签
+- L4 UI：Device / ContentScreen（DOM 像素格）/ SidePanel / Buttons + 多语言按钮标签
 - App 状态机：off / boot / select / playing 四态 + 开机旋律 + 选关 demo + AI 自动玩
 - AI：tfjs-node 训练（`pnpm train`）+ tfjs 浏览器推理 + 训练 dashboard（`training.html`）
 - AI 工程基础设施：`AGENTS.md` + 各层 `AGENTS.md` + `.cursor/skills/add-game/` + CodeRabbit + GitHub Actions（lint/test/build/部署）
-- 移动端壳：Capacitor 8（`android/`），复用同一套 Web 游戏逻辑与 UI；锁竖屏、安全区适配、系统返回键映射到 InputBus（`src/platform/browser/back-button.ts`）；iOS 暂不在迭代范围内
+- 移动端混合应用：Capacitor 8（`android/`），复用同一套 Web 游戏逻辑与 UI；锁竖屏、安全区适配、系统返回键映射到 InputBus（`src/platform/browser/back-button.ts`）；iOS 暂不在迭代范围内
 
 Backlog（顺序无承诺）：
 
-- **多 renderer 切换**：DOM / Canvas2D / WebGL 三选一，运行时切换；同步落地像素主题系统（颜色 / 形状）
+- **多 renderer 切换**：DOM / Canvas2D 已可通过 `renderer` prop 选择；待补 PC 端切换按钮（选择存 Zustand）与 WebGL 渲染器，同步落地像素主题系统（颜色 / 形状）
 - 第二款 RL 游戏（Tetris RL env）
 - Playwright MCP 驱动 visual regression
 - PR 阶段的模型回归门禁（推理胜率 / Episode 长度退化即拦截）

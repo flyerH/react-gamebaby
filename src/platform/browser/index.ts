@@ -18,6 +18,8 @@ export { bindKeyboardInput, DEFAULT_KEY_MAP } from './input';
 export type { BindKeyboardOptions } from './input';
 export { bindBackButton } from './back-button';
 export type { BackButtonHandler, BindBackButtonOptions } from './back-button';
+export { bindAppState } from './app-state';
+export type { BindAppStateOptions } from './app-state';
 export { createLocalStorage } from './storage';
 export { createBrowserSound } from './sound';
 export { createBrowserContext } from './context';

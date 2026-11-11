@@ -1,15 +1,15 @@
 # 移动端 App 开发说明（Android）
 
-本文档说明如何把 `react-gamebaby` 以原生壳方式运行在 Android。
+本文档说明如何把 `react-gamebaby` 以 Hybrid App 形式运行在 Android。
 
-> iOS 暂不在当前迭代范围内：架构上不阻塞，但工程文件、依赖、CI 都先不引入，避免维护双份原生壳。后续要加时再 `pnpm add @capacitor/ios && pnpm cap add ios` 即可。
+> iOS 暂不在当前迭代范围内：架构上不阻塞，但工程文件、依赖、CI 都先不引入，避免维护两套。后续要加时再 `pnpm add @capacitor/ios && pnpm cap add ios` 即可。
 
 ## 1. 当前方案
 
-- 使用 **Capacitor 8** 作为原生壳层；
+- 使用 **Capacitor 8** 打包 Android App；
 - 游戏核心（L1 Games / L2 SDK / L3 Engine）与 UI（L4）继续复用现有 Web 实现；
 - 移动端专属的"硬件桥接"放在 `src/platform/browser/`（如系统返回键），普通 Web 构建中安全 no-op；
-- 平台差异先收敛在壳层与 `src/platform/browser/`，不破坏现有分层。
+- 平台差异先收敛在 Capacitor 配置与 `src/platform/browser/`，不破坏现有分层。
 
 仓库已包含：
 
@@ -84,7 +84,7 @@ pnpm mobile:dev:android
 - 验证 master 部署后的产物在真机上的实际表现（与浏览器试玩等价）；
 - 给身边人装一份 demo，无线 / 飞行模式都能装，**首次启动必须有公网**（详见下文"离线缓存与自动更新"）。
 
-实现机制：`capacitor.config.ts` 读到环境变量 `CAP_REMOTE_URL` 时，会把 `server.url` 写成该 URL，Capacitor 会把这条配置打进 APK，原生壳启动后 WebView 直接 `loadUrl(remoteUrl)`。
+实现机制：`capacitor.config.ts` 读到环境变量 `CAP_REMOTE_URL` 时，会把 `server.url` 写成该 URL，Capacitor 会把这条配置打进 APK，App 启动后 WebView 直接 `loadUrl(remoteUrl)`。
 
 注意事项：
 
@@ -145,7 +145,7 @@ pnpm mobile:dev:android
 - **非游戏态都给确认窗**：`off` / `boot` / `select` 三态下，玩家做的不是游戏内动作，右滑明确表达"想退出 App"的意图，所以都走同一条弹窗确认路径。这样"按关机 → 再右滑退出"是顺畅的两步动作，不会出现"右滑没反应"的死路。
 - **边缘手势误触防御**：国产手机左右边缘右滑误触概率不低，掌机 demo 不希望被误退，确认窗就是这层兜底。
 
-弹窗实现：用 `@capacitor/dialog` 而不是 `window.confirm`，主要为了控制按钮文字。`window.confirm` 的 OK / Cancel 按钮文字是浏览器/系统决定的不可定制，而 `@capacitor/dialog` 在原生壳下渲染 Android `AlertDialog` 时支持 `okButtonTitle` / `cancelButtonTitle`，能跟项目自身的 i18n（`src/ui/locale`）联动给出"退出 / 取消"。Web 端 `@capacitor/dialog` 自动 fallback 到 `window.confirm`（按钮文字仍为系统默认，但 title / message 仍按 i18n 出）。
+弹窗实现：用 `@capacitor/dialog` 而不是 `window.confirm`，主要为了控制按钮文字。`window.confirm` 的 OK / Cancel 按钮文字是浏览器/系统决定的不可定制，而 `@capacitor/dialog` 在 Android App 内渲染 `AlertDialog` 时支持 `okButtonTitle` / `cancelButtonTitle`，能跟项目自身的 i18n（`src/ui/locale`）联动给出"退出 / 取消"。Web 端 `@capacitor/dialog` 自动 fallback 到 `window.confirm`（按钮文字仍为系统默认，但 title / message 仍按 i18n 出）。
 
 实现上 `playing` 仍走 InputBus 的 `emit('Select', 'press')`，与按物理键 / 屏幕按钮共用同一条状态机分支，不引入额外 action。
 

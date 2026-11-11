@@ -57,6 +57,10 @@ export default defineConfig({
     target: 'es2022',
     sourcemap: false,
     outDir: 'dist',
+    // 默认 500KB 警告阈值是面向首屏 chunk 的。inference-*.js（@tensorflow/tfjs 全家桶）
+    // 是 AI 自动玩 Snake 时才懒加载的旁路 chunk（gzip 后约 223KB），首屏完全不受影响。
+    // 放宽到 1000KB 让构建保持静默；真正首屏入口 main-*.js 还远低于这个阈值。
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       // 生产构建只打包游戏入口；training.html 仅 dev 时可用
       input: { main: resolve(import.meta.dirname, 'index.html') },

@@ -5,8 +5,9 @@ import type { Bitmap, BlitMode, Screen, Unsubscribe } from './types';
  *
  * 设计要点：
  * - 越界写静默忽略、越界读返回 false —— 简化上层绘制逻辑，不引入 if 散布
- * - 任何写操作都会触发订阅者通知；游戏循环每帧 `scene.clear → render → screen.commit`
- *   只会通知一次，开销可控（20×10 = 200 像素，一次复制可忽略）
+ * - 单次写操作默认立即通知一次；但游戏 render 常做上百次 setPixel，若逐次
+ *   通知会让渲染器整屏重画上百遍。因此提供 `batch()` 把一次 render 的所有写
+ *   合并为单次通知（详见 `batch`），渲染循环据此把逐像素通知风暴收敛为每帧一次
  * - `buffer` 字段直接暴露 Uint8Array，供渲染器零拷贝读取
  */
 export function createScreen(width: number, height: number): Screen {
@@ -19,8 +20,21 @@ export function createScreen(width: number, height: number): Screen {
   const buffer = new Uint8Array(size);
   const subs = new Set<() => void>();
 
-  const notify = (): void => {
+  // 批处理深度与"待通知"标志：depth>0 时写操作只置脏不通知，
+  // 最外层 batch 结束时若脏则统一通知一次
+  let batchDepth = 0;
+  let batchDirty = false;
+
+  const flush = (): void => {
     for (const fn of subs) fn();
+  };
+
+  const notify = (): void => {
+    if (batchDepth > 0) {
+      batchDirty = true;
+      return;
+    }
+    flush();
   };
 
   // 同上：坐标也必须是整数；浮点 x/y 会让索引计算落到对象属性
@@ -89,6 +103,21 @@ export function createScreen(width: number, height: number): Screen {
         }
       }
       if (dirty) notify();
+    },
+
+    batch(fn: () => void): void {
+      batchDepth++;
+      try {
+        fn();
+      } finally {
+        batchDepth--;
+        // 仅最外层结束时统一通知；即便 fn 抛错，depth 已恢复且脏则通知，
+        // 保证订阅者看到本批已写入 buffer 的最新状态
+        if (batchDepth === 0 && batchDirty) {
+          batchDirty = false;
+          flush();
+        }
+      }
     },
 
     subscribe(fn: () => void): Unsubscribe {

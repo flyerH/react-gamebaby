@@ -1,4 +1,10 @@
-import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef } from 'react';
+import {
+  memo,
+  type PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useRef,
+} from 'react';
 
 import type { Button, ButtonAction } from '@/engine/types';
 import { BUTTON_LABELS, type ButtonLabels } from '@/ui/locale';
@@ -49,7 +55,7 @@ export interface ButtonsProps {
  * - D-pad 4 个方向键 → 'Up' / 'Down' / 'Left' / 'Right'
  * - Rotate 大椭圆     → 'A'（游戏内动作键：俄罗斯方块旋转 / 菜单确认 / Snake 启动）
  */
-export function Buttons({
+export const Buttons = memo(function Buttons({
   onInput,
   labels = BUTTON_LABELS['en-US'],
 }: ButtonsProps): React.ReactElement {
@@ -226,4 +232,4 @@ export function Buttons({
       </div>
     </div>
   );
-}
+});

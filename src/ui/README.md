@@ -10,7 +10,7 @@
 | `ContentScreen` | 主显示区。通过 `renderer` 策略把 `Screen` 的帧缓冲绘制到 `<canvas>` / `<div>` / WebGL |
 | `SidePanel`     | 右侧信息区：分数、关卡、最高分、暂停指示等                                            |
 | `Buttons`       | 方向键、功能键（开始 / 暂停 / 重置 / 音量）                                           |
-| `renderers/`    | 多种渲染策略：`canvas2d`（默认）/ `dom` / `webgl`（Phase 2）                          |
+| 渲染器          | 位于 `ContentScreen/`：`DomScreen`（默认）/ `CanvasScreen`；`webgl` 待加              |
 | `themes/`       | 像素风主题（经典绿、填充黑、描边等）                                                  |
 
 ## 规则

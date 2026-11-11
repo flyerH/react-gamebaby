@@ -38,7 +38,7 @@ pnpm build           # tsc --noEmit + Vite production build
 
 ## 移动端 App（Android）
 
-项目已接入 Capacitor 原生壳，可复用同一套 Web UI + Engine 逻辑打包成 Android App。
+项目使用 Capacitor 打包为 Android App，复用同一套 Web UI + Engine 逻辑。
 iOS 暂不在当前迭代范围内（架构上保留扩展空间，后续按需再加）。
 
 ```bash

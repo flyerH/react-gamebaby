@@ -13,7 +13,12 @@ import { createPersistentCounter } from '@/engine/counter';
 import type { Button, ButtonAction, Counter } from '@/engine/types';
 import { defaultGames } from '@/games';
 import type { SnakeState } from '@/games/snake/state';
-import { bindBackButton, bindKeyboardInput, createBrowserContext } from '@/platform/browser';
+import {
+  bindAppState,
+  bindBackButton,
+  bindKeyboardInput,
+  createBrowserContext,
+} from '@/platform/browser';
 import { createHeadlessContext } from '@/platform/headless';
 import type { Game, GameEnv, GameRegistry } from '@/sdk';
 import { toGameEnv } from '@/sdk';
@@ -381,6 +386,10 @@ export function App(): React.ReactElement {
 
   const [aiLoading, setAiLoading] = useState(false);
 
+  // 应用是否处于后台：后台时暂停 ticker 与音频，回前台不追帧。与用户主动
+  // 暂停（ctx.pause）正交，二者任一成立都暂停，恢复时不覆盖对方
+  const [backgrounded, setBackgrounded] = useState(false);
+
   // 通电：把"启动旋律"和"切 mode 到 boot"封装成单一动作，让 ON/OFF 按键
   // 触发和 mount 时探测 autoplay 自动触发走同一通路。playMelody 必须在
   // user gesture 同步调用栈内才能被浏览器允许 resume AudioContext
@@ -390,6 +399,15 @@ export function App(): React.ReactElement {
     melodyCancelRef.current = ctx.soundOn.value ? ctx.sound.playMelody(BOOT_MELODY) : null;
     dispatch({ type: 'POWER_ON' });
   }, [ctx.sound, ctx.soundOn]);
+
+  // 稳定的按键回调：ctx.input 引用稳定，让 memo 化的 Buttons 在每次 App
+  // 重渲染（每 tick）时被跳过，只在真正需要时重渲染
+  const handleInput = useCallback(
+    (btn: Button, action: ButtonAction) => {
+      ctx.input.emit(btn, action);
+    },
+    [ctx.input]
+  );
 
   // 加载 AI 模型并进入 AI 自动玩模式；通过 ref 暴露给 input subscriber，
   // 避免 subscriber effect 因 menu/aiLoading 变化而频繁重建
@@ -553,6 +571,27 @@ export function App(): React.ReactElement {
     };
   }, [ctx.input, dialogLabels]);
 
+  // 前后台生命周期：进后台暂停 ticker + 挂起音频 + 掐断开机旋律；回前台恢复
+  // 音频并解除后台暂停。ticker 的暂停 / 恢复由上面的合并 effect 统一处理，
+  // 这里只翻 backgrounded 标志，避免与用户主动暂停互相覆盖
+  useEffect(() => {
+    const unbind = bindAppState({
+      onBackground: () => {
+        setBackgrounded(true);
+        melodyCancelRef.current?.();
+        melodyCancelRef.current = null;
+        ctx.sound.suspend();
+      },
+      onForeground: () => {
+        setBackgrounded(false);
+        ctx.sound.resume();
+      },
+    });
+    return () => {
+      unbind();
+    };
+  }, [ctx.sound]);
+
   // mount 时探测能否 autoplay。常见情况：用户已和站点交互过 / 浏览器允许此源
   // autoplay，AudioContext.resume() 后立即变 'running'，那就直接通电；首次访问 /
   // Safari 等场景 promise reject 或 state 仍 suspended，安静失败，等用户按 ON/OFF
@@ -635,46 +674,52 @@ export function App(): React.ReactElement {
     registry,
   ]);
 
-  // 屏幕渲染
+  // 屏幕渲染：整段包在 batch 里 —— 一次 render 的上百次 setPixel 只让主屏 /
+  // 副屏各通知一次订阅者，杜绝"每改一个像素就整屏重画"的通知风暴
   useEffect(() => {
-    const { screen } = ctx;
-    if (state.mode === 'off') {
-      // 关机：屏幕全暗（LCD 阴影格仍按底色显示，整体看起来"没通电"）
-      screen.clear();
-      return;
-    }
-    if (state.mode === 'boot') {
-      screen.clear();
-      for (const [x, y] of projectBoot(anim, state.boot)) {
-        screen.setPixel(x, y, true);
+    const { screen, auxScreen } = ctx;
+    const paint = (): void => {
+      if (state.mode === 'off') {
+        // 关机：屏幕全暗（LCD 阴影格仍按底色显示，整体看起来"没通电"）
+        screen.clear();
+        return;
       }
-      return;
-    }
-    if (state.mode === 'select') {
-      screen.clear();
-      const game = currentGame(registry, state.menu);
-      // demo 画到小屏幕，再偏移复制到主屏中间区域
-      if (game?.render && state.demoState !== null && state.demoEnv) {
-        game.render(state.demoEnv, state.demoState);
-        const ds = state.demoEnv.screen;
-        for (let y = 0; y < ds.height; y++)
-          for (let x = 0; x < ds.width; x++)
-            if (ds.getPixel(x, y)) screen.setPixel(x, y + DEMO_Y, true);
+      if (state.mode === 'boot') {
+        screen.clear();
+        for (const [x, y] of projectBoot(anim, state.boot)) {
+          screen.setPixel(x, y, true);
+        }
+        return;
       }
-      // 叠加静态 preview（图标 + 编号）
-      if (game) {
+      if (state.mode === 'select') {
+        screen.clear();
+        const game = currentGame(registry, state.menu);
+        // demo 画到小屏幕，再偏移复制到主屏中间区域
+        if (game?.render && state.demoState !== null && state.demoEnv) {
+          game.render(state.demoEnv, state.demoState);
+          const ds = state.demoEnv.screen;
+          for (let y = 0; y < ds.height; y++)
+            for (let x = 0; x < ds.width; x++)
+              if (ds.getPixel(x, y)) screen.setPixel(x, y + DEMO_Y, true);
+        }
+        // 叠加静态 preview（图标 + 编号）
+        if (game) {
+          for (const [x, y] of game.preview) screen.setPixel(x, y, true);
+        }
+        return;
+      }
+      // playing
+      const game = state.playingId ? registry.get(state.playingId) : undefined;
+      if (game?.render) {
+        game.render(env, state.gameState);
+      } else if (game) {
+        screen.clear();
         for (const [x, y] of game.preview) screen.setPixel(x, y, true);
       }
-      return;
-    }
-    // playing
-    const game = state.playingId ? registry.get(state.playingId) : undefined;
-    if (game?.render) {
-      game.render(env, state.gameState);
-    } else if (game) {
-      screen.clear();
-      for (const [x, y] of game.preview) screen.setPixel(x, y, true);
-    }
+    };
+    screen.batch(() => {
+      auxScreen.batch(paint);
+    });
   }, [state, ctx, registry, anim, env]);
 
   const score = useSyncExternalStore(
@@ -708,15 +753,18 @@ export function App(): React.ReactElement {
     useMemo(() => () => ctx.pause.value, [ctx.pause])
   );
 
-  // 暂停状态接 ticker —— playing+paused 时停掉 tick 调度，否则恢复。其它
-  // mode（off/boot/select）不参与 pause 语义；boot 动画始终跑，不让 P 键打断
+  // 暂停状态接 ticker —— 后台、或 playing+paused 任一成立都停掉 tick 调度，
+  // 否则恢复。ticker.resume 内部重置墙钟基准，回前台不会补跑积压的 tick。
+  // 其它 mode（off/boot/select）不参与用户 pause 语义；boot 动画始终跑，
+  // 不让 P 键打断，但后台仍会整体冻结
   useEffect(() => {
-    if (state.mode === 'playing' && paused) {
+    const shouldPause = backgrounded || (state.mode === 'playing' && paused);
+    if (shouldPause) {
       ctx.ticker.pause();
     } else {
       ctx.ticker.resume();
     }
-  }, [state.mode, paused, ctx.ticker]);
+  }, [backgrounded, state.mode, paused, ctx.ticker]);
 
   // 本局分数超越 hi-score 时推进。用 ref 式同步调用是安全的：
   // createCounter.set 在值未变时不通知，不会反向触发 score 订阅造成循环。
@@ -775,14 +823,7 @@ export function App(): React.ReactElement {
             aiMode={state.aiPlaying}
           />
         }
-        buttons={
-          <Buttons
-            labels={buttonLabels}
-            onInput={(btn, action) => {
-              ctx.input.emit(btn, action);
-            }}
-          />
-        }
+        buttons={<Buttons labels={buttonLabels} onInput={handleInput} />}
       />
     </div>
   );

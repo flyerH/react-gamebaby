@@ -1,4 +1,4 @@
-import { useEffect, useReducer } from 'react';
+import { memo, useEffect, useReducer } from 'react';
 
 import type { Screen } from '@/engine/types';
 
@@ -64,7 +64,7 @@ function AuxPreview({
  * 当前游戏的"编号 + 名字"不在这里以文字形式呈现——真机是把
  * 当前游戏的代号用像素字打在主屏上的 preview 点阵里，我们沿用这种做法。
  */
-export function SidePanel({
+export const SidePanel = memo(function SidePanel({
   power = true,
   score = 0,
   hiScore = 0,
@@ -105,4 +105,4 @@ export function SidePanel({
       </div>
     </div>
   );
-}
+});

@@ -120,6 +120,79 @@ describe('createScreen', () => {
     s.setPixel(1, 1, true);
     expect(spy).toHaveBeenCalledTimes(1);
   });
+
+  describe('batch', () => {
+    it('批内多次写只在结束时通知一次', () => {
+      const s = createScreen(4, 4);
+      const spy = vi.fn();
+      s.subscribe(spy);
+      s.batch(() => {
+        s.setPixel(0, 0, true);
+        s.setPixel(1, 0, true);
+        s.setPixel(2, 0, true);
+        // 批内还没通知
+        expect(spy).not.toHaveBeenCalled();
+      });
+      expect(spy).toHaveBeenCalledTimes(1);
+      // 写入照常生效
+      expect(s.getPixel(0, 0)).toBe(true);
+      expect(s.getPixel(2, 0)).toBe(true);
+    });
+
+    it('批内无实际变化不通知', () => {
+      const s = createScreen(2, 2);
+      const spy = vi.fn();
+      s.subscribe(spy);
+      s.batch(() => {
+        s.setPixel(0, 0, false); // 本就是 0，不算变化
+        s.clear(); // 本就全 0
+      });
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('嵌套 batch 只在最外层结束时通知一次', () => {
+      const s = createScreen(3, 3);
+      const spy = vi.fn();
+      s.subscribe(spy);
+      s.batch(() => {
+        s.setPixel(0, 0, true);
+        s.batch(() => {
+          s.setPixel(1, 1, true);
+        });
+        // 内层结束不应通知
+        expect(spy).not.toHaveBeenCalled();
+      });
+      expect(spy).toHaveBeenCalledTimes(1);
+    });
+
+    it('batch 结束后再写恢复逐次通知', () => {
+      const s = createScreen(2, 2);
+      const spy = vi.fn();
+      s.subscribe(spy);
+      s.batch(() => {
+        s.setPixel(0, 0, true);
+      });
+      expect(spy).toHaveBeenCalledTimes(1);
+      s.setPixel(1, 1, true);
+      expect(spy).toHaveBeenCalledTimes(2);
+    });
+
+    it('fn 抛错也会恢复批深度并对已写入变更通知一次', () => {
+      const s = createScreen(2, 2);
+      const spy = vi.fn();
+      s.subscribe(spy);
+      expect(() =>
+        s.batch(() => {
+          s.setPixel(0, 0, true);
+          throw new Error('boom');
+        })
+      ).toThrow('boom');
+      // 抛错后仍通知一次（buffer 已变），且批深度已复位
+      expect(spy).toHaveBeenCalledTimes(1);
+      s.setPixel(1, 1, true);
+      expect(spy).toHaveBeenCalledTimes(2);
+    });
+  });
 });
 
 describe('bitmapFromRows', () => {

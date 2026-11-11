@@ -18,6 +18,12 @@ export function createNullSound(): Sound {
     setEnabled: (on: boolean) => {
       enabled = on;
     },
+    suspend: () => {
+      /* 无声实现：生命周期挂起 no-op */
+    },
+    resume: () => {
+      /* 无声实现：生命周期恢复 no-op */
+    },
     canAutoplay: () => Promise.resolve(false),
     get enabled() {
       return enabled;

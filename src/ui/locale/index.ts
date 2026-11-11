@@ -7,7 +7,7 @@
  * - 机身按键外围的文字标签（上 / 下 / 左 / 右 / 旋转）随语言切换。
  * - 系统弹窗（如 Android 右滑退出确认）随语言切换，让原生 AlertDialog 的
  *   按钮文字与系统语境一致——浏览器原生 confirm 的"OK/Cancel"不可定制，
- *   所以这部分只对 Capacitor 原生壳生效。
+ *   所以这部分只对 Capacitor 混合应用生效。
  *
  * 新增语种时只需在 BUTTON_LABELS / DIALOG_LABELS 里各补一条，detectLocale
  * 按前缀匹配落回 en-US。
