@@ -8,7 +8,8 @@
  *   完整可见
  * - 整机 layout 高度 = max(950px, 容器高/scale)，反向补偿 scale 让 transform
  *   缩放后视觉高度恰好填满容器
- * - 内部 .content 是 flex column 居中：屏幕 + 按钮作为整体居中
+ * - 内部 .content 是 flex column：剩余纵向空白按「标题上方 : 标题与屏幕之间 : 按钮下方」
+ *   = 3 : 0.5 : 4.5 分配
  *
  * 例（数值随 SAFE_WIDTH 算法：min(1, w/510)）：
  *   PC 1440×900       scale=0.947  layout=950   视觉=549×900（高度兜底）
@@ -26,7 +27,7 @@
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  /* 上下安全区（状态栏 / 手势条）：机身铺满 wrapper，由 .content 在内部让位；
+  /* 上下安全区（状态栏 / 手势条）：机身铺满 wrapper，由 .content 的上下占位让位；
    * 落成自定义属性是为了让 Device.tsx 能读出数值，算缩放时扣掉 */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -56,22 +57,41 @@
   width: 580px;
   height: 100%;
   margin: 0 auto;
-  /* .app 整体被 scale，内部长度要除以 scale，视觉上才恰好等于安全区高度 */
-  padding-top: calc(var(--safe-top) / var(--device-scale, 1));
-  padding-bottom: calc(var(--safe-bottom) / var(--device-scale, 1));
   display: flex;
   flex-direction: column;
-  /* 屏幕区 + 按钮区作为一组内容整体在机身内垂直居中：
-   * - PC 横屏（窗口高 ≈ 950）：整机几乎贴满，上下空白很小
-   * - 手机竖屏（layout 高被 scale 反向撑大到 1290+）：屏幕/按钮组合保持
-   *   设计稿固有间距，多出的纵向空间均分到上下，看起来像"加长机身、内容居中"
-   *
-   * 不能用 align-items: center，否则 contentTop 内部 inline-block 的
+  /* 不能用 align-items: center，否则 contentTop 内部 inline-block 的
    * screenFrame 会因 stretch 默认值变形 */
-  justify-content: center;
 }
 
-/* 屏幕区：title + screenFrame，固定高度由内容撑开 */
+/* 标题 / 屏幕 / 按钮按设计稿间距排版之外的纵向空白，由三个占位按
+ * 「标题上方 : 标题与屏幕之间 : 按钮下方」= 3 : 0.5 : 4.5 瓜分：
+ * - PC 横屏（窗口高 ≈ 950）：整机几乎贴满，剩余空白≈0，比例不起作用
+ * - 手机竖屏（layout 高被 scale 反向撑大）：内容停在偏上的视觉重心，
+ *   按比例而非固定像素分配，超长屏上各处空白随屏长等比增长
+ *
+ * 安全区用 min-height 而非 padding 让位：机身已铺到系统栏底下，那一条本身
+ * 就是机身空白，占位取 max(比例份额, 安全区) 而不是两者相加。
+ * .app 整体被 scale，内部长度要除以 scale，视觉上才恰好等于安全区高度 */
+.content::before,
+.content::after {
+  content: '';
+}
+
+.content::before {
+  flex: 3;
+  min-height: calc(var(--safe-top) / var(--device-scale, 1));
+}
+
+.titleGap {
+  flex: 0.5;
+}
+
+.content::after {
+  flex: 4.5;
+  min-height: calc(var(--safe-bottom) / var(--device-scale, 1));
+}
+
+/* 屏幕区：screenFrame，固定高度由内容撑开 */
 .contentTop {
   padding: 0 10px;
   text-align: center;
@@ -79,12 +99,34 @@
 }
 
 .title {
+  flex-shrink: 0;
   /* 下间距按 device-scale 反比例补偿：scale=1（PC）保持 15px，
    * 手机 scale≈0.71 时撑到 ~38px，scale 缩回后视觉间距 ~27px，
    * 比 PC 视觉大近一倍，避免窄屏下标题贴屏幕 */
   margin: 20px 0 calc(15px + 80px * (1 - var(--device-scale, 1)));
   font-size: 28px;
   text-align: center;
+}
+
+/* 角标绝对定位挂在标题文字右侧，不参与排版，标题保持居中 */
+.titleText {
+  position: relative;
+  display: inline-block;
+}
+
+/* 模仿机身上贴的型号贴纸：黄底黑字小方签，略高于标题中线呈上标感 */
+.badge {
+  position: absolute;
+  left: calc(100% + 6px);
+  top: 4px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background-color: #f8d442;
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 /* 屏幕外框：白色粗边；宽度 + padding 一起缩，给下方按钮区腾空间 */
@@ -124,17 +166,8 @@
   flex-direction: column;
 }
 
-/* 按钮区：紧跟屏幕区下方，按 Buttons 自身高度排版。父级 .content 的
- * justify-content: center 把"屏幕区 + 按钮区"作为整体居中，多出的纵向
- * 空间均分到上下空白，按钮区与屏幕区之间保持设计稿固定间距 */
+/* 按钮区：紧跟屏幕区下方，按 Buttons 自身高度排版，与屏幕区之间保持设计稿固定间距 */
 .contentBottom {
   flex-shrink: 0;
   position: relative;
-  /* 手机上 .app layout 高度被反向撑大，多余纵向空间在 .content 居中算法
-   * 里均分到上下；这里给末尾 flex item 加一段"额外底部空白"，让居中点
-   * 整体上移、视觉上"内容偏上、底部更宽松"。
-   * - scale ≥ 0.9（PC / 平板）：max() 取 0，不影响 PC 居中
-   * - scale ≈ 0.71（典型手机）：~76px layout → 视觉 ~54px，内容视觉
-   *   上移 ~27px */
-  margin-bottom: max(0px, calc(400px * (0.9 - var(--device-scale, 1))));
 }

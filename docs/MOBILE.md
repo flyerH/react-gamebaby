@@ -74,6 +74,15 @@ pnpm mobile:dev:android
 | `pnpm mobile:run:android:online`       | 装一个跑**线上域名**的 APK   | 验证已部署到线上的版本（无需带电脑）  |
 | `pnpm dev` + `pnpm mobile:dev:android` | 真机 livereload 开发         | 日常迭代（前端改一行立即热更到手机）  |
 
+> **正式版与调试版并存**：Android 工程按 product flavor 分成两个包，可以同时装在一台手机上互不覆盖。
+>
+> | flavor | 包名                      | 桌面名称     | 对应命令                                    |
+> | ------ | ------------------------- | ------------ | ------------------------------------------- |
+> | `prod` | `com.flyerh.gamebaby`     | GameBaby     | `mobile:run:android:online`                 |
+> | `dev`  | `com.flyerh.gamebaby.dev` | GameBaby Dev | `mobile:run:android` / `mobile:dev:android` |
+>
+> 在 Android Studio 里点运行默认是 `devDebug` 变体；手动用 Gradle 时任务名带上 flavor（如 `installDevDebug`）。
+
 第一次跑 `pnpm mobile:android` Studio 同步 Gradle 较慢（国内开代理重启 Studio）；之后日常用 livereload 工作流即可。
 
 ### 线上域名模式（`mobile:run:android:online`）

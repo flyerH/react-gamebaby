@@ -18,6 +18,7 @@ import {
   bindBackButton,
   bindKeyboardInput,
   createBrowserContext,
+  isDevBuild,
 } from '@/platform/browser';
 import { createHeadlessContext } from '@/platform/headless';
 import type { Game, GameEnv, GameRegistry } from '@/sdk';
@@ -385,6 +386,18 @@ export function App(): React.ReactElement {
   }, [state.playingId, ctx.auxScreen]);
 
   const [aiLoading, setAiLoading] = useState(false);
+
+  // Android 开发版在机身标题旁贴 DEV 角标，与同机安装的正式版区分
+  const [devBuild, setDevBuild] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    void isDevBuild().then((dev) => {
+      if (alive) setDevBuild(dev);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // 应用是否处于后台：后台时暂停 ticker 与音频，回前台不追帧。与用户主动
   // 暂停（ctx.pause）正交，二者任一成立都暂停，恢复时不覆盖对方
@@ -809,6 +822,7 @@ export function App(): React.ReactElement {
   return (
     <div className={styles.page}>
       <Device
+        badge={devBuild ? 'DEV' : undefined}
         screen={<ContentScreen screen={ctx.screen} cellSize={16} innerSize={9} />}
         side={
           <SidePanel

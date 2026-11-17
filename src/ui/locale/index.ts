@@ -62,13 +62,13 @@ export const BUTTON_LABELS: Readonly<Record<Locale, ButtonLabels>> = {
 export const DIALOG_LABELS: Readonly<Record<Locale, DialogLabels>> = {
   'zh-CN': {
     exitTitle: '退出 GameBaby',
-    exitMessage: '确认要退出 App 吗？',
+    exitMessage: '确认要退出吗？',
     exitOk: '退出',
     exitCancel: '取消',
   },
   'en-US': {
     exitTitle: 'Quit GameBaby',
-    exitMessage: 'Are you sure you want to close the app?',
+    exitMessage: 'Are you sure you want to quit?',
     exitOk: 'Quit',
     exitCancel: 'Cancel',
   },

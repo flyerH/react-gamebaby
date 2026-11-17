@@ -34,6 +34,8 @@ function initialScale(): number {
 export interface DeviceProps {
   /** 机身上部印刷的品牌标题 */
   title?: string;
+  /** 贴在标题右侧的小角标（如开发版的 "DEV"）；不传则不显示 */
+  badge?: string;
   /** 主点阵屏；通常传入一个 <ContentScreen> */
   screen: ReactNode;
   /** 屏幕右侧的信息区；通常传入一个 <SidePanel> */
@@ -55,14 +57,16 @@ export interface DeviceProps {
  * - --device-scale 按 SAFE_WIDTH=480（按钮组实际宽度）而非整机 580 算，
  *   机身蓝边可在窄屏上被 wrapper 裁切，让按钮 / 屏幕在小屏上视觉更大
  * - .app layout 高度反向补偿 scale，让整机视觉贴满 100dvh
- * - 内部 .content flex column 居中：屏幕 + 按钮作为整体居中，多余纵向
- *   空间均分到上下；窄屏上余量更小，整机更紧凑
+ * - 内部 .content flex column：标题 / 屏幕 / 按钮按设计稿间距排版，多余纵向
+ *   空间按「标题上方 : 标题与屏幕之间 : 按钮下方」= 3 : 0.5 : 4.5 分配；
+ *   窄屏上余量更小，整机更紧凑
  *
  * scale 用 useState lazy initializer 在首帧就算好，避免先以默认 scale=1
  * 渲染一次再 effect 里修正带来的"大 → 小"闪烁。
  */
 export function Device({
   title = 'GameBaby',
+  badge,
   screen,
   side,
   buttons,
@@ -108,8 +112,14 @@ export function Device({
     <div ref={wrapperRef} className={styles.wrapper} style={wrapperStyle}>
       <div className={styles.app}>
         <div className={styles.content}>
+          <p className={styles.title}>
+            <span className={styles.titleText}>
+              {title}
+              {badge && <span className={styles.badge}>{badge}</span>}
+            </span>
+          </p>
+          <div className={styles.titleGap} aria-hidden="true" />
           <div className={styles.contentTop}>
-            <p className={styles.title}>{title}</p>
             <div className={styles.screenFrame}>
               <div className={styles.screenInner3d}>
                 <div className={styles.screen}>
