@@ -48,8 +48,7 @@ pre-commit 钩子会自动对 staged 文件跑 `eslint --fix` + `prettier --writ
 - 远程侧由 CodeRabbit（GitHub App）自动复审，配置文件在 `.coderabbit.yaml`；AI 本地 CR 与远程 App CR 互为补充
 - **AI 修复 CR 问题后必须收尾**：
   1. 已修复的 review thread 要 resolve（通过 GraphQL `resolveReviewThread`）
-  2. PR body 中的 test plan checklist 要据实打勾
-  3. PR body 要同步更新以反映后续 commit 的变更（如新增 / 删除的功能点）
+  2. PR body 要同步更新以反映后续 commit 的变更（如新增 / 删除的功能点）
 
 ## 四层架构
 

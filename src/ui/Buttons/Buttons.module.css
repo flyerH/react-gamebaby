@@ -87,6 +87,9 @@
   width: 240px;
   height: 240px;
   flex-shrink: 0;
+  /* 箭头从各自按钮中心朝十字中心平移的距离：按钮中心距十字中心 80，
+   * 减去 22 让箭头中心落在离十字中心 22 处，四向共用保证十字对称 */
+  --dir-reach: 58px;
 }
 
 /* Rotate 块：用 flex 把椭圆居中，按钮自身只管 rotateZ。
@@ -152,10 +155,14 @@
   pointer-events: none;
 }
 
+/* 箭头：先以按钮中心为原点居中（translate -50% 按三角形自身尺寸算，
+ * 不受 border 粗细影响），各方向再沿指向十字中心的轴平移 --dir-reach */
 .buttonDir {
   width: 0;
   height: 0;
   position: absolute;
+  top: 50%;
+  left: 50%;
   pointer-events: none;
 }
 
@@ -170,8 +177,7 @@
   text-align: left;
 }
 .topButton .buttonDir {
-  top: 90px;
-  left: 30px;
+  transform: translate(-50%, -50%) translateY(var(--dir-reach));
   border-left: 10px solid transparent;
   border-right: 10px solid transparent;
   border-bottom: 15px solid #000;
@@ -186,8 +192,7 @@
   top: 85px;
 }
 .rightButton .buttonDir {
-  top: 35px;
-  left: -25px;
+  transform: translate(-50%, -50%) translateX(calc(-1 * var(--dir-reach)));
   border-top: 10px solid transparent;
   border-bottom: 10px solid transparent;
   border-left: 15px solid #000;
@@ -202,8 +207,7 @@
   top: 80px;
 }
 .bottomButton .buttonDir {
-  top: -23px;
-  left: 29px;
+  transform: translate(-50%, -50%) translateY(calc(-1 * var(--dir-reach)));
   border-left: 10px solid transparent;
   border-right: 10px solid transparent;
   border-top: 15px solid #000;
@@ -218,8 +222,7 @@
   top: 85px;
 }
 .leftButton .buttonDir {
-  top: 35px;
-  left: 90px;
+  transform: translate(-50%, -50%) translateX(var(--dir-reach));
   border-top: 10px solid transparent;
   border-right: 15px solid #000;
   border-bottom: 10px solid transparent;

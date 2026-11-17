@@ -13,6 +13,9 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- WebView < 140 时 Capacitor 改为给 WebView 父容器加系统栏 padding，
+             状态栏 / 手势条区域透出的是窗口背景，需与机身蓝一致 -->
+        <item name="android:windowBackground">@color/deviceBody</item>
     </style>
 
 

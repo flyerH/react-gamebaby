@@ -26,6 +26,10 @@
   display: flex;
   justify-content: center;
   align-items: flex-start;
+  /* 上下安全区（状态栏 / 手势条）：机身铺满 wrapper，由 .content 在内部让位；
+   * 落成自定义属性是为了让 Device.tsx 能读出数值，算缩放时扣掉 */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .app {
@@ -52,6 +56,9 @@
   width: 580px;
   height: 100%;
   margin: 0 auto;
+  /* .app 整体被 scale，内部长度要除以 scale，视觉上才恰好等于安全区高度 */
+  padding-top: calc(var(--safe-top) / var(--device-scale, 1));
+  padding-bottom: calc(var(--safe-bottom) / var(--device-scale, 1));
   display: flex;
   flex-direction: column;
   /* 屏幕区 + 按钮区作为一组内容整体在机身内垂直居中：

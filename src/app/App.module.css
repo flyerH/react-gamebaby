@@ -14,6 +14,12 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* 原生壳下机身未覆盖的区域（左右安全区、宽屏上机身顶部圆角外侧）会透出
+ * body 底色，填机身蓝与机身连成一片 */
+:global(html.is-native body) {
+  background-color: #4a94c1;
+}
+
 :global(*) {
   box-sizing: border-box;
 }
@@ -28,9 +34,8 @@
   /* 100dvh 跟随移动端浏览器 / WebView 工具栏伸缩，避免底部按钮被遮；
    * 旧浏览器降级到 100% 由父级 html/body 兜底 */
   height: 100dvh;
-  /* 安全区：刘海屏 / 状态栏 / 手势条让出空间 */
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
+  /* 只让出左右安全区；上下（状态栏 / 手势条）由 Device 机身铺进去、
+   * 在机身内部让位，机身边缘高光才能贴住屏幕上下沿 */
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
 }

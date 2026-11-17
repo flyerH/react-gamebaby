@@ -8,4 +8,5 @@
     <color name="colorPrimary">#4A94C1</color>
     <color name="colorPrimaryDark">#3A7A9F</color>
     <color name="colorAccent">#F8D442</color>
+    <color name="deviceBody">#4A94C1</color>
 </resources>

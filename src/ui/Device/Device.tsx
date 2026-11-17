@@ -73,11 +73,16 @@ export function Device({
   useEffect(() => {
     const el = wrapperRef.current;
     if (!el) return;
-    // 用 ResizeObserver 监听 wrapper 的 *实际可用尺寸*：移动端 safe-area
-    // padding 已在父级扣掉，window.innerHeight 包含状态栏/手势条，按容器
-    // 算缩放比窗口算更准。降级路径用 innerWidth/innerHeight，不保证安全区精度
+    // 用 ResizeObserver 监听 wrapper 的实际尺寸。机身会铺进上下安全区
+    // （状态栏 / 手势条），内容只能用扣掉安全区后的高度，所以这里减去
+    // CSS 里 --safe-top / --safe-bottom 的解析值。降级路径用
+    // innerWidth/innerHeight，不保证安全区精度
     const updateFromEl = (): void => {
-      setScale(computeScale(el.clientWidth, el.clientHeight));
+      const style = getComputedStyle(el);
+      const safeY =
+        (parseFloat(style.getPropertyValue('--safe-top')) || 0) +
+        (parseFloat(style.getPropertyValue('--safe-bottom')) || 0);
+      setScale(computeScale(el.clientWidth, el.clientHeight - safeY));
     };
     updateFromEl();
     if (typeof ResizeObserver !== 'undefined') {

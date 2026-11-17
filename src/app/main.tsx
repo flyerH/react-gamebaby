@@ -17,9 +17,28 @@ if (Capacitor.isNativePlatform()) {
   document.documentElement.classList.add('is-native');
 }
 
-// 注册 Service Worker：精确语义见 vite.config.ts 中 VitePWA 配置注释。
-// dev 模式下 virtual:pwa-register 是 no-op，不会干扰 vite HMR。
-registerSW({ immediate: true });
+// 原生壳本地模式下资源打包在 APK 内、由 Capacitor 以 https://localhost 提供，本就离线可用；
+// SW 在这里只会让升级 APK 后的首次启动仍跑旧缓存。远程域名模式（CAP_REMOTE_URL）与网页版
+// 仍靠 SW 离线，照常注册
+const isBundledNative = Capacitor.isNativePlatform() && location.hostname === 'localhost';
+
+if (isBundledNative) {
+  // 装过旧版本的设备上 SW 已注册，不再注册不会让它失效，需主动注销并清掉其 precache
+  if ('serviceWorker' in navigator) {
+    void navigator.serviceWorker.getRegistrations().then((regs) => {
+      for (const reg of regs) void reg.unregister();
+    });
+  }
+  if ('caches' in window) {
+    void caches.keys().then((keys) => {
+      for (const key of keys) void caches.delete(key);
+    });
+  }
+} else {
+  // 精确语义见 vite.config.ts 中 VitePWA 配置注释。
+  // dev 模式下 virtual:pwa-register 是 no-op，不会干扰 vite HMR。
+  registerSW({ immediate: true });
+}
 
 createRoot(rootElement).render(
   <StrictMode>
