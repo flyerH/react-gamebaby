@@ -12,12 +12,12 @@ if (!rootElement) {
 
 // 混合应用（Capacitor Android WebView）下给 <html> 加 marker，让 CSS 区别于纯网页版：
 // - 网页版：body 背景 azure 不变，机身居中 + 四周浅蓝
-// - 混合应用：舞台背景填机身蓝，避免缩放后上下露出 azure 大空白
+// - 混合应用：body 填机身蓝，适用范围见 App.module.css 中 html.is-native 的注释
 if (Capacitor.isNativePlatform()) {
   document.documentElement.classList.add('is-native');
 }
 
-// 原生壳本地模式下资源打包在 APK 内、由 Capacitor 以 https://localhost 提供，本就离线可用；
+// 本地模式下资源打包在 APK 内、由 Capacitor 以 https://localhost 提供，本就离线可用；
 // SW 在这里只会让升级 APK 后的首次启动仍跑旧缓存。远程域名模式（CAP_REMOTE_URL）与网页版
 // 仍靠 SW 离线，照常注册
 const isBundledNative = Capacitor.isNativePlatform() && location.hostname === 'localhost';

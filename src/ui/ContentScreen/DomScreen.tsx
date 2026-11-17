@@ -9,11 +9,11 @@ import type { LcdRendererProps } from './types';
  * 用 width×height 个长期存在的 DOM 格子模拟真机 LCD：每格外框 + 内方块，
  * 点亮与熄灭只是 data-on 属性不同（熄灭态仍画出半透明阴影格）。
  *
- * 性能要点（对齐"一格一格的硬件像素"诉求）：
+ * 性能要点：
  * - 格子在尺寸不变时只创建一次，游戏 tick 不重建 React 元素、不触发 200 格
  *   的重协调；
- * - 订阅 `Screen` 后命令式只切"发生亮灭变化"的格子的 data-on 属性，配合
- *   Screen 的 batch（一次 render 只通知一次），把每帧 DOM 写入压到"变化格数"量级。
+ * - 订阅 `Screen` 后只更新亮灭状态发生变化的格子的 data-on 属性，配合
+ *   Screen 的 batch（一次 render 只通知一次），每帧的 DOM 写入次数与变化格数成正比。
  *
  * 本组件只读屏幕状态，不写；像素变化通过 L3 API 发生。
  */

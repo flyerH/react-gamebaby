@@ -67,8 +67,8 @@ export interface Screen {
    * 批处理：把 fn 内的所有写操作合并成最多一次订阅通知。
    *
    * 渲染循环用它把一次 `game.render()`（可能上百次 setPixel）合并为单次
-   * 重绘，避免"每改一个像素就整屏重画"的通知风暴。可安全嵌套：只有最外
-   * 层结束、且期间确有实际变更时才通知一次；fn 抛错也会正确恢复深度。
+   * 重绘，避免逐像素通知导致渲染器反复重绘。可安全嵌套：只有最外层结束、
+   * 且期间确有实际变更时才通知一次；fn 抛错也会正确恢复深度。
    */
   batch(fn: () => void): void;
   subscribe(fn: () => void): Unsubscribe;
@@ -79,7 +79,7 @@ export interface Screen {
  *
  * 具体驱动方式由实现决定：
  * - HeadlessTicker：外部手动 advance，不依赖真实时钟（Node 训练 / 测试）
- * - RealtimeTicker：基于 requestAnimationFrame + 累积器（浏览器运行时，后续版本实现）
+ * - RealtimeTicker：基于 requestAnimationFrame + 累积器（浏览器运行时）
  */
 export interface Ticker {
   /** 当前速度，单位 ticks/second（仅语义约定，驱动方式由实现决定） */
@@ -120,7 +120,7 @@ export interface Toggle {
 /**
  * 单个音符：频率 + 持续时长。freq=0 表示休止符（停顿不发声）。
  *
- * 用于 playMelody 把多音符旋律串成一段开机音 / 菜单 BGM；保持 Hz + 秒
+ * 用于 playMelody 把多音符旋律串成一段开机音乐 / 菜单 BGM；保持 Hz + 秒
  * 这种平铺数据，调用方既可以手写谱子也可以由工具生成。
  */
 export interface Note {
@@ -142,7 +142,7 @@ export interface Sound {
   setEnabled(on: boolean): void;
   /**
    * 挂起音频输出：进入后台 / 失焦时由生命周期调用，冻结音频时钟并停止发声。
-   * 与 `setEnabled` 正交 —— 不改变用户的"声音开关"偏好，只做生命周期挂起。
+   * 与 `setEnabled` 正交：不改变用户的"声音开关"偏好，只做生命周期挂起。
    */
   suspend(): void;
   /** 恢复音频输出：回到前台时调用；是否真的出声仍取决于 `enabled`。 */
@@ -153,7 +153,7 @@ export interface Sound {
    * 浏览器自动播放策略下，刚 mount 的 AudioContext 初始 state 通常是
    * 'suspended'，调 resume() 后看是否变成 'running' 来判断。返回
    * true 表示之后调 play / playMelody 会真发声；返回 false 通常意味
-   * 着需要等用户首次手势（按键 / 点击）才能 audio。
+   * 着需要等用户首次手势（按键 / 点击）才能发声。
    */
   canAutoplay(): Promise<boolean>;
   readonly enabled: boolean;

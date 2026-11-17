@@ -2,7 +2,7 @@
  * 复刻 Brick Game 真机按键区
  *
  * 设计要点：
- * - 顶部一行 3 个小圆按钮 START / SOUND / RESET（参考真机）
+ * - 顶部一行 4 个小圆按钮 START / PAUSE / SOUND / RESET（参考真机）
  * - 中部 D-pad 四向：每个方向按钮是 80×80 红色圆盘，绝对定位在各自坐标
  * - buttonTip / buttonDir 是按钮的子元素，但用绝对定位落到按钮 *外* 围
  *   · 4 个 dir（箭头）汇聚到中心，分别指向自己的按钮 → 中心十字
@@ -12,15 +12,15 @@
 
 .contentBottom {
   position: relative;
-  /* 设计稿固有间距：与屏幕区上方留 30px、左右 20px inset；按钮组的下方
-   * 不再有底距 —— 剩余纵向空白由父级 Device .content 按比例分配，
+  /* 设计稿固有间距：与屏幕区上方留 30px、左右 20px inset；按钮组下方
+   * 不设底距，剩余纵向空白由父级 Device .content 按比例分配，
    * 机身蓝色看起来像加长版掌机 */
   margin: 30px 20px 0;
 }
 
-/* ===== 顶部辅助键容器（开/关 · 声音 · 重置） =====
+/* ===== 顶部辅助键容器（开/关 · 暂停 · 声音 · 重置） =====
  * 独占一行的块级容器；内部用 flex 横排，按钮整体靠右贴近 Rotate
- * 一侧。下方 .controlRow 用 margin-top 控制间距，不再 padding。 */
+ * 一侧。与下方 .controlRow 的间距由 .controlRow 的 margin-top 控制。 */
 
 .topControls {
   display: flex;
@@ -97,11 +97,11 @@
  * 后视觉外接矩形 ≈ 160×200（水平投影 187·cos60°+76.5·sin60°）。
  *
  * 容器宽 175 略大于实际视觉外接宽 160（保守留 ~7.5px 容差，避免
- * rotateButton layout 220 → transform 后视觉边沿与 D-pad 贴得太近），
- * 比原 187 收紧 12px → 在 controlRow justify-content: center 下整体
- * 右移 6px，纠正旋转后 Rotate 自带"右内边距"造成的视觉偏左。
+ * rotateButton layout 220 → transform 后视觉边沿与 D-pad 贴得太近）。
+ * 宽度小于椭圆缩放后的 187，在 controlRow justify-content: center 下
+ * 整体右移 6px，抵消旋转后 Rotate 右侧空白造成的视觉偏左。
  *
- * 按钮内部 magic px（rotateTip / arrowLeft / arrowRight）全都通过
+ * 按钮内部的固定坐标（rotateTip / arrowLeft / arrowRight）全都通过
  * transform: scale 一起缩，不需要逐个改坐标 */
 .rotateGroup {
   position: relative;

@@ -3,9 +3,8 @@
  *
  * 适配策略（H5 + 移动端混合应用通用，"内容安全宽"驱动）：
  * - 580 宽度作为内部坐标系（按钮 / 屏幕的绝对定位都基于这个宽度）
- * - --device-scale 由 Device.tsx 按 SAFE_WIDTH=480（按钮组实际占用宽）算
- *   而非整机 580：窄屏上机身两侧 50px 蓝边可被 wrapper 裁掉，按钮组永远
- *   完整可见
+ * - --device-scale 由 Device.tsx 按 DEVICE_SAFE_WIDTH=510（按钮组宽度加两侧余量）
+ *   算而非整机 580：窄屏上机身两侧蓝边可被 wrapper 裁掉，按钮组始终完整可见
  * - 整机 layout 高度 = max(950px, 容器高/scale)，反向补偿 scale 让 transform
  *   缩放后视觉高度恰好填满容器
  * - 内部 .content 是 flex column：剩余纵向空白按「标题上方 : 标题与屏幕之间 : 按钮下方」
@@ -28,7 +27,7 @@
   justify-content: center;
   align-items: flex-start;
   /* 上下安全区（状态栏 / 手势条）：机身铺满 wrapper，由 .content 的上下占位让位；
-   * 落成自定义属性是为了让 Device.tsx 能读出数值，算缩放时扣掉 */
+   * 定义为自定义属性，是为了让 Device.tsx 能读出数值，算缩放时扣掉 */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -39,7 +38,7 @@
   width: 580px;
   /* 反向补偿 scale：layout 高度被 scale 后正好等于 wrapper 高度。
    * 同时保留 950 最低高度，避免窄高屏下内容被挤掉
-   * （950 = 屏幕 ~540 + 按钮 ~360 + 间距 ~50，再低就放不下） */
+   * （950 = 屏幕 ~540 + 按钮 ~360 + 间距 ~50，低于此值放不下全部内容） */
   height: max(950px, calc(100% / var(--device-scale, 1)));
   border-radius: 20px 20px 0 0;
   box-shadow: inset 0 0 15px 2px #92d3f9;
@@ -64,7 +63,7 @@
 }
 
 /* 标题 / 屏幕 / 按钮按设计稿间距排版之外的纵向空白，由三个占位按
- * 「标题上方 : 标题与屏幕之间 : 按钮下方」= 3 : 0.5 : 4.5 瓜分：
+ * 「标题上方 : 标题与屏幕之间 : 按钮下方」= 3 : 0.5 : 4.5 分配：
  * - PC 横屏（窗口高 ≈ 950）：整机几乎贴满，剩余空白≈0，比例不起作用
  * - 手机竖屏（layout 高被 scale 反向撑大）：内容停在偏上的视觉重心，
  *   按比例而非固定像素分配，超长屏上各处空白随屏长等比增长
@@ -114,7 +113,7 @@
   display: inline-block;
 }
 
-/* 模仿机身上贴的型号贴纸：黄底黑字小方签，略高于标题中线呈上标感 */
+/* 模仿机身上贴的型号贴纸：黄底黑字小方签，位置略高于标题中线，类似上标 */
 .badge {
   position: absolute;
   left: calc(100% + 6px);

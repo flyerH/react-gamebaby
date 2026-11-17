@@ -15,7 +15,7 @@ export interface BindAppStateOptions {
  *
  * 两个信号源并存并去重：
  * - Capacitor `appStateChange`：混合应用（Android/iOS WebView）的权威前后台信号；
- * - 浏览器 `visibilitychange`：普通浏览器 / PWA 的降级信号，也兜住部分
+ * - 浏览器 `visibilitychange`：普通浏览器 / PWA 的降级信号，也覆盖部分
  *   WebView 不发 appStateChange 的情况。
  *
  * 用 `active` 去重：只有状态真正翻转时才回调一次，避免两个源在 App 内

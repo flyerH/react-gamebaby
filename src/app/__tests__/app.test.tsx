@@ -33,8 +33,8 @@ function createMockContext(soundOn: boolean, canAutoplay = true) {
   };
 }
 
-describe('App 开机旋律', () => {
-  it('soundOn=false 时，autoplay 通电不会播放开机旋律', async () => {
+describe('App 开机音乐', () => {
+  it('soundOn=false 时，autoplay 通电不会播放开机音乐', async () => {
     const { ctx, playMelody } = createMockContext(false);
     vi.mocked(createBrowserContext).mockReturnValue(ctx);
 
@@ -45,7 +45,7 @@ describe('App 开机旋律', () => {
     });
   });
 
-  it('soundOn=true 时，autoplay 通电会播放开机旋律', async () => {
+  it('soundOn=true 时，autoplay 通电会播放开机音乐', async () => {
     const { ctx, playMelody } = createMockContext(true);
     vi.mocked(createBrowserContext).mockReturnValue(ctx);
 

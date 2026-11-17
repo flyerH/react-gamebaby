@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 机身蓝 #4a94c1 与上层 web UI 完全对齐：
-         AndroidManifest 引用 AppTheme.NoActionBarLaunch（继承 Theme.SplashScreen），
-         实际不读这三个颜色；保留 AppTheme 主题块只为对齐 Capacitor 模板默认结构，
-         避免后续 `cap sync` 重新生成时产生 diff —— 但 aapt 仍会校验引用是否存在，
-         所以这里必须补全 -->
+    <!-- 机身蓝 #4a94c1 与 web UI 一致。
+         colorPrimary / colorPrimaryDark / colorAccent 只被 AppTheme 引用，运行时用不到；
+         保留 AppTheme 主题块是为了与 Capacitor 模板结构一致，避免 `cap sync` 重新生成时
+         产生 diff，但 aapt 仍会校验引用是否存在，所以必须定义。
+         deviceBody 被 AppTheme.NoActionBar 的 windowBackground 引用，运行时生效 -->
     <color name="colorPrimary">#4A94C1</color>
     <color name="colorPrimaryDark">#3A7A9F</color>
     <color name="colorAccent">#F8D442</color>

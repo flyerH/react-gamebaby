@@ -14,9 +14,9 @@ const DEVICE_MIN_HEIGHT = 950;
 
 function computeScale(width: number, height: number): number {
   if (width <= 0) return 1;
-  // 主路：按"内容安全宽"算 scale，机身蓝边可被裁。这样在 360 宽手机上整机
-  // 视觉宽 580×0.75 = 435 溢出 37.5px each side（恰好等于机身蓝边宽度），
-  // 按钮组 480×0.75 = 360 完整可见。.app 的 max(950, 100%/scale) 反向补偿
+  // 常规情况：按"内容安全宽"算 scale，机身两侧蓝边允许被裁掉。例如 360 宽的
+  // 手机上 scale≈0.706，整机视觉宽 580×0.706≈409，每侧溢出约 25px；按钮组
+  // 447×0.706≈316，完整可见。.app 的 max(950, 100%/scale) 反向补偿
   // layout 高，让整机视觉贴满容器纵向
   const widthScale = Math.min(1, width / DEVICE_SAFE_WIDTH);
   // 兜底：当容器极矮（h < 950 × widthScale）时，按高度收紧避免内容溢出
@@ -51,10 +51,10 @@ export interface DeviceProps {
  * 3D 凹陷蓝色内框 + LCD 黄绿屏底 + 红色实体按键。
  *
  * 本组件只负责外观与布局，屏幕 / 侧栏 / 按键区等内容由调用方以 slot 形式注入，
- * 这样外壳与内部实现（Canvas renderer、分数、按键映射）完全解耦。
+ * 这样外壳与内部实现（渲染器、分数、按键映射）解耦。
  *
  * 适配策略（"内容安全宽"驱动的连续响应式）：
- * - --device-scale 按 SAFE_WIDTH=480（按钮组实际宽度）而非整机 580 算，
+ * - --device-scale 按 DEVICE_SAFE_WIDTH=510（按钮组宽度加两侧余量）而非整机 580 算，
  *   机身蓝边可在窄屏上被 wrapper 裁切，让按钮 / 屏幕在小屏上视觉更大
  * - .app layout 高度反向补偿 scale，让整机视觉贴满 100dvh
  * - 内部 .content flex column：标题 / 屏幕 / 按钮按设计稿间距排版，多余纵向
@@ -77,7 +77,7 @@ export function Device({
   useEffect(() => {
     const el = wrapperRef.current;
     if (!el) return;
-    // 用 ResizeObserver 监听 wrapper 的实际尺寸。机身会铺进上下安全区
+    // 用 ResizeObserver 监听 wrapper 的实际尺寸。机身会延伸到上下安全区
     // （状态栏 / 手势条），内容只能用扣掉安全区后的高度，所以这里减去
     // CSS 里 --safe-top / --safe-bottom 的解析值。降级路径用
     // innerWidth/innerHeight，不保证安全区精度

@@ -1,7 +1,7 @@
 # react-gamebaby
 
-> 复刻童年的 "俄罗斯方块" 复古掌机 —— 贪吃蛇 / 俄罗斯方块 / 坦克大战等经典游戏的
-> 统一架构 web 实现，并以此沉淀一套端到端 AI 工程化实践。
+> 复刻经典的"俄罗斯方块"掌机，用统一架构在 Web 上实现贪吃蛇、俄罗斯方块、坦克大战等游戏，
+> 并以此沉淀一套端到端 AI 工程化实践。
 
 🕹️ **在线试玩**：[https://gamebaby.strawtc.cn/](https://gamebaby.strawtc.cn/)
 
@@ -45,7 +45,7 @@ iOS 暂不在当前迭代范围内（架构上保留扩展空间，后续按需�
 pnpm mobile:sync                     # 先 build，再同步到 android/
 pnpm mobile:android                  # 同步并打开 Android Studio 工程
 pnpm mobile:run:android              # 生产构建并运行到已连接设备/模拟器
-pnpm mobile:run:android:online       # 装一个直接加载线上域名的 APK（无需电脑常开）
+pnpm mobile:run:android:online       # 装一个直接加载线上域名的 APK
 pnpm dev + pnpm mobile:dev:android   # 真机 livereload 开发（前端改动即时热更）
 ```
 
@@ -57,7 +57,7 @@ master 每次 push 自动通过 GitHub Actions 构建并 rsync 到 VPS，详见 
 
 ## 协作规范
 
-[`AGENTS.md`](AGENTS.md) 是项目的核心协作规范，约定编码风格 / 测试 / 提交 / AI 协作流程，**人类与 AI 共同遵守**。
+[`AGENTS.md`](AGENTS.md) 是项目的核心协作规范，约定编码风格 / 测试 / 提交 / AI 协作流程，人类与 AI 共同遵守。
 
 ## License
 

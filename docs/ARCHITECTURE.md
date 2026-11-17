@@ -5,11 +5,11 @@
 
 ## 1. 项目定位
 
-**模拟一台 Brick Game 9999-in-1 复古掌机**，承载多款经典游戏（Snake / Tetris / Tank / ...），同时是一套 **端到端 AI 工程化实践的参考实现**。
+模拟一台 Brick Game 9999-in-1 复古掌机，承载多款经典游戏（Snake / Tetris / Tank / ...），同时是一套端到端 AI 工程化实践的参考实现。
 
 两条并行主线：
 
-1. **产品主线**：做一台"像"的复古掌机，像素级 LCD 显示 + 8bit 声音 + 实体按键感，多游戏可插拔。
+1. **产品主线**：还原复古掌机的外观与操作体验，包括 LCD 点阵显示、8bit 音效和实体按键，多游戏可插拔。
 2. **AI 工程化主线**：沉淀一套可复用的 AI 开发实践（规范、Skills、自动 PR、远端 CR、RL 游戏 AI、AI 测试、文档自动化），其他项目可直接参考或复制。
 
 **非目标 (out of scope)**：
@@ -104,6 +104,7 @@ interface Screen {
   blit(x: number, y: number, bitmap: Bitmap, mode?: 'overwrite' | 'or' | 'xor'): void;
   commit(buffer: Uint8Array): void;
   clear(): void;
+  batch(fn: () => void): void; // fn 内的写操作合并为最多一次订阅通知
   subscribe(fn: () => void): () => void;
 }
 
@@ -170,6 +171,9 @@ interface Sound {
   /** 播放音符序列；返回 cancel 以中止尾段 */
   playMelody(notes: ReadonlyArray<Note>): () => void;
   setEnabled(on: boolean): void;
+  /** 进后台 / 回前台时挂起与恢复音频，不改变 enabled */
+  suspend(): void;
+  resume(): void;
   /** 探测当前能否在无用户手势下发声（autoplay 策略）*/
   canAutoplay(): Promise<boolean>;
 }
@@ -212,7 +216,7 @@ interface HardwareContext {
 
 ```ts
 // GameEnv —— 游戏看到的 HardwareContext 切片
-//   屏蔽 Ticker / Storage / pause / soundOn 等"应用级"权限；游戏只摸
+//   屏蔽 Ticker / Storage / pause / soundOn 等"应用级"权限；游戏只能访问
 //   屏幕 / 输入 / 音效 / RNG / 逻辑时钟 / 计数器
 interface GameEnv {
   readonly screen: Screen;
@@ -261,16 +265,16 @@ interface GameRegistry {
 }
 
 // Gym-like 抽象（用于 RL 训练）写在游戏自己的 rl.ts 旁边，按需 export，
-// 不强约束所有游戏都暴露 —— 目前只有 Snake 实现（src/games/snake/rl.ts）
+// 不强约束所有游戏都暴露；目前只有 Snake 实现（src/games/snake/rl.ts）
 ```
 
 ### 3.3 游戏循环（App 状态机驱动）
 
-App 是个四态状态机（`src/app/App.tsx`），由 `useReducer` 推进，所有副作用集中在 `useEffect`：
+App 是一个四态状态机（`src/app/App.tsx`），由 `useReducer` 推进，所有副作用集中在 `useEffect`：
 
 ```text
         Start (autoplay 允许或玩家按下)
-   off  ───────────────────────────────►  boot  (开机动画 + Korobeiniki 旋律)
+   off  ───────────────────────────────►  boot  (开机动画 + 开机音乐)
     ▲                                      │
     │      Start                           │ 任意按键
     │ ◄────────────                        ▼
@@ -310,17 +314,17 @@ ctx.ticker.start(() => dispatch({ type: 'TICK' }));
 
 ### 4.1 渲染策略：Declarative Full-Redraw
 
-每 tick 执行 `scene.clear() → game.render(state, scene) → screen.commit(scene.buffer)`，即 **声明式全量重绘**。
+每次 state 变化，App 在 `screen.batch()` 内调用 `game.render(env, state)`，游戏先 `screen.clear()` 再按当前 state 画出整屏，即 **声明式全量重绘**。
 
-- 游戏代码只描述 _当前状态应该长什么样_，不用管 _上一帧长什么样_
-- 天然支持游戏切换、暂停、回放 —— 给一个 state 就能画出对应画面
+- 游戏代码只描述当前状态对应的画面，无需关心上一帧的状态
+- 天然支持游戏切换、暂停、回放：给定一个 state 就能画出对应画面
 - 状态是唯一事实来源，渲染是 state 的纯函数
 
-**性能不是问题**：10×20 = 200 像素，全量重绘开销可忽略。
+全量重绘发生在 Screen buffer 层：10×20 = 200 像素，开销可忽略。显示层的增量更新由渲染器负责（见 4.2），游戏侧不做脏区管理。
 
 ### 4.2 Renderer
 
-`ContentScreen` 通过 `renderer` prop（`'dom'` | `'canvas'`，默认 `'dom'`）选择具体渲染器，样式默认值只在这一处补齐。默认的 `DomScreen` 是 **保留式 DOM 像素格**：`width×height` 个长期存在的 `<div>` 格子（外框 + 内方块，熄灭态按半透明底色画出），模拟真机 LCD 阴影格。格子在尺寸不变时只创建一次，不随游戏 tick 重建；订阅 `Screen.subscribe` 后**命令式只切"发生亮灭变化"的格子**的 `data-on` 属性，配合 Screen 的 `batch()`（见下）把每帧 DOM 写入压到"变化格数"量级。
+`ContentScreen` 通过 `renderer` prop（`'dom'` | `'canvas'`，默认 `'dom'`）选择具体渲染器，样式默认值只在这一处补齐。默认的 `DomScreen` 是 **保留式 DOM 像素格**：`width×height` 个长期存在的 `<div>` 格子（外框 + 内方块，熄灭态按半透明底色画出），模拟真机 LCD 阴影格。格子在尺寸不变时只创建一次，不随游戏 tick 重建；订阅 `Screen.subscribe` 后只更新亮灭状态发生变化的格子的 `data-on` 属性，配合 Screen 的 `batch()`（见下），每帧的 DOM 写入次数与变化格数成正比。
 
 **通知批处理（`Screen.batch`）**：单次 `setPixel` 默认立即通知，但一次 `game.render()` 常做上百次 `setPixel`，逐次通知会让渲染器整屏重画上百遍。App 的渲染 effect 把整段 render 包在 `screen.batch(() => auxScreen.batch(paint))` 里，使主屏 / 副屏每逻辑帧各只通知订阅者一次。该语义在 L3 引擎内实现（DOM-agnostic），Web / 原生 / 小游戏渲染器共享。
 
@@ -334,9 +338,9 @@ ctx.ticker.start(() => dispatch({ type: 'TICK' }));
 | Canvas2D | `<canvas>` + `drawLcd`          | 已实现         | 大点阵 / 主题绘制 / 小游戏   |
 | WebGL    | 原生 shader 或 Three.js         | 待做           | 后续 CRT 滤镜等可选项        |
 
-主题系统（点亮像素颜色 / 形状）也走类似机制 —— 留作后续迭代。
+主题系统（点亮像素颜色 / 形状）也走类似机制，留作后续迭代。
 
-刻意 **不做**：CRT 扫描线 / 暗角效果。Brick Game 是固定点阵 LCD，不是 CRT，那些效果违和。
+刻意 **不做**：CRT 扫描线 / 暗角效果。Brick Game 是固定点阵 LCD，不是 CRT，这类效果与 LCD 不符。
 
 ---
 
@@ -348,15 +352,15 @@ ctx.ticker.start(() => dispatch({ type: 'TICK' }));
 
 ### 5.2 硬规则
 
-- ❌ 禁止 `Math.random()` —— ESLint `no-restricted-globals` 卡住
-- ❌ 禁止 `Date.now()` / `performance.now()` 进入游戏逻辑
-- ❌ 禁止游戏 import DOM / React / window
-- ✅ 所有随机走 `ctx.rng()`
-- ✅ 游戏函数必须 pure（除 `ctx` 外无副作用）
+- 禁止 `Math.random()`，由 ESLint `no-restricted-globals` 拦截
+- 禁止 `Date.now()` / `performance.now()` 进入游戏逻辑
+- 禁止游戏 import DOM / React / window
+- 所有随机走 `ctx.rng()`
+- 游戏函数必须 pure（除 `ctx` 外无副作用）
 
 ### 5.3 PRNG 实现
 
-选用 **mulberry32** —— 实现约 10 行，跨平台行为一致，伪随机质量满足游戏与 RL 训练需求：
+选用 **mulberry32**：实现约 10 行，跨平台行为一致，伪随机质量满足游戏与 RL 训练需求：
 
 ```ts
 export function mulberry32(seed: number): () => number {
@@ -383,23 +387,23 @@ interface Episode {
 }
 ```
 
-一局 1000 tick 的贪吃蛇，Episode 大约 **1 KB**，完美复现。
+一局 1000 tick 的贪吃蛇，Episode 大约 **1 KB**，可完整复现。
 
 ---
 
 ## 6. AI 工程化落点
 
-覆盖从编码到发布的 AI 辅助闭环；表内每行对应仓库里能看到实物的位置。
+覆盖从编码到发布的 AI 辅助闭环；表内每行对应仓库中的具体位置。
 
-| #   | 模块          | 技术选型                            | 当前落地点                                                                                   |
-| --- | ------------- | ----------------------------------- | -------------------------------------------------------------------------------------------- |
-| 1   | **编码规范**  | `AGENTS.md` + `.cursor/rules/*.mdc` | 项目根 + 各层目录 `AGENTS.md`，pre-commit `eslint --fix` + `prettier --write`                |
-| 2   | **Skills**    | Cursor Skills                       | `.cursor/skills/add-game/`：新游戏骨架生成 + Registry 注册                                   |
-| 3   | **自动 PR**   | `gh` CLI                            | AI 助手按 `AGENTS.md` 走"先 CR 再 `gh pr create`"流程，不要求 GitHub App                     |
-| 4   | **远端 CR**   | CodeRabbit                          | `.coderabbit.yaml`，PR 自动评论 + 与本地规则互补                                             |
-| 5   | **RL 玩游戏** | tfjs-node 训练 + tfjs 推理 + DQN    | `src/ai/`（dqn/replay/train/inference）+ `src/games/snake/rl.ts`，模型在 `models/snake-dqn/` |
-| 6   | **训练 UI**   | Vite 多入口 + ECharts               | `training.html` + `src/training/`，浏览器端可视化训练曲线                                    |
-| 7   | **AI 测试**   | Vitest 4 + jsdom + AudioContext 桩  | `__tests__/` 全层覆盖，含 RL 网络结构、状态机、声音通路                                      |
+| #   | 模块          | 技术选型                           | 当前落地点                                                                                   |
+| --- | ------------- | ---------------------------------- | -------------------------------------------------------------------------------------------- |
+| 1   | **编码规范**  | `AGENTS.md`                        | 项目根 + 各层目录 `AGENTS.md`，pre-commit `eslint --fix` + `prettier --write`                |
+| 2   | **Skills**    | Cursor Skills                      | `.cursor/skills/add-game/`：新游戏骨架生成 + Registry 注册                                   |
+| 3   | **自动 PR**   | `gh` CLI                           | AI 助手按 `AGENTS.md` 走"先 CR 再 `gh pr create`"流程，不要求 GitHub App                     |
+| 4   | **远端 CR**   | CodeRabbit                         | `.coderabbit.yaml`，PR 自动评论 + 与本地规则互补                                             |
+| 5   | **RL 玩游戏** | tfjs-node 训练 + tfjs 推理 + DQN   | `src/ai/`（dqn/replay/train/inference）+ `src/games/snake/rl.ts`，模型在 `models/snake-dqn/` |
+| 6   | **训练 UI**   | Vite 多入口 + ECharts              | `training.html` + `src/training/`，浏览器端可视化训练曲线                                    |
+| 7   | **AI 测试**   | Vitest 4 + jsdom + AudioContext 桩 | `__tests__/` 全层覆盖，含 RL 网络结构、状态机、声音通路                                      |
 
 未来计划：Playwright MCP 接入 visual regression、PR 模型门禁；尚未落地，写在 backlog 里。
 
@@ -407,20 +411,20 @@ interface Episode {
 
 ## 7. 技术栈
 
-| 层      | 技术                           | 理由                                                           |
-| ------- | ------------------------------ | -------------------------------------------------------------- |
-| 语言    | TypeScript 6                   | 接口复杂度高、RL 泛型多                                        |
-| 构建    | Vite 8                         | 快、生态新、tfjs 友好                                          |
-| UI      | React 19                       | 生态成熟、Hooks 模型稳定                                       |
-| 状态    | useReducer + Zustand（按需）   | App 主状态机用 useReducer 已够；跨组件共享留 Zustand 槽位      |
-| 样式    | CSS Modules                    | 像素艺术组件数量少，不需要 utility-first                       |
-| 音效    | WebAudio (sample + Oscillator) | move/over 走预录 sample 切片保证还原度，其它走单 OSC 节省体积  |
-| RL 训练 | @tensorflow/tfjs-node          | 同 JS 全栈、engine 代码复用                                    |
-| RL 推理 | @tensorflow/tfjs               | 配套、模型格式一致                                             |
-| 训练 UI | training.html + ECharts        | 直接用 Vite 多入口在浏览器跑训练 + 可视化，不引服务端依赖      |
-| 测试    | Vitest 4 + jsdom               | Vite 原生、ESM 友好；jsdom 跑 React 组件层 + AudioContext 桩   |
-| Lint    | ESLint 9 (flat) + Prettier 3   | flat config + 项目级硬规则（no-restricted-globals 拦截随机源） |
-| CI      | GitHub Actions + CodeRabbit    | master push 自动构建 + rsync 部署；PR 自动 AI Review           |
+| 层      | 技术                           | 理由                                                               |
+| ------- | ------------------------------ | ------------------------------------------------------------------ |
+| 语言    | TypeScript 6                   | 接口复杂度高、RL 泛型多                                            |
+| 构建    | Vite 8                         | 快、生态新、tfjs 友好                                              |
+| UI      | React 19                       | 生态成熟、Hooks 模型稳定                                           |
+| 状态    | useReducer + Zustand（按需）   | App 主状态机用 useReducer 已够；需要跨组件共享状态时再引入 Zustand |
+| 样式    | CSS Modules                    | 像素艺术组件数量少，不需要 utility-first                           |
+| 音效    | WebAudio (sample + Oscillator) | move/over 走预录 sample 切片保证还原度，其它走单 OSC 节省体积      |
+| RL 训练 | @tensorflow/tfjs-node          | 同 JS 全栈、engine 代码复用                                        |
+| RL 推理 | @tensorflow/tfjs               | 配套、模型格式一致                                                 |
+| 训练 UI | training.html + ECharts        | 直接用 Vite 多入口在浏览器跑训练 + 可视化，不引服务端依赖          |
+| 测试    | Vitest 4 + jsdom               | Vite 原生、ESM 友好；jsdom 跑 React 组件层 + AudioContext 桩       |
+| Lint    | ESLint 9 (flat) + Prettier 3   | flat config + 项目级硬规则（no-restricted-globals 拦截随机源）     |
+| CI      | GitHub Actions + CodeRabbit    | master push 自动构建 + rsync 部署；PR 自动 AI Review               |
 
 ---
 
@@ -455,6 +459,9 @@ react-gamebaby/
 │  │     ├─ input.ts           bindKeyboardInput（键盘桥接 + long-press repeat 节奏）
 │  │     ├─ storage.ts         createLocalStorage
 │  │     ├─ sound.ts           createBrowserSound（WebAudio sample + oscillator）
+│  │     ├─ back-button.ts     bindBackButton（Android 系统返回键桥接）
+│  │     ├─ app-state.ts       bindAppState（前后台切换桥接）
+│  │     ├─ app-info.ts        isDevBuild（开发版识别）
 │  │     └─ context.ts         createBrowserContext
 │  ├─ sdk/                     L2 SDK
 │  │  ├─ types.ts              Game<S> / GameEnv / GameInitOptions
@@ -483,11 +490,10 @@ react-gamebaby/
 │  └─ app/                     游戏主入口
 │     ├─ App.tsx               四态状态机（off/boot/select/playing）
 │     ├─ boot-animation.ts     开机动画
-│     ├─ boot-melody.ts        Korobeiniki 音符序列
+│     ├─ boot-melody.ts        开机音乐音符序列
 │     ├─ menu.ts               游戏菜单 reducer
-│     └─ main.tsx              ReactDOM.render 入口
+│     └─ main.tsx              createRoot 渲染入口 + Service Worker 注册
 ├─ .cursor/
-│  ├─ rules/                   Cursor AI 规则
 │  └─ skills/                  add-game 等技能
 ├─ .github/workflows/          CI（lint + test + build + 部署）
 ├─ .coderabbit.yaml            CodeRabbit AI CR 配置
@@ -523,7 +529,7 @@ react-gamebaby/
 - L2 SDK：`Game<S>` 接口、`GameEnv` 投影、`defaultGames` 注册表
 - L1 Games：Snake（含 RL 适配 `rl.ts`）+ Tetris + Tank
 - L4 UI：Device / ContentScreen（DOM 像素格）/ SidePanel / Buttons + 多语言按钮标签
-- App 状态机：off / boot / select / playing 四态 + 开机旋律 + 选关 demo + AI 自动玩
+- App 状态机：off / boot / select / playing 四态 + 开机音乐 + 选关 demo + AI 自动玩
 - AI：tfjs-node 训练（`pnpm train`）+ tfjs 浏览器推理 + 训练 dashboard（`training.html`）
 - AI 工程基础设施：`AGENTS.md` + 各层 `AGENTS.md` + `.cursor/skills/add-game/` + CodeRabbit + GitHub Actions（lint/test/build/部署）
 - 移动端混合应用：Capacitor 8（`android/`），复用同一套 Web 游戏逻辑与 UI；锁竖屏、安全区适配、系统返回键映射到 InputBus（`src/platform/browser/back-button.ts`）；iOS 暂不在迭代范围内
@@ -534,8 +540,8 @@ Backlog（顺序无承诺）：
 - 第二款 RL 游戏（Tetris RL env）
 - Playwright MCP 驱动 visual regression
 - PR 阶段的模型回归门禁（推理胜率 / Episode 长度退化即拦截）
-- Android 启动闪屏 / 状态栏插件（`@capacitor/splash-screen` / `@capacitor/status-bar`）
-- 把移动端专属代码（当前散在 `src/platform/browser/back-button.ts`）抽到独立的 `src/platform/mobile/`，并补齐：Android 后台 `pause` 事件下挂起 ticker、首次手势解锁 AudioContext 等行为
+- Android 启动闪屏（`@capacitor/splash-screen`）
+- 把移动端专属代码（当前位于 `src/platform/browser/` 的 `back-button.ts`、`app-state.ts`、`app-info.ts`）抽到独立的 `src/platform/mobile/`，并补齐首次手势解锁 AudioContext 等行为
 - Android 打包发布流水线（签名、AAB 产物、内测分发）
 - iOS 端：评估上架成本与 Web 体验差异后再开（`pnpm cap add ios` 即可恢复）
 
@@ -546,7 +552,7 @@ Backlog（顺序无承诺）：
 | #   | 决策                                              | 取舍                                    |
 | --- | ------------------------------------------------- | --------------------------------------- |
 | 1   | Screen 是纯 framebuffer，而非 Game Boy 式 PPU/OAM | 贴近 Brick Game 真实硬件，接口小        |
-| 2   | 声明式全量重绘，不做脏区优化                      | 200 像素规模下优化收益低于维护成本      |
+| 2   | 游戏侧声明式全量重绘，不做脏区管理                | 游戏代码保持简单；增量更新交给渲染器    |
 | 3   | Node 训练 + 浏览器推理，而非浏览器训练            | tfjs-node 原生加速，I/O 方便            |
 | 4   | seed + PRNG，而非事件流记录                       | 复杂游戏里事件流会膨胀                  |
 | 5   | PAT + `gh` CLI，而非 GitHub App                   | 小型项目中 App 过度设计，CLI 方案更轻量 |
@@ -559,14 +565,14 @@ Backlog（顺序无承诺）：
 
 ## 12. 术语表
 
-| 术语            | 含义                                                          |
-| --------------- | ------------------------------------------------------------- |
-| Screen          | L3 硬件抽象的 framebuffer（数据），10×20 主屏 + 4×2 副屏      |
-| ContentScreen   | L4 主显示 UI 组件（视图，订阅 Screen 重绘）                   |
-| Device          | L4 最外层容器（外壳 + 屏幕 + SidePanel + Buttons）            |
-| Ticker          | 固定步长游戏循环；Realtime 用 RAF，Headless 由调用方推进      |
-| HardwareContext | 游戏能看到的"硬件上下文"聚合（L3）                            |
-| GameEnv         | HardwareContext 的安全切片（L2，给游戏使用）                  |
-| Mode            | App 状态机阶段：`off / boot / select / playing`               |
-| Episode         | 一局完整游戏的回放包 `{ seed, actions }`                      |
-| boot melody     | 开机时播放的 Korobeiniki 音符序列（`src/app/boot-melody.ts`） |
+| 术语            | 含义                                                     |
+| --------------- | -------------------------------------------------------- |
+| Screen          | L3 硬件抽象的 framebuffer（数据），10×20 主屏 + 4×2 副屏 |
+| ContentScreen   | L4 主显示 UI 组件（视图，订阅 Screen 重绘）              |
+| Device          | L4 最外层容器（外壳 + 屏幕 + SidePanel + Buttons）       |
+| Ticker          | 固定步长游戏循环；Realtime 用 RAF，Headless 由调用方推进 |
+| HardwareContext | 游戏能看到的"硬件上下文"聚合（L3）                       |
+| GameEnv         | HardwareContext 的安全切片（L2，给游戏使用）             |
+| Mode            | App 状态机阶段：`off / boot / select / playing`          |
+| Episode         | 一局完整游戏的回放包 `{ seed, actions }`                 |
+| boot melody     | 开机音乐的音符序列（`src/app/boot-melody.ts`）           |

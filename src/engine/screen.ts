@@ -4,10 +4,10 @@ import type { Bitmap, BlitMode, Screen, Unsubscribe } from './types';
  * 创建纯内存 framebuffer 屏幕
  *
  * 设计要点：
- * - 越界写静默忽略、越界读返回 false —— 简化上层绘制逻辑，不引入 if 散布
+ * - 越界写静默忽略、越界读返回 false，上层绘制逻辑无需逐处判断边界
  * - 单次写操作默认立即通知一次；但游戏 render 常做上百次 setPixel，若逐次
  *   通知会让渲染器整屏重画上百遍。因此提供 `batch()` 把一次 render 的所有写
- *   合并为单次通知（详见 `batch`），渲染循环据此把逐像素通知风暴收敛为每帧一次
+ *   合并为单次通知（详见 `batch`），渲染循环据此每帧只通知一次
  * - `buffer` 字段直接暴露 Uint8Array，供渲染器零拷贝读取
  */
 export function createScreen(width: number, height: number): Screen {
