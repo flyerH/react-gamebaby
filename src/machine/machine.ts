@@ -581,11 +581,12 @@ export function createMachine(opts: MachineOptions): Machine {
       applyPause();
       syncHi();
 
-      // 已与页面交互过或环境允许自动播放时直接通电；否则等用户按 Start
+      // 已与页面交互过或环境允许自动播放时直接通电；否则等用户按 Start。
+      // 检测结果返回前可能已进入后台，此时不自动通电
       ctx.sound
         .canAutoplay()
         .then((ok) => {
-          if (ok && running) powerOn();
+          if (ok && running && !backgrounded) powerOn();
         })
         .catch(() => undefined);
     },

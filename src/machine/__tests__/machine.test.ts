@@ -119,6 +119,15 @@ describe('createMachine · 开关机', () => {
     });
   });
 
+  it('能自动发声但检测结果返回前已进入后台时，保持关机', async () => {
+    const { machine, sound } = setup({ canAutoplay: true });
+    machine.suspend();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(machine.getState().mode).toBe('off');
+    expect(sound.playMelody).not.toHaveBeenCalled();
+  });
+
   it('静音时通电不播放开机音乐', () => {
     const { machine, sound, press } = setup({ soundOn: false });
     press('Start');
