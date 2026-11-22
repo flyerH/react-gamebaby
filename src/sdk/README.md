@@ -1,36 +1,12 @@
-# L2 Game SDK
+# `src/sdk` · 游戏契约
 
-> 游戏开发者对外的稳定 API 层。只依赖 `@/engine/types`，不依赖任何具体平台或 UI 框架。
+游戏与主机之间的契约，只依赖 `@/engine`。games 实现这份契约，machine 与训练脚本使用它，两边互不引用。
 
-## 当前阶段
+| 文件          | 导出                                                | 职责                                                                        |
+| ------------- | --------------------------------------------------- | --------------------------------------------------------------------------- |
+| `types.ts`    | `Game<S>` / `GameEnv` / `GameInitOptions` / `Pixel` | 游戏需要实现的方法与可访问的能力                                            |
+| `env.ts`      | `toGameEnv`                                         | 从 HardwareContext 投影出 GameEnv，挡住 ticker / storage / pause 等主机权限 |
+| `registry.ts` | `createRegistry` / `GameRegistry`                   | 冻结列表、id 唯一、O(1) 查找                                                |
+| `index.ts`    | 统一 re-export                                      | 外部只从这里导入                                                            |
 
-仅承载菜单 / 选择所需能力：
-
-- `Game` —— 最小游戏元数据（`id` / `name` / `preview`）
-- `createRegistry(games)` —— 构造游戏注册表，提供 `list()` / `get(id)` / `size`
-
-注册表在构造时：
-
-- 冻结输入数组（`list()` 返回同一引用，可做引用相等判断）
-- 重复 id 直接抛错，避免运行时静默覆盖
-
-## 规划
-
-待首款真正的游戏落地时，会在不破坏现有 `Game` 字段的前提下扩展：
-
-- `init(env)` / `step(env)` / `render(env)` —— 纯函数游戏循环
-- `onButton(env, button, kind)` —— 输入回调
-- `scoreOf(state)` / `isGameOver(state)` —— 渲染 SidePanel / 结束条件所需投影
-- `GameEnv` —— 把 L3 `HardwareContext` 的只读切片透传给游戏开发者
-
-这些字段都会 **optional / 有 sensible default**，以便占位游戏无需改动就能继续被注册表收录。
-
-## 目录
-
-```
-src/sdk/
-├─ types.ts      Game / Pixel / GamePreview 类型
-├─ registry.ts   createRegistry 工厂 + GameRegistry 接口
-├─ index.ts      对外 re-export
-└─ __tests__/    单元测试
-```
+`Game<S>` 只有 `id` / `name` / `preview` 必填，其余方法缺省时视为菜单里的预览占位条目。完整接口见 [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §3.2。

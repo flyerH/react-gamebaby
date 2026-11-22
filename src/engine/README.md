@@ -1,11 +1,11 @@
-# `src/engine` · L3 硬件抽象层
+# `src/engine` · 硬件接口
 
 模拟掌机"硬件"的核心层，**完全不依赖 DOM**，Node 训练运行时和浏览器运行时共用。
 
 本目录只保留**接口**与**跨平台通用实现**。平台专属的 `Ticker` / `Storage` / `Sound` / `Context` 组装放在 `src/platform/<platform>/`：
 
 - `src/platform/headless/`：Node / 训练 / 单测专用
-- `src/platform/browser/`：浏览器专用（待建）
+- `src/platform/browser/`：浏览器与 Android WebView 专用
 
 ## 模块
 
@@ -16,6 +16,7 @@
 | `counter.ts` | `createCounter` / `createToggle`  | 可订阅的原子状态（分数、暂停等）                     |
 | `screen.ts`  | `createScreen` / `bitmapFromRows` | 纯 framebuffer，提供 `setPixel` / `blit` / `commit`  |
 | `input.ts`   | `createInputBus`                  | 统一按键事件总线                                     |
+| `repeat.ts`  | `bindPressRepeat`                 | 长按连发；计时器由调用方注入                         |
 | `storage.ts` | `createMemoryStorage`             | 内存键值存储（跨平台默认实现）                       |
 | `sound.ts`   | `createNullSound`                 | 无声 Sound（跨平台默认实现）                         |
 | `index.ts`   | 统一 re-export                    | 外层只从这里导入                                     |

@@ -1,5 +1,5 @@
 /**
- * L3 Engine 共享类型与接口
+ * engine 共享类型与接口
  *
  * 这一层完全 DOM-agnostic：浏览器和 Node 都能运行。
  * 所有实现模块（screen / ticker / input 等）都对照此处的接口编写。
@@ -170,7 +170,7 @@ export interface Storage {
 /**
  * HardwareContext —— 游戏看到的"硬件上下文"
  *
- * L1 Games 的 init / step / render 只能通过这个对象访问运行时能力。
+ * 游戏的 init / step / render 通过它的切片 GameEnv 访问运行时能力。
  * 确定性要求：
  * - 随机数一律走 `rng()`（可播种 PRNG，详见 rng.ts）
  * - 时间读取一律走 `now()`（Ticker 的逻辑时钟，单位：tick 数）

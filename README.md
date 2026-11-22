@@ -15,11 +15,15 @@
 ## 架构总览
 
 ```text
-L4  UI Shell   —— React 组件、DOM 渲染
-L3  Engine     —— Screen / Ticker / InputBus / Sound / Storage / Context（DOM-agnostic）
- └─ Platform   —— 平台专属实现：headless（Node 训练）+ browser（浏览器）
-L2  SDK        —— Game 接口、GameEnv、Registry、draw helpers
-L1  Games      —— 各款游戏实现（纯函数）
+核心（纯 TS、确定性、可在 Node 运行）
+  engine/    硬件接口：Screen / Ticker / InputBus / Sound / Storage
+  sdk/       游戏契约：Game 接口、GameEnv、Registry
+  games/     各款游戏（纯函数）
+  machine/   主机固件：开关机、菜单、调速、绘制、最高分
+外围
+  platform/  宿主驱动：headless（Node 训练）/ browser（浏览器）
+  ui/        React 视图
+  app/       入口装配：web/（网页与 Android WebView）
 ```
 
 完整设计见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。

@@ -21,17 +21,16 @@ export default defineConfig({
       // text: 终端摘要；html: 本地浏览看详情；lcov: 通用格式给外部服务；
       // json-summary + json: PR 评论 action 需要的机器可读格式
       reporter: ['text', 'html', 'lcov', 'json-summary', 'json'],
-      // 覆盖率 gate 只卡可确定性复用的核心层（L1/L2/L3 + AI）：
-      // app/ui/training 属于 L4 组装与展示层，按 AGENTS 约定走"按需测试"，
+      // 覆盖率 gate 只卡可确定性复用的核心（engine / sdk / games / machine + AI）：
+      // app / ui / training 属于外围的入口装配与展示，按 AGENTS 约定走"按需测试"，
       // 不作为全局门槛阻断 PR
       exclude: [
         '**/*.config.*',
         '**/*.d.ts',
-        'src/main.tsx',
         'src/app/**',
         'src/ui/**',
         'src/training/**',
-        'src/**/index.ts', // L1/L2/L3 各层的 barrel re-export，无实际逻辑
+        'src/**/index.ts', // 各目录的 barrel re-export，无实际逻辑
         'src/**/__tests__/**',
         'dist/**',
       ],

@@ -1,13 +1,13 @@
-# src/ui/ · L4 UI Shell 层约束
+# src/ui/ · React 视图约束
 
 React 组件层：Device 外壳、ContentScreen 渲染、SidePanel 状态面板、Buttons 按键。
 
 ## 硬规则
 
 - **只用函数组件 + hooks**，禁用 class 组件。
-- **UI 与状态分离**：组件只通过 `subscribe` / `useSyncExternalStore` 观察 L3 状态，不直接修改。所有状态变更经由 L3 API（Counter.set / InputBus.emit 等）。
+- **UI 与状态分离**：组件只通过 `subscribe` / `useSyncExternalStore` 观察状态，不直接修改。输入经由回调交给入口（最终调用 `InputBus.emit`）。
 - **组件文件命名 `PascalCase.tsx`**，一个文件一个组件。
-- **副作用只在这一层**：`useEffect`、DOM 事件监听、外部订阅只能出现在 L4。
+- **主机规则不写在组件里**：开关机、暂停、调速等规则在 `src/machine/`，组件只负责呈现与转发输入。
 - **样式用 CSS Modules**（`*.module.css`），不用 Tailwind / styled-components。
 
 ## 状态管理
@@ -18,5 +18,5 @@ React 组件层：Device 外壳、ContentScreen 渲染、SidePanel 状态面板�
 
 ## 依赖方向
 
-- 可 import 全部下层：`@/engine`、`@/sdk`、`@/games`、`@/platform/<env>`
-- 不得被下层反向依赖（L1/L2/L3 不得 import `@/ui`）
+- 只 import `@/engine/types` 与 `@/ui` 内部模块；需要的数据与回调由 `src/app/` 的入口通过 props 传入
+- 核心与 platform 不得 import `@/ui`

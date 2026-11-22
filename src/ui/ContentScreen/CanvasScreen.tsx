@@ -6,7 +6,7 @@ import type { LcdRendererProps } from './types';
 /**
  * CanvasScreen —— 主点阵的 Canvas 2D 渲染器
  *
- * 订阅 L3 Screen 的变化后全量重绘（10×20 = 200 格，开销可忽略；Screen 的
+ * 订阅 Screen 的变化后全量重绘（10×20 = 200 格，开销可忽略；Screen 的
  * batch 保证一次 render 只重绘一遍）。绘制逻辑在 drawLcd 纯函数里，小游戏
  * 外壳可直接复用。本组件只读屏幕状态，不写。
  */

@@ -7,7 +7,7 @@ import { DomScreen } from './DomScreen';
 import type { ScreenRenderer } from './types';
 
 export interface ContentScreenProps {
-  /** L3 framebuffer：组件订阅其变化并重绘，不主动改 buffer */
+  /** engine 的 framebuffer：组件订阅其变化并重绘，不主动改 buffer */
   screen: Screen;
   /** 渲染器实现，默认 'dom'；切换时会卸载旧渲染器并按当前 buffer 重画 */
   renderer?: ScreenRenderer;

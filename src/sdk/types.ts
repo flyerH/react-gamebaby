@@ -1,7 +1,7 @@
 import type { Button, ButtonAction, Counter, InputBus, Screen, Sound } from '@/engine/types';
 
 /**
- * L2 SDK · Game 接口
+ * sdk · Game 接口
  *
  * 当前字段集：
  * - id / name / preview（必选）—— 菜单注册与选择态呈现
@@ -10,11 +10,11 @@ import type { Button, ButtonAction, Counter, InputBus, Screen, Sound } from '@/e
  *
  * init / step / onButton 是纯函数：接收当前 state 返回新 state，
  * 不允许改动传入 state（AGENTS.md 要求 state 不可变）。render
- * 唯一副作用是写 GameEnv.screen——L3 Screen 会把 buffer 变化
+ * 唯一副作用是写 GameEnv.screen——engine 的 Screen 会把 buffer 变化
  * 通知给订阅者（Canvas 渲染器）。
  */
 
-/** 一个点阵坐标（列 x，行 y），与 L3 Screen.setPixel(x, y) 约定一致 */
+/** 一个点阵坐标（列 x，行 y），与 Screen.setPixel(x, y) 约定一致 */
 export type Pixel = readonly [number, number];
 
 /** 菜单 / 选择态下显示的游戏预览点阵；坐标落在 Screen 尺寸内 */

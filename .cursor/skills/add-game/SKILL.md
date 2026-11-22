@@ -96,9 +96,9 @@ export const <name>: Game<<Name>State> = {
 };
 ```
 
-### 3. 注册到 App
+### 3. 注册到默认注册表
 
-在 `src/app/App.tsx` 的 `GAMES` 数组中追加新游戏 import。
+在 `src/games/index.ts` 的 `defaultGames` 中追加新游戏；数组顺序即菜单里的游戏编号顺序。
 
 ### 4. 基础测试
 

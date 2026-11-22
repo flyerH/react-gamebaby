@@ -31,7 +31,7 @@ export interface HeadlessContextOptions {
  * - Ticker 非自驱：调用方需要显式 `ticker.advance(n)` 推进
  *
  * 对应的浏览器实现（`createBrowserContext`）位于 `src/platform/browser/`，
- * 内部组合 RealtimeTicker / LocalStorage / ZzfxSound / 键盘适配等。
+ * 内部组合 RealtimeTicker / LocalStorage / WebAudio Sound 等。
  */
 export function createHeadlessContext(opts: HeadlessContextOptions): HardwareContext {
   const { seed, width = 10, height = 20, speed = 30, lives = 3 } = opts;

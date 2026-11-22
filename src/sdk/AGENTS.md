@@ -1,10 +1,10 @@
-# src/sdk/ · L2 SDK 层约束
+# src/sdk/ · 游戏契约约束
 
-游戏开发者的工具箱：`Game<S>` 接口、`GameEnv`、`Registry`、draw helpers。
+游戏与主机之间的契约：`Game<S>` 接口、`GameEnv`、`Registry`。games 实现它，machine 使用它。
 
 ## 硬规则
 
-- **单向依赖**：只依赖 `@/engine`，不得 import `@/games`、`@/ui`、`@/ai`、`@/platform`。
+- **单向依赖**：只依赖 `@/engine`，不得 import `@/games`、`@/machine`、`@/ui`、`@/ai`、`@/platform`、`@/app`。
 - **DOM-agnostic**：不得 import React / DOM API。
 - **确定性**：禁用 `Math.random()` / `Date.now()` / `performance.now()`。
 

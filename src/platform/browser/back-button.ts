@@ -15,7 +15,7 @@ import type { Unsubscribe } from '@/engine/types';
 export type BackButtonHandler = () => boolean | Promise<boolean>;
 
 export interface BindBackButtonOptions {
-  /** 返回键处理逻辑 —— 由 L4 应用层根据当前 mode 决定要做什么 */
+  /** 返回键处理逻辑 —— 由入口根据 machine 当前 mode 决定要做什么 */
   handler: BackButtonHandler;
 }
 

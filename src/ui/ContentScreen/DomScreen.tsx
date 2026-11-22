@@ -15,7 +15,7 @@ import type { LcdRendererProps } from './types';
  * - 订阅 `Screen` 后只更新亮灭状态发生变化的格子的 data-on 属性，配合
  *   Screen 的 batch（一次 render 只通知一次），每帧的 DOM 写入次数与变化格数成正比。
  *
- * 本组件只读屏幕状态，不写；像素变化通过 L3 API 发生。
+ * 本组件只读屏幕状态，不写；像素变化通过 engine 的 Screen 接口发生。
  */
 function DomScreenImpl({
   screen,

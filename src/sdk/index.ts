@@ -1,8 +1,5 @@
 /**
- * L2 Game SDK —— 游戏开发者对外入口
- *
- * 当前只暴露 Game 类型与 Registry 工厂，后续扩展 GameEnv /
- * draw helpers 等也从本文件 re-export。
+ * 游戏契约对外入口：Game 接口、GameEnv 投影与注册表工厂
  */
 
 export type { AnyGame, Game, GameEnv, GameInitOptions, GamePreview, Pixel } from './types';

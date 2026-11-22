@@ -7,7 +7,7 @@
 ## 1. 当前方案
 
 - 使用 **Capacitor 8** 打包 Android App；
-- 游戏核心（L1 Games / L2 SDK / L3 Engine）与 UI（L4）继续复用现有 Web 实现；
+- 核心（engine / sdk / games / machine）与 ui 继续复用现有 Web 实现，入口是 `src/app/web/`；
 - 移动端专属的"硬件桥接"放在 `src/platform/browser/`（如系统返回键），普通 Web 构建中安全 no-op；
 - 平台差异先收敛在 Capacitor 配置与 `src/platform/browser/`，不破坏现有分层。
 
@@ -115,7 +115,7 @@ Service Worker 只在线上域名模式（`mobile:run:android:online`）和网�
 | **第二次以后 + 有网且服务器有新版** | SW 在后台 fetch 新 `index.html`，发现 hash 变化就 install 新 precache；**当前会话不强刷**，下次冷启动用新版     |
 | **关键资源（hash 文件）改名**       | precache key 自带 revision，旧 cache 会被 Workbox `cleanupOutdatedCaches` 自动清掉，不会占无限空间              |
 
-注册位置：`src/platform/browser/offline.ts` 的 `setupOfflineCache`，由 `src/app/main.tsx` 调用。混合应用的本地模式（页面地址为 `https://localhost`）不注册 Service Worker，并会注销旧版本留下的注册、清空其缓存，避免升级 APK 后首次启动仍加载旧资源；其余情况由入口传入的 `registerSW({ immediate: true })` 注册。`virtual:pwa-register` 模块在 dev 模式下是 no-op，不会干扰 vite HMR。
+注册位置：`src/platform/browser/offline.ts` 的 `setupOfflineCache`，由 `src/app/web/main.tsx` 调用。混合应用的本地模式（页面地址为 `https://localhost`）不注册 Service Worker，并会注销旧版本留下的注册、清空其缓存，避免升级 APK 后首次启动仍加载旧资源；其余情况由入口传入的 `registerSW({ immediate: true })` 注册。`virtual:pwa-register` 模块在 dev 模式下是 no-op，不会干扰 vite HMR。
 
 为什么不支持首次安装即离线：
 
@@ -132,9 +132,9 @@ Service Worker 只在线上域名模式（`mobile:run:android:online`）和网�
 | 项目                      | 实现位置                                          | 说明                                                                |
 | ------------------------- | ------------------------------------------------- | ------------------------------------------------------------------- |
 | `viewport-fit=cover`      | `index.html`                                      | 让 WebView 内容铺满刘海屏与底部手势条区域                           |
-| 安全区适配                | `src/app/App.module.css` + `src/ui/Device/`       | 左右安全区由 `.page` 让出；上下由机身覆盖，并在机身内部留出对应空间 |
-| 100dvh 总高度             | `src/app/App.module.css`                          | 跟随地址栏 / 工具栏伸缩，避免按钮被顶到屏外                         |
-| `overscroll: none`        | `src/app/App.module.css`                          | 禁用整页 pull-to-refresh / 弹性滚动                                 |
+| 安全区适配                | `src/app/web/App.module.css` + `src/ui/Device/`   | 左右安全区由 `.page` 让出；上下由机身覆盖，并在机身内部留出对应空间 |
+| 100dvh 总高度             | `src/app/web/App.module.css`                      | 跟随地址栏 / 工具栏伸缩，避免按钮被顶到屏外                         |
+| `overscroll: none`        | `src/app/web/App.module.css`                      | 禁用整页 pull-to-refresh / 弹性滚动                                 |
 | 按钮 `touch-action: none` | `src/ui/Buttons/Buttons.module.css`               | 长按 D-pad / Rotate 不被解释为滚动手势，避免漏 release              |
 | 容器尺寸驱动 scale        | `src/ui/Device/Device.tsx`                        | 用 ResizeObserver 跟随实际容器尺寸缩放，安全区扣完再缩              |
 | 锁竖屏                    | `AndroidManifest.xml`                             | `android:screenOrientation="portrait"`                              |
