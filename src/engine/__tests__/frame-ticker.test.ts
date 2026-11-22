@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 
-import { createRealtimeTicker } from '../ticker';
+import { createFrameTicker } from '../frame-ticker';
 
-/** 手工时钟 + 手工 rAF 队列：不依赖真实 requestAnimationFrame / performance.now */
+/** 手工时钟 + 手工 rAF 队列：不依赖真实帧调度与时钟 */
 function makeHarness() {
   let currentMs = 1000;
   type FrameCb = (t: number) => void;
@@ -32,10 +32,10 @@ function makeHarness() {
   };
 }
 
-describe('createRealtimeTicker', () => {
+describe('createFrameTicker', () => {
   it('start 后按 speed 与帧间时长累积出 tick', () => {
     const h = makeHarness();
-    const ticker = createRealtimeTicker({
+    const ticker = createFrameTicker({
       initialSpeed: 10, // 10 ticks/second
       requestFrame: h.requestFrame,
       cancelFrame: h.cancelFrame,
@@ -57,7 +57,7 @@ describe('createRealtimeTicker', () => {
 
   it('单帧最多推进 maxStepsPerFrame，避免切回标签页后追帧失控', () => {
     const h = makeHarness();
-    const ticker = createRealtimeTicker({
+    const ticker = createFrameTicker({
       initialSpeed: 10,
       maxStepsPerFrame: 3,
       requestFrame: h.requestFrame,
@@ -74,7 +74,7 @@ describe('createRealtimeTicker', () => {
 
   it('pause 停止累积，resume 以当前时间为新起点，不补欠账', () => {
     const h = makeHarness();
-    const ticker = createRealtimeTicker({
+    const ticker = createFrameTicker({
       initialSpeed: 10,
       requestFrame: h.requestFrame,
       cancelFrame: h.cancelFrame,
@@ -96,7 +96,7 @@ describe('createRealtimeTicker', () => {
 
   it('stop 取消 rAF 并断掉回调', () => {
     const h = makeHarness();
-    const ticker = createRealtimeTicker({
+    const ticker = createFrameTicker({
       initialSpeed: 10,
       requestFrame: h.requestFrame,
       cancelFrame: h.cancelFrame,
@@ -116,7 +116,7 @@ describe('createRealtimeTicker', () => {
 
   it('onTick 中调用 stop 立即终止当前帧剩余步数', () => {
     const h = makeHarness();
-    const ticker = createRealtimeTicker({
+    const ticker = createFrameTicker({
       initialSpeed: 10,
       requestFrame: h.requestFrame,
       cancelFrame: h.cancelFrame,
@@ -134,7 +134,7 @@ describe('createRealtimeTicker', () => {
 
   it('setSpeed 非正数抛错', () => {
     const h = makeHarness();
-    const ticker = createRealtimeTicker({
+    const ticker = createFrameTicker({
       requestFrame: h.requestFrame,
       cancelFrame: h.cancelFrame,
       now: h.now,
@@ -149,7 +149,7 @@ describe('createRealtimeTicker', () => {
 
   it('start 会重置 tickCount 为 0', () => {
     const h = makeHarness();
-    const ticker = createRealtimeTicker({
+    const ticker = createFrameTicker({
       initialSpeed: 10,
       requestFrame: h.requestFrame,
       cancelFrame: h.cancelFrame,
@@ -166,10 +166,10 @@ describe('createRealtimeTicker', () => {
   });
 
   it('未 stop 直接再 start 不会留下双倍 rAF 循环', () => {
-    // 回归保护：React useEffect 依赖变化会触发"重 start" 而不先 stop，
+    // 回归保护：React useEffect 依赖变化会再次 start 而不先 stop，
     // 旧实现下两条 loop 共存导致 onTick 每帧被调 2 次。
     const h = makeHarness();
-    const ticker = createRealtimeTicker({
+    const ticker = createFrameTicker({
       initialSpeed: 10,
       requestFrame: h.requestFrame,
       cancelFrame: h.cancelFrame,

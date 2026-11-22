@@ -50,7 +50,7 @@ export interface BindKeyboardOptions {
  * - 首次 keydown（e.repeat=false）→ inputBus.emit(btn, 'press')
  * - 系统重复 keydown（e.repeat=true）→ 忽略，长按连发由 engine 的 bindPressRepeat 统一产生
  * - keyup → inputBus.emit(btn, 'release')
- * - 未命中映射的按键忽略，不吞事件
+ * - 未命中映射的按键忽略，不调用 preventDefault
  * - 带 Ctrl / Meta / Alt 修饰键的组合一律不处理，留给浏览器快捷键
  *   （Ctrl+R / Cmd+R 刷新、Cmd+W 关标签、DevTools 等）
  *

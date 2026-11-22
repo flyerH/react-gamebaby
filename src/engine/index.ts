@@ -32,6 +32,8 @@ export {
 } from './counter';
 export { bitmapFromRows, createScreen } from './screen';
 export { createInputBus } from './input';
+export { createFrameTicker } from './frame-ticker';
+export type { FrameTickerOptions } from './frame-ticker';
 export { bindPressRepeat, REPEAT_BUTTONS, REPEAT_DELAY_MS, REPEAT_INTERVAL_MS } from './repeat';
 export type { BindPressRepeatOptions, Schedule } from './repeat';
 export { createMemoryStorage } from './storage';

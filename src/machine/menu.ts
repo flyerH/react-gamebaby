@@ -3,7 +3,7 @@ import type { GameRegistry } from '@/sdk';
 /**
  * 菜单选择状态机：纯函数 + 不可变 state
  *
- * 承载"游戏选择"阶段的 4 个维度：
+ * 承载游戏选择阶段的 4 个维度：
  * - 选哪款游戏（selectedIndex）
  * - 起始 speed 档（1-9 单击递增循环，模拟 Brick Game 真机）
  * - 起始 level 档（同上）

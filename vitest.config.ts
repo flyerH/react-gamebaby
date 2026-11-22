@@ -13,7 +13,7 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     // 已有 18+ 测试文件，关掉 passWithNoTests：测试文件被误删 / include
-    // 配置失效时 CI 不会再悄悄以 0 测试通过把回归藏起来
+    // 配置失效时 CI 不会以 0 个测试通过而漏掉回归
     passWithNoTests: false,
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
     coverage: {
@@ -22,7 +22,7 @@ export default defineConfig({
       // json-summary + json: PR 评论 action 需要的机器可读格式
       reporter: ['text', 'html', 'lcov', 'json-summary', 'json'],
       // 覆盖率 gate 只卡可确定性复用的核心（engine / sdk / games / machine + AI）：
-      // app / ui / training 属于外围的入口装配与展示，按 AGENTS 约定走"按需测试"，
+      // app / ui / training 属于外围的入口装配与展示，按 AGENTS 约定按需测试，
       // 不作为全局门槛阻断 PR
       exclude: [
         '**/*.config.*',

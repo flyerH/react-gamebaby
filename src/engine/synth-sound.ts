@@ -1,0 +1,489 @@
+import type { Note, Sound, SoundEffect } from './types';
+
+/**
+ * 8-bit 短音效：sample 切片 + oscillator 合成两条路混合
+ *
+ * - move / over：音色接近真机，频谱有双峰且衰减不规则，单个振荡器合成不出，
+ *   改用预录 PCM 采样切片播放。资源在 public/sounds/sfx.m4a，内部按时序拼接
+ *   两段 PCM，播放时用 BufferSource.start(0, offset, duration) 切片
+ * - rotate / clear / start / pause：简单脉冲，按 PRESETS 合成，不占采样体积
+ *
+ * Sample 在 createSynthSound 时就 fire-and-forget 开始加载 + decode，
+ * 用户首次按键时基本已就绪。加载失败 / 未完成 → move/over 静默（合成
+ * 版音色与原声差异过大，不做 fallback）；其它 effect 不依赖 sample，
+ * 始终可用。
+ *
+ * 创建音频上下文与加载采样由调用方注入：浏览器用 new AudioContext() + fetch，
+ * 小游戏用 wx.createWebAudioContext() + 读取包内文件。engine 只依赖下方声明的
+ * 最小 WebAudio 子集，节点连接不用链式 connect（小游戏不保证返回目标节点）。
+ *
+ * 浏览器自动播放策略：AudioContext 在首次用户手势前处于 'suspended'，
+ * 即使 enabled=true 调 play 也无声。play() 入口检查到 suspended 会
+ * 立即 resume()：若调用栈在 user gesture 内，浏览器允许；否则
+ * 静默 no-op，等下次手势再试。canAutoplay() 提前探测当前权限，便于
+ * 调用方决定是直接播放开机音乐还是等用户首次按键再触发。
+ */
+
+/**
+ * 单个 voice = 一段独立的振荡器配置；多个 voice 同时排进 AudioContext
+ * 叠加发声。复杂音色的频谱常有多个峰，单个 voice 还原不出来，需要多层合成
+ */
+/** createSynthSound 用到的 WebAudio 最小子集，浏览器 AudioContext 与小游戏 WebAudioContext 都满足 */
+export interface AudioParamLike {
+  value: number;
+  setValueAtTime(value: number, time: number): unknown;
+  exponentialRampToValueAtTime(value: number, time: number): unknown;
+  setTargetAtTime(target: number, time: number, timeConstant: number): unknown;
+  cancelScheduledValues(time: number): unknown;
+}
+
+export interface AudioNodeLike {
+  connect(destination: AudioNodeLike): unknown;
+  disconnect?(): unknown;
+}
+
+export interface AudioBufferLike {
+  getChannelData(channel: number): Float32Array;
+  copyToChannel?(source: Float32Array, channel: number): void;
+}
+
+export interface GainNodeLike extends AudioNodeLike {
+  readonly gain: AudioParamLike;
+}
+
+export interface OscillatorNodeLike extends AudioNodeLike {
+  type: string;
+  readonly frequency: AudioParamLike;
+  start(when?: number): void;
+  stop(when?: number): void;
+}
+
+export interface BufferSourceNodeLike extends AudioNodeLike {
+  buffer: unknown;
+  onended: unknown;
+  start(when?: number, offset?: number, duration?: number): void;
+  stop(when?: number): void;
+}
+
+export interface AudioContextLike {
+  readonly currentTime: number;
+  readonly sampleRate: number;
+  readonly state: string;
+  readonly destination: AudioNodeLike;
+  createGain(): GainNodeLike;
+  createOscillator(): OscillatorNodeLike;
+  createBufferSource(): BufferSourceNodeLike;
+  createBuffer(channels: number, length: number, sampleRate: number): AudioBufferLike;
+  resume(): Promise<unknown>;
+  suspend(): Promise<unknown>;
+}
+
+export interface SynthSoundOptions<C extends AudioContextLike> {
+  /** 创建音频上下文；环境不支持时返回 null，此时所有音效静默 */
+  readonly createContext: () => C | null;
+  /** 加载并解码 SFX_SAMPLE_PATH 对应的采样；不传或加载失败时 move / over 静默 */
+  readonly loadSample?: (ctx: C) => Promise<unknown>;
+  /**
+   * 方波音效与开机音乐的生成方式，默认 'oscillator'：
+   * - 'oscillator'：用 OscillatorNode + AudioParam 自动化实时合成
+   * - 'buffer'：先按 renderSquareTones 把波形算进 AudioBuffer，再用 BufferSource 播放，
+   *   不依赖振荡器波形类型、stop 与参数自动化在各实现中的一致性
+   */
+  readonly toneMode?: 'oscillator' | 'buffer';
+}
+
+/** 一段方波：起止时间、频率（可指数滑移）、指数衰减的音量包络，时间单位秒 */
+export interface ToneSegment {
+  readonly start: number;
+  readonly duration: number;
+  readonly freq: number;
+  readonly slideTo?: number;
+  readonly peak: number;
+  /** 音量从 peak 衰减到约 0 所用的时间（相对段起点），之后到 duration 为静音 */
+  readonly fadeEnd: number;
+}
+
+/** 衰减终点电平，同 oscillator 模式下 exponentialRampToValueAtTime 的目标值 */
+const FADE_FLOOR = 0.0001;
+
+/**
+ * 把若干方波段混合渲染成 PCM 采样。频率与音量都按指数曲线变化，
+ * 与 oscillator 模式下 exponentialRampToValueAtTime 的听感一致
+ */
+export function renderSquareTones(
+  segments: ReadonlyArray<ToneSegment>,
+  sampleRate: number
+): Float32Array {
+  const total = segments.reduce((end, s) => Math.max(end, s.start + s.duration), 0);
+  const out = new Float32Array(Math.ceil(total * sampleRate));
+  for (const seg of segments) {
+    const from = Math.floor(seg.start * sampleRate);
+    const count = Math.floor(seg.duration * sampleRate);
+    const fadeCount = Math.max(1, Math.floor(seg.fadeEnd * sampleRate));
+    const end = Math.min(count, fadeCount, out.length - from);
+    // 指数曲线改写为逐采样乘固定系数，避免每个采样点做两次乘方
+    const freqStep = ((seg.slideTo ?? seg.freq) / seg.freq) ** (1 / count);
+    const gainStep = (FADE_FLOOR / seg.peak) ** (1 / fadeCount);
+    let freq = seg.freq;
+    let gain = seg.peak;
+    let phase = 0;
+    for (let i = 0; i < end; i++) {
+      out[from + i] = (out[from + i] ?? 0) + (phase < 0.5 ? gain : -gain);
+      phase = (phase + freq / sampleRate) % 1;
+      freq *= freqStep;
+      gain *= gainStep;
+    }
+  }
+  return out;
+}
+
+/** 采样文件相对资源根目录的路径；各平台按自己的方式读取 */
+export const SFX_SAMPLE_PATH = 'sounds/sfx.m4a';
+
+interface Voice {
+  readonly type: 'square' | 'sine' | 'triangle' | 'sawtooth';
+  /** 起始频率（Hz） */
+  readonly freq: number;
+  /** 持续时长（秒） */
+  readonly duration: number;
+  /** 可选：目标频率，存在时做指数滑移 */
+  readonly slideTo?: number;
+  /** 峰值音量（0..1），默认 0.12 */
+  readonly gain?: number;
+  /** 起音延迟（秒）：相对 play 触发时刻往后推 */
+  readonly delay?: number;
+}
+
+interface Preset {
+  readonly voices: ReadonlyArray<Voice>;
+}
+
+/**
+ * 走 oscillator 合成的 effect。move / over 不在这里，由 SAMPLE_RANGES
+ * 接管。Partial 让类型显式表达"不是每个 effect 都有合成预设"
+ */
+const PRESETS: Partial<Record<SoundEffect, Preset>> = {
+  rotate: { voices: [{ type: 'square', freq: 440, duration: 0.05 }] },
+  clear: { voices: [{ type: 'square', freq: 800, duration: 0.12, slideTo: 1200 }] },
+  start: { voices: [{ type: 'square', freq: 600, duration: 0.18, slideTo: 900 }] },
+  pause: { voices: [{ type: 'square', freq: 330, duration: 0.1 }] },
+};
+
+/**
+ * Sample 切片时间表（秒）。对应 SFX_SAMPLE_PATH（public/sounds/sfx.m4a）的内部布局：
+ *   [0       , 0.1437)   move   按键 click（实际只播前 0.1s）
+ *   [0.1437  , 1.2874)   over   死亡嗡鸣
+ *
+ * move duration 0.1s 配合"新 click 触发时截断旧 click"机制（见 play 实现），
+ * 长按时每次按键音清晰分开，不会相互叠加
+ */
+const SAMPLE_RANGES: Partial<Record<SoundEffect, { offset: number; duration: number }>> = {
+  move: { offset: 0, duration: 0.1 },
+  over: { offset: 0.1437, duration: 1.1437 },
+};
+/**
+ * Sample 总音量缩放（0..1）。原录音电平较高，直送 destination 会盖过
+ * oscillator 合成的其它音效；这里统一降低音量，使 move/over 与 PRESETS 听感
+ * 平衡。需要整体调整响度时修改此常量
+ */
+const SAMPLE_GAIN = 0.4;
+
+/**
+ * 静音 / 取消静音的过渡时间常数（秒）。setTargetAtTime 的 timeConstant 参数，
+ * 让 masterGain 在约 30ms 内从 0 → 1 / 1 → 0 渐变，避免硬切产生的咔哒声
+ */
+const MUTE_RAMP_TIME = 0.01;
+
+function presetSegments(preset: Preset): ToneSegment[] {
+  return preset.voices.map((v) => ({
+    start: v.delay ?? 0,
+    duration: v.duration,
+    freq: v.freq,
+    ...(v.slideTo !== undefined ? { slideTo: v.slideTo } : {}),
+    peak: v.gain ?? 0.12,
+    fadeEnd: v.duration,
+  }));
+}
+
+/** 与 oscillator 模式一致：每个音符峰值 0.08，按 0.95 倍时长衰减，休止符只推进时间 */
+function melodySegments(notes: ReadonlyArray<Note>): ToneSegment[] {
+  const segs: ToneSegment[] = [];
+  let t = 0;
+  for (const { freq, duration } of notes) {
+    if (freq > 0) segs.push({ start: t, duration, freq, peak: 0.08, fadeEnd: duration * 0.95 });
+    t += duration;
+  }
+  return segs;
+}
+
+function toBuffer(ac: AudioContextLike, segments: ReadonlyArray<ToneSegment>): AudioBufferLike {
+  const data = renderSquareTones(segments, ac.sampleRate);
+  const buf = ac.createBuffer(1, Math.max(1, data.length), ac.sampleRate);
+  // 部分实现的 getChannelData 返回副本，优先用 copyToChannel 写入
+  if (buf.copyToChannel) buf.copyToChannel(data, 0);
+  else buf.getChannelData(0).set(data);
+  return buf;
+}
+
+export function createSynthSound<C extends AudioContextLike>(opts: SynthSoundOptions<C>): Sound {
+  // 默认开声音。首次 play 之前 AudioContext 处于 suspended，由 play()
+  // 入口调用 resume 恢复，调用方无需处理
+  let enabled = true;
+  let audioCtx: C | null = null;
+  // 全局主音量节点：所有音源（oscillator / sample）连到这里再到 destination。
+  // 静音 = 把 gain 平滑拉到 0，正在播放的音源立即无声但不中止；解除
+  // 静音 = 拉回 1，正在播放的尾段立即可闻。比在 play 入口判断 enabled 后直接返回
+  // 更接近真机的静音键
+  let masterGain: GainNodeLike | null = null;
+  let sampleBuffer: unknown = null;
+  let sampleLoading = false;
+  // 每个 sample effect 当前在播的 BufferSource：新的按键音触发时截断同一音效
+  // 的旧音源，避免长按时声音相互叠加
+  const activeSamples = new Map<SoundEffect, BufferSourceNodeLike>();
+  const toneMode = opts.toneMode ?? 'oscillator';
+  // buffer 模式下渲染结果按音效 / 旋律缓存，同一段只计算一次
+  const presetBuffers = new Map<SoundEffect, AudioBufferLike>();
+  const melodyBuffers = new WeakMap<ReadonlyArray<Note>, AudioBufferLike>();
+
+  const ensureCtx = (): C | null => {
+    if (audioCtx) return audioCtx;
+    try {
+      audioCtx = opts.createContext();
+      if (!audioCtx) return null;
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = enabled ? 1 : 0;
+      masterGain.connect(audioCtx.destination);
+    } catch {
+      audioCtx = null;
+      masterGain = null;
+    }
+    return audioCtx;
+  };
+
+  // resume / suspend 在没有用户手势或上下文已关闭时会 reject，结果不影响后续调用，直接忽略
+  const settle = (p: Promise<unknown>): void => {
+    p.catch(() => undefined);
+  };
+
+  // 主输出节点：优先 masterGain，masterGain 不存在时直接连 destination
+  const out = (ac: C): AudioNodeLike => masterGain ?? ac.destination;
+
+  // 预加载 sample buffer：创建即触发，让用户首次按键时基本已就绪。
+  // 加载失败时忽略（sampleBuffer 保持 null，move/over 静默）
+  const preloadSample = (): void => {
+    if (sampleBuffer || sampleLoading || !opts.loadSample) return;
+    const ac = ensureCtx();
+    if (!ac) return;
+    sampleLoading = true;
+    opts
+      .loadSample(ac)
+      .then((buf) => {
+        sampleBuffer = buf;
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        sampleLoading = false;
+      });
+  };
+  preloadSample();
+
+  return {
+    play(effect: SoundEffect): void {
+      // enabled=false 时不提前返回：音源照常调度，是否可闻由 masterGain 决定，
+      // 静音期间触发的死亡音 / 按键音在重新开启声音后能听到尾段
+      const ac = ensureCtx();
+      if (!ac) return;
+      // 首次有声调用：AudioContext 仍是 suspended（浏览器要求手势）。
+      // 此处一定来自用户按键事件链，已构成手势，resume() 会成功。
+      if (ac.state === 'suspended') settle(ac.resume());
+
+      // sample 路径：move / over 切片播放
+      const range = SAMPLE_RANGES[effect];
+      if (range) {
+        // buffer 还没就绪 / 加载失败 → 静默。不 fallback 合成（合成版音色与原声差异过大）
+        if (!sampleBuffer) return;
+        // 截断同 effect 的上一个 BufferSource（如果它还在播）。常见场景：长按
+        // 方向键时每 100ms 触发一次 move click，旧 click 还在播时直接停止，
+        // 由新 click 接上（原因见 SAMPLE_RANGES 注释）
+        const prev = activeSamples.get(effect);
+        if (prev) {
+          try {
+            prev.stop();
+          } catch {
+            // 已自然结束的 BufferSource 重复 stop 会抛 InvalidStateError，忽略
+          }
+        }
+        const src = ac.createBufferSource();
+        src.buffer = sampleBuffer;
+        const gainNode = ac.createGain();
+        gainNode.gain.value = SAMPLE_GAIN;
+        src.connect(gainNode);
+        gainNode.connect(out(ac));
+        // 自然结束时清登记表，让下次同 effect 触发不再尝试 stop 已结束的节点
+        src.onended = (): void => {
+          if (activeSamples.get(effect) === src) activeSamples.delete(effect);
+        };
+        activeSamples.set(effect, src);
+        // when=0 表示立即；offset / duration 单位秒，对齐 sfx.m4a 内部布局
+        src.start(0, range.offset, range.duration);
+        return;
+      }
+
+      // 方波合成路径：rotate / clear / start / pause
+      const preset = PRESETS[effect];
+      if (!preset) return;
+      if (toneMode === 'buffer') {
+        let buf = presetBuffers.get(effect);
+        if (!buf) {
+          buf = toBuffer(ac, presetSegments(preset));
+          presetBuffers.set(effect, buf);
+        }
+        const src = ac.createBufferSource();
+        src.buffer = buf;
+        src.connect(out(ac));
+        src.start(0);
+        return;
+      }
+      const now = ac.currentTime;
+      for (const v of preset.voices) {
+        const startAt = now + (v.delay ?? 0);
+        const end = startAt + v.duration;
+        const osc = ac.createOscillator();
+        const gainNode = ac.createGain();
+
+        osc.type = v.type;
+        osc.frequency.setValueAtTime(v.freq, startAt);
+        if (v.slideTo !== undefined) {
+          // exponentialRampToValueAtTime 要求目标值 > 0；预设里已保证
+          osc.frequency.exponentialRampToValueAtTime(v.slideTo, end);
+        }
+        const peak = v.gain ?? 0.12;
+        gainNode.gain.setValueAtTime(peak, startAt);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, end);
+
+        osc.connect(gainNode);
+        gainNode.connect(out(ac));
+        osc.start(startAt);
+        osc.stop(end);
+      }
+    },
+    playMelody(notes: ReadonlyArray<Note>): () => void {
+      const noop = (): void => {
+        /* 没有 oscillator 可中止时的占位 */
+      };
+      if (notes.length === 0) return noop;
+      const ac = ensureCtx();
+      if (!ac) return noop;
+      if (ac.state === 'suspended') settle(ac.resume());
+
+      if (toneMode === 'buffer') {
+        let buf = melodyBuffers.get(notes);
+        if (!buf) {
+          buf = toBuffer(ac, melodySegments(notes));
+          melodyBuffers.set(notes, buf);
+        }
+        const src = ac.createBufferSource();
+        src.buffer = buf;
+        // 独立音量节点：取消时先拉到 0 并断开，即使 stop 未生效也立即无声
+        const gainNode = ac.createGain();
+        src.connect(gainNode);
+        gainNode.connect(out(ac));
+        src.start(0);
+        return () => {
+          gainNode.gain.value = 0;
+          try {
+            src.stop();
+          } catch {
+            // 已结束的音源重复 stop 会抛错，忽略
+          }
+          try {
+            gainNode.disconnect?.();
+          } catch {
+            // 同上
+          }
+        };
+      }
+
+      // 沿 ac.currentTime 把每个音符依次排队；休止符（freq=0）只推进时
+      // 间游标不发声。每音符独占一个 Oscillator 节点，自动衰减到末尾，
+      // 浏览器会在 stop 时回收，不需要手动断开
+      const oscillators: OscillatorNodeLike[] = [];
+      let t = ac.currentTime;
+      for (const { freq, duration } of notes) {
+        if (freq > 0) {
+          const osc = ac.createOscillator();
+          const gainNode = ac.createGain();
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(freq, t);
+          // 按 0.95 倍 duration 衰减，留出短暂间隙，使相邻音符分开
+          gainNode.gain.setValueAtTime(0.08, t);
+          gainNode.gain.exponentialRampToValueAtTime(0.0001, t + duration * 0.95);
+          osc.connect(gainNode);
+          gainNode.connect(out(ac));
+          osc.start(t);
+          osc.stop(t + duration);
+          oscillators.push(osc);
+        }
+        t += duration;
+      }
+      // 返回 cancel：把所有未结束的 oscillator 立即停掉。已经自然结束的
+      // 节点 stop() 会抛 InvalidStateError，忽略这类异常
+      return () => {
+        for (const osc of oscillators) {
+          try {
+            osc.stop();
+          } catch {
+            // 已结束节点重复 stop 是无害的
+          }
+        }
+      };
+    },
+    suspend(): void {
+      // 进入后台：挂起 AudioContext 冻结音频时钟并停声。不动 enabled，
+      // 回前台 resume 后用户的声音偏好保持不变。ensureCtx 不新建（尚未
+      // 初始化时无需挂起），只在已有 running 上下文时挂起
+      if (audioCtx && audioCtx.state === 'running') {
+        settle(audioCtx.suspend());
+      }
+    },
+    resume(): void {
+      // 回到前台：仅恢复被挂起的上下文时钟。是否出声仍由 masterGain
+      // （enabled）决定；用户静音时恢复后依旧无声
+      if (audioCtx && audioCtx.state === 'suspended') {
+        settle(audioCtx.resume());
+      }
+    },
+    setEnabled(on: boolean): void {
+      enabled = on;
+      const ac = ensureCtx();
+      if (!ac || !masterGain) return;
+      if (ac.state === 'suspended') {
+        // AudioContext 尚未运行，计时器冻结在 0。setTargetAtTime 要等 resume
+        // 后才生效，届时会从旧值（1）开始过渡，若 on=false 仍会短暂出声。
+        // suspended 期间直接写目标值并清除已有自动化，resume 时从正确电平
+        // 开始，不产生过渡噪声（此时没有任何正在播放的声音，不存在硬切咔哒声）
+        masterGain.gain.cancelScheduledValues(ac.currentTime);
+        masterGain.gain.value = on ? 1 : 0;
+      } else {
+        // 运行中：平滑过渡约 30ms，避免硬切的咔哒声
+        masterGain.gain.setTargetAtTime(on ? 1 : 0, ac.currentTime, MUTE_RAMP_TIME);
+      }
+      if (on && ac.state === 'suspended') settle(ac.resume());
+    },
+    async canAutoplay(): Promise<boolean> {
+      const ac = ensureCtx();
+      if (!ac) return false;
+      if (ac.state === 'running') return true;
+      try {
+        await ac.resume();
+      } catch {
+        // Safari 等浏览器在没有手势时 resume() 会 reject
+        return false;
+      }
+      return ac.state === 'running';
+    },
+    get enabled() {
+      return enabled;
+    },
+  };
+}

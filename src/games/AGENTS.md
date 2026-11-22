@@ -15,11 +15,11 @@
 
 ```
 src/games/<name>/
-  index.ts    —— 导出 Game<S> 对象（id / name / preview + init / step / render / onButton）
-  state.ts    —— 状态类型定义 + 纯辅助函数
-  logic.ts    —— 核心游戏逻辑（init / step / render / onButton 实现）
-  preview.ts  —— 菜单预览点阵
-  __tests__/  —— 单元测试
+  index.ts    导出 Game<S> 对象（id / name / preview + init / step / render / onButton）
+  state.ts    状态类型定义 + 纯辅助函数
+  logic.ts    核心游戏逻辑（init / step / render / onButton 实现）
+  preview.ts  菜单预览点阵
+  __tests__/  单元测试
 ```
 
 可选文件：`rl.ts`（RLEnv 适配器，给 RL 训练用）。

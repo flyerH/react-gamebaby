@@ -1,6 +1,6 @@
 # src/engine/ · 硬件接口约束
 
-本目录是**硬件抽象层**：Screen / Ticker / InputBus / Sound / Storage / Counter / Toggle / RNG。
+本目录是硬件抽象层：Screen / Ticker / InputBus / Sound / Storage / Counter / Toggle / RNG。
 
 ## 硬规则
 

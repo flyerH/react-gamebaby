@@ -12,7 +12,7 @@
  * - bindAppState：应用前后台切换桥接
  * - isDevBuild：识别是否运行在 Android 开发版
  * - createLocalStorage：基于 localStorage 的 Storage 适配
- * - createBrowserSound：基于 Web Audio 的 8-bit 音效合成
+ * - createBrowserSound：new AudioContext + fetch 采样，注入 engine 的 createSynthSound
  * - createBrowserContext：把上述组件与 engine 跨平台模块组装成完整 HardwareContext
  */
 

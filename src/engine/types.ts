@@ -1,11 +1,11 @@
 /**
  * engine 共享类型与接口
  *
- * 这一层完全 DOM-agnostic：浏览器和 Node 都能运行。
+ * 这一层 DOM-agnostic：浏览器和 Node 都能运行。
  * 所有实现模块（screen / ticker / input 等）都对照此处的接口编写。
  */
 
-/** 掌机按键 —— 方向键 + 功能键的合集 */
+/** 掌机按键：方向键 + 功能键的合集 */
 export type Button =
   | 'Up'
   | 'Down'
@@ -22,14 +22,14 @@ export type Button =
 /**
  * 按键动作：按下 / 长按重复 / 抬起
  *
- * - press   首次按下（每次"全新按键"必发）
+ * - press   首次按下（每次新按下都会发出）
  * - repeat  按住超过起始延迟后由平台层按固定节奏发出；游戏自己决定响应
  *           不响应（Snake 方向键 + A 都响应；Tetris 方向键响应、A 不响应）
  * - release 松开
  */
 export type ButtonAction = 'press' | 'repeat' | 'release';
 
-/** 音效标识符 —— 先给出最小集，后续游戏接入再扩展 */
+/** 音效标识符：先给出最小集，后续游戏接入再扩展 */
 export type SoundEffect = 'move' | 'rotate' | 'clear' | 'over' | 'start' | 'pause';
 
 /** 位图：width × height 的 0/1 点阵，用于精灵、字符、图标 */
@@ -47,7 +47,7 @@ export type BlitMode = 'overwrite' | 'or' | 'xor';
 export type Unsubscribe = () => void;
 
 /**
- * Screen —— 纯 framebuffer，硬件屏幕的抽象
+ * Screen：纯 framebuffer，硬件屏幕的抽象
  *
  * 不负责任何实际渲染；渲染器（Canvas / DOM / WebGL）通过 `subscribe`
  * 监听 buffer 变化并自行呈现。
@@ -75,7 +75,7 @@ export interface Screen {
 }
 
 /**
- * Ticker —— 固定步长循环的抽象
+ * Ticker：固定步长循环的抽象
  *
  * 具体驱动方式由实现决定：
  * - HeadlessTicker：外部手动 advance，不依赖真实时钟（Node 训练 / 测试）
@@ -93,7 +93,7 @@ export interface Ticker {
   setSpeed(ticksPerSecond: number): void;
 }
 
-/** InputBus —— 统一按键事件总线 */
+/** InputBus：统一按键事件总线 */
 export interface InputBus {
   emit(btn: Button, action: ButtonAction): void;
   subscribe(fn: (btn: Button, action: ButtonAction) => void): Unsubscribe;
@@ -101,7 +101,7 @@ export interface InputBus {
   readonly pressed: ReadonlySet<Button>;
 }
 
-/** Counter —— 可订阅的整数原子状态（分数、关卡、速度、生命数等） */
+/** Counter：可订阅的整数原子状态（分数、关卡、速度、生命数等） */
 export interface Counter {
   readonly value: number;
   set(n: number): void;
@@ -109,7 +109,7 @@ export interface Counter {
   subscribe(fn: (v: number) => void): Unsubscribe;
 }
 
-/** Toggle —— 可订阅的布尔原子状态（暂停、音效开关等） */
+/** Toggle：可订阅的布尔原子状态（暂停、音效开关等） */
 export interface Toggle {
   readonly value: boolean;
   set(v: boolean): void;
@@ -130,7 +130,7 @@ export interface Note {
   readonly duration: number;
 }
 
-/** Sound —— 8bit 音效抽象 */
+/** Sound：8bit 音效抽象 */
 export interface Sound {
   play(effect: SoundEffect): void;
   /**
@@ -142,7 +142,7 @@ export interface Sound {
   setEnabled(on: boolean): void;
   /**
    * 挂起音频输出：进入后台 / 失焦时由生命周期调用，冻结音频时钟并停止发声。
-   * 与 `setEnabled` 正交：不改变用户的"声音开关"偏好，只做生命周期挂起。
+   * 与 `setEnabled` 正交：不改变用户的声音开关偏好，只做生命周期挂起。
    */
   suspend(): void;
   /** 恢复音频输出：回到前台时调用；是否真的出声仍取决于 `enabled`。 */
@@ -159,7 +159,7 @@ export interface Sound {
   readonly enabled: boolean;
 }
 
-/** Storage —— 键值持久化抽象 */
+/** Storage：键值持久化抽象 */
 export interface Storage {
   get<T>(key: string): T | null;
   set<T>(key: string, value: T): void;
@@ -168,7 +168,7 @@ export interface Storage {
 }
 
 /**
- * HardwareContext —— 游戏看到的"硬件上下文"
+ * HardwareContext：游戏看到的硬件上下文
  *
  * 游戏的 init / step / render 通过它的切片 GameEnv 访问运行时能力。
  * 确定性要求：

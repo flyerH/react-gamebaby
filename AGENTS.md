@@ -6,19 +6,19 @@
 
 ## 技术栈
 
-- **包管理器**：pnpm 10（Node ≥ 20.19）
-- **构建 / 开发**：Vite 8
-- **UI**：React 19 + TypeScript 6（`strict` + `noUncheckedIndexedAccess` + `noUnusedLocals/Parameters`）
-- **Lint / Format**：ESLint 9（flat config）+ Prettier 3
-- **测试**：Vitest 4 + jsdom
-- **状态管理**：Zustand
+- 包管理器：pnpm 10（Node ≥ 20.19）
+- 构建 / 开发：Vite 8
+- UI：React 19 + TypeScript 6（`strict` + `noUncheckedIndexedAccess` + `noUnusedLocals/Parameters`）
+- Lint / Format：ESLint 9（flat config）+ Prettier 3
+- 测试：Vitest 4 + jsdom
+- 状态管理：Zustand
 
 ## 常用命令
 
-- `pnpm dev` —— 启动开发服务器
-- `pnpm build` —— 生产构建（含 `tsc --noEmit` 类型检查）
-- `pnpm lint` —— 对 `src/**/*.{ts,tsx}` 跑 ESLint
-- `pnpm test` —— 跑一次 Vitest（CI / 提交前用）
+- `pnpm dev`：启动开发服务器
+- `pnpm build`：生产构建（含 `tsc --noEmit` 类型检查）
+- `pnpm lint`：对 `src/**/*.{ts,tsx}` 跑 ESLint
+- `pnpm test`：跑一次 Vitest（CI / 提交前用）
 
 pre-commit 钩子会自动对 staged 文件跑 `eslint --fix` + `prettier --write`，并对项目跑 `tsc --noEmit`。不得使用 `--no-verify` 跳过。
 
@@ -59,9 +59,9 @@ pre-commit 钩子会自动对 staged 文件跑 `eslint --fix` + `prettier --writ
   games/     各款游戏（纯函数）
   machine/   主机固件：模式状态机、菜单、开机动画与音乐、按键路由、调速、最高分
 外围
-  platform/  宿主驱动：按运行环境实现 engine 接口（headless / browser）
+  platform/  宿主驱动：按运行环境实现 engine 接口（headless / browser / wechat）
   ui/        React 视图
-  app/       入口装配：每个运行入口一个子目录（web/ ...）
+  app/       入口装配：每个运行入口一个子目录（web / wechat）
 工具
   ai/ training/  RL 训练、推理与训练看板
 ```
@@ -83,7 +83,7 @@ pre-commit 钩子会自动对 staged 文件跑 `eslint --fix` + `prettier --writ
   例外：`src/games/<name>/rl.ts` 是给 RL 训练用的适配，可额外依赖 `@/ai` 与 `@/platform/headless`；游戏的 `index.ts` 不得引入 `rl.ts`。
 
 - **核心不碰宿主**：核心与 `platform/headless` 不得 `import` React，不得使用 `window` / `document` / `navigator` / `setTimeout` / `performance.now()` 等宿主 API。需要计时等宿主能力时，由调用方注入（例如 `bindPressRepeat` 的 `schedule`）。
-- **宿主桥接放 platform**：`src/platform/browser/` 用宿主 API 把真实时间、输入、音频、存储、生命周期、离线缓存等桥接到 engine 接口。ui 与 app 可为渲染与布局测量使用 DOM（如 `ResizeObserver`、`devicePixelRatio`、`getComputedStyle`），系统返回键、前后台、Service Worker 等桥接仍放 `src/platform/browser/`。
+- **宿主桥接放 platform**：`src/platform/browser/`、`src/platform/wechat/` 用宿主 API 把真实时间、输入、音频、存储、生命周期、离线缓存等桥接到 engine 接口。ui 与 app 可为渲染与布局测量使用宿主绘图能力（如 `ResizeObserver`、`devicePixelRatio`、小游戏 canvas），系统返回键、前后台、Service Worker 等桥接仍放对应的 platform 子目录。
 - **games 是纯函数**：`src/games/<name>/` 的 `init` / `step` / `render` 除 `env` 参数外，不得有外部副作用、不得引用模块级可变状态。
 - **主机规则只写在 machine**：开关机、菜单、暂停、调速、绘制、最高分等规则写在 `src/machine/`，各入口只做装配，不重复实现。
 - **UI 与状态分离**：ui 组件只通过 `subscribe` 观察状态，不直接修改；状态变更经由 `InputBus.emit` 等 engine 接口或 machine 的方法。
@@ -105,7 +105,7 @@ ESLint 的 `no-restricted-properties` / `no-restricted-globals` 会拦截上述�
 
 ## TypeScript
 
-- 禁用 `any`；需要"未知"时用 `unknown` + 收窄
+- 禁用 `any`；需要未知类型时用 `unknown` + 收窄
 - 优先 `readonly` 数组与 `Readonly<T>`；Game state 必须是不可变结构
 - 用联合字面量类型代替 `enum`：`type Dir = 'up' | 'down' | 'left' | 'right'`
 - 跨目录导入统一走 `@/` 路径别名；同目录使用相对路径
@@ -127,8 +127,8 @@ ESLint 的 `no-restricted-properties` / `no-restricted-globals` 会拦截上述�
 - 变量 / 函数：`camelCase`
 - 编译期常量：`SCREAMING_SNAKE_CASE`（不要用于普通配置对象）
 - 新增游戏放在 `src/games/<name>/`，目录内至少包含：
-  - `index.ts` —— 默认导出 `Game<S>` 对象
-  - `state.ts` —— 状态类型与 reducer
+  - `index.ts`：默认导出 `Game<S>` 对象
+  - `state.ts`：状态类型与 reducer
 
 ## 注释
 

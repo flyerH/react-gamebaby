@@ -60,7 +60,7 @@ const snakeAutopilot: AutopilotProvider = {
 };
 
 /**
- * App —— 网页与 Android WebView 入口的 React 装配
+ * App：网页与 Android WebView 入口的 React 装配
  *
  * 主机规则在 @/machine，这里只负责创建浏览器平台的 HardwareContext、
  * 绑定键盘 / 返回键 / 前后台等宿主事件，并把 machine 状态渲染成 UI。

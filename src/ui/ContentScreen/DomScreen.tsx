@@ -4,7 +4,7 @@ import styles from './DomScreen.module.css';
 import type { LcdRendererProps } from './types';
 
 /**
- * DomScreen —— 主点阵的保留式 DOM 像素格渲染器
+ * DomScreen：主点阵的保留式 DOM 像素格渲染器
  *
  * 用 width×height 个长期存在的 DOM 格子模拟真机 LCD：每格外框 + 内方块，
  * 点亮与熄灭只是 data-on 属性不同（熄灭态仍画出半透明阴影格）。

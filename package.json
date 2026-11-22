@@ -30,6 +30,8 @@
     "mobile:run:android": "pnpm build && cap run android --flavor dev",
     "mobile:run:android:online": "pnpm build && CAP_REMOTE_URL=https://gamebaby.strawtc.cn cap run android --flavor prod",
     "mobile:dev:android": "cap run android --flavor dev -l --port 8088 --host localhost --forwardPorts 8088:8088",
+    "wechat:build": "vite build --config vite.wechat.config.ts",
+    "wechat:watch": "vite build --config vite.wechat.config.ts --watch",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "test": "vitest run",
     "coverage": "vitest run --coverage",

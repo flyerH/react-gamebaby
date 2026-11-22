@@ -2,11 +2,12 @@
 
 把 `src/engine/types.ts` 中定义的接口（`Ticker` / `Storage` / `Sound` / `HardwareContext` ...）在具体运行环境下落到真实实现。
 
-本层只聚焦 **有平台耦合** 的组件：需要 `requestAnimationFrame` / `window` / `localStorage` / `performance.now()` 等宿主能力才能实现的。`MemoryStorage`、`NullSound` 这类无耦合的默认实现由 `src/engine/` 提供，两个平台都直接使用。
+本层只聚焦有平台耦合的组件：需要 `requestAnimationFrame` / `window` / `localStorage` / `performance.now()` 等宿主能力才能实现的。`MemoryStorage`、`NullSound` 这类无耦合的默认实现由 `src/engine/` 提供，两个平台都直接使用。
 
 | 子目录      | 运行环境                 | 关键实现                                                                                                                                                                                          |
 | ----------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `headless/` | Node / 训练 / 单测       | `createHeadlessTicker`（非自驱）/ `createHeadlessContext`                                                                                                                                         |
+| `wechat/`   | 微信小游戏               | `createWechatContext` / `createWechatSound` / `createWxStorage` / `bindTouchInput` / `bindAppLifecycle` / `createTimeoutSchedule`                                                                 |
 | `browser/`  | 浏览器与 Android WebView | `createRealtimeTicker` / `bindKeyboardInput` / `timeoutSchedule` / `createLocalStorage` / `createBrowserSound` / `bindBackButton` / `bindAppState` / `setupOfflineCache` / `createBrowserContext` |
 
 ## 规则

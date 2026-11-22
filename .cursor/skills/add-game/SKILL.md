@@ -17,11 +17,11 @@ description: 为 react-gamebaby 新增一款游戏，生成骨架文件并注册
 
 ```
 src/games/<name>/
-  state.ts     —— 状态类型
-  logic.ts     —— 游戏逻辑
-  preview.ts   —— 菜单预览点阵
-  index.ts     —— 导出 Game 对象
-  __tests__/<name>.test.ts —— 基础测试
+  state.ts     状态类型
+  logic.ts     游戏逻辑
+  preview.ts   菜单预览点阵
+  index.ts     导出 Game 对象
+  __tests__/<name>.test.ts  基础测试
 ```
 
 #### state.ts

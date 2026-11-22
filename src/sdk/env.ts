@@ -5,9 +5,9 @@ import type { GameEnv } from './types';
 /**
  * 从完整的 HardwareContext 投影出一个 GameEnv 视图
  *
- * 纯函数，不复制底层引用——游戏拿到的 screen / input / counter
+ * 纯函数，不复制底层引用，游戏获取的 screen / input / counter
  * 就是 engine 实例本身，仍然能订阅变化。Pause / Ticker / Storage 等
- * "应用/平台层"权限被显式拦掉。
+ * 应用与平台权限不暴露给游戏。
  */
 export function toGameEnv(ctx: HardwareContext): GameEnv {
   return {

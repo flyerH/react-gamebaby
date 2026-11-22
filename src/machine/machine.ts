@@ -59,10 +59,10 @@ const GAME_KEYS: ReadonlySet<Button> = new Set(['Up', 'Down', 'Left', 'Right', '
 
 /**
  * 主机模式：
- *   off     —— 关机：屏幕黑，无声音，仅 Start 能通电
- *   boot    —— 开机动画 + 开机音乐；任意键停止音乐切到 select
- *   select  —— 游戏选择菜单
- *   playing —— 游戏运行中
+ *   off     关机：屏幕黑，无声音，仅 Start 能通电
+ *   boot    开机动画 + 开机音乐；任意键停止音乐切到 select
+ *   select  游戏选择菜单
+ *   playing 游戏运行中
  */
 export type Mode = 'off' | 'boot' | 'select' | 'playing';
 
@@ -93,7 +93,7 @@ export interface Autopilot {
 
 /**
  * 自动玩提供方：select 态在 gameId 对应的游戏上按 B 时调用 load。
- * 加载失败时 reject 即可，machine 保持在 select 态
+ * 加载失败时返回 rejected Promise，machine 保持在 select 态
  */
 export interface AutopilotProvider {
   readonly gameId: string;
@@ -109,7 +109,7 @@ export interface MachineOptions {
 }
 
 /**
- * Machine —— 掌机固件
+ * Machine：掌机固件
  *
  * 持有模式状态机，订阅输入与 ticker，负责调速、每帧绘制、最高分与自动玩。
  * 各入口只需装配 HardwareContext、调用 start / stop，并通过 subscribe 观察状态。
@@ -175,7 +175,7 @@ function createDemoEnv(seed: number): GameEnv {
   };
 }
 
-/** 判断游戏是否满足"真游戏"条件（init/step 都实现了） */
+/** 判断游戏是否可玩（实现了 init 与 step） */
 function isPlayable(g: Game | undefined): g is Game & {
   init: NonNullable<Game['init']>;
   step: NonNullable<Game['step']>;
@@ -484,7 +484,7 @@ export function createMachine(opts: MachineOptions): Machine {
       if (kind === 'press' && button === 'Start') powerOn();
       return;
     }
-    // 控制键只响应 press，处理完不进 reducer；Reset 顺带清暂停后继续交给 reducer 重开局
+    // 控制键只响应 press，处理完不进 reducer；Reset 先清除暂停，再交给 reducer 重开局
     if (kind === 'press') {
       switch (button) {
         case 'Start':

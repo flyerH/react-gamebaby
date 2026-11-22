@@ -1,5 +1,7 @@
 node_modules
 dist
+wechat/dist
+wechat/project.private.config.json
 coverage
 .pnpm-store
 

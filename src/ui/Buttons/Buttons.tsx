@@ -19,7 +19,7 @@ export interface ButtonsProps {
 }
 
 /**
- * Buttons —— 掌机实体按键区
+ * Buttons：掌机实体按键区
  *
  * DOM 结构模拟真机按键：D-pad 四个方向按钮各自是外层 <button> + 两个子节点
  * （buttonTip 文字标签 + buttonDir 箭头），三者的相对位置由 CSS 绝对定位

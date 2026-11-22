@@ -3,14 +3,14 @@
 > 复刻经典的"俄罗斯方块"掌机，用统一架构在 Web 上实现贪吃蛇、俄罗斯方块、坦克大战等游戏，
 > 并以此沉淀一套端到端 AI 工程化实践。
 
-🕹️ **在线试玩**：[https://gamebaby.strawtc.cn/](https://gamebaby.strawtc.cn/)
+🕹️ 在线试玩：[https://gamebaby.strawtc.cn/](https://gamebaby.strawtc.cn/)
 
 ## 特性
 
-- **像素级复刻真机外观**：10×20 LCD 阴影格 + 真机外壳 + D-pad / Rotate / Pause / Sound / Reset 物理按键 + WebAudio sample + Oscillator 合成的 8-bit 音效。
-- **多游戏统一架构**：Snake / Tetris / Tank 共享同一套 `Game<S>` 接口；新游戏只需实现 `init / step / render / onButton`，自动接入菜单 / Ticker / 输入总线 / 持久化 / 音效。
-- **可玩 + 可训练**：浏览器跑游戏，Node 跑 RL 训练（DQN + tfjs-node），同一份 engine / SDK 代码两端复用；Snake 的训练模型可在站内"AI 自动玩"加载。
-- **AI 工程化协作**：[`AGENTS.md`](AGENTS.md) 编码规范 + Cursor Skills（如 `add-game` 骨架生成）+ 自动 PR Code Review（CodeRabbit）+ master push 自动部署到 VPS。
+- 像素级复刻真机外观：10×20 LCD 阴影格 + 真机外壳 + D-pad / Rotate / Pause / Sound / Reset 物理按键 + WebAudio sample + Oscillator 合成的 8-bit 音效。
+- 多游戏统一架构：Snake / Tetris / Tank 共享同一套 `Game<S>` 接口；新游戏只需实现 `init / step / render / onButton`，自动接入菜单 / Ticker / 输入总线 / 持久化 / 音效。
+- 可玩 + 可训练：浏览器跑游戏，Node 跑 RL 训练（DQN + tfjs-node），同一份 engine / SDK 代码两端复用；站内 AI 自动玩时加载 Snake 的训练模型。
+- AI 工程化协作：[`AGENTS.md`](AGENTS.md) 编码规范 + Cursor Skills（如 `add-game` 骨架生成）+ 自动 PR Code Review（CodeRabbit）+ master push 自动部署到 VPS。
 
 ## 架构总览
 
@@ -21,9 +21,9 @@
   games/     各款游戏（纯函数）
   machine/   主机固件：开关机、菜单、调速、绘制、最高分
 外围
-  platform/  宿主驱动：headless（Node 训练）/ browser（浏览器）
+  platform/  宿主驱动：headless（Node 训练）/ browser（浏览器）/ wechat（微信小游戏）
   ui/        React 视图
-  app/       入口装配：web/（网页与 Android WebView）
+  app/       入口装配：web（网页与 Android WebView）/ wechat（微信小游戏）
 ```
 
 完整设计见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
@@ -54,6 +54,17 @@ pnpm dev + pnpm mobile:dev:android   # 真机 livereload 开发（前端改动�
 ```
 
 详细流程见 [`docs/MOBILE.md`](docs/MOBILE.md)。
+
+## 微信小游戏
+
+小游戏入口在 `src/app/wechat/`，复用同一套 engine / games / machine，机身用 canvas 按网页版的设计尺寸复刻。
+
+```bash
+pnpm wechat:build    # 构建到 wechat/dist/（game.js + game.json）
+pnpm wechat:watch    # 监听源码变更并重新构建，开发者工具自动刷新
+```
+
+微信开发者工具导入 `wechat/` 目录。该目录的 `project.config.json`（含 AppID）提交进仓库，通过 `miniprogramRoot` 指向构建产物 `dist/`。小游戏不包含 AI 自动玩。
 
 ## 部署
 

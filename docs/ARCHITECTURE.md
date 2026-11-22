@@ -9,14 +9,14 @@
 
 两条并行主线：
 
-1. **产品主线**：还原复古掌机的外观与操作体验，包括 LCD 点阵显示、8bit 音效和实体按键，多游戏可插拔。
-2. **AI 工程化主线**：沉淀一套可复用的 AI 开发实践（规范、Skills、自动 PR、远端 CR、RL 游戏 AI、AI 测试、文档自动化），其他项目可直接参考或复制。
+1. 产品主线：还原复古掌机的外观与操作体验，包括 LCD 点阵显示、8bit 音效和实体按键，多游戏可插拔。
+2. AI 工程化主线：沉淀一套可复用的 AI 开发实践（规范、Skills、自动 PR、远端 CR、RL 游戏 AI、AI 测试、文档自动化），其他项目可直接参考或复制。
 
-**非目标 (out of scope)**：
+非目标（out of scope）：
 
 - 不追求逐字节还原 Brick Game 硬件行为（不模拟 LCD 扫描时序、不模拟真实按键去抖）
 - 不追求 SOTA 的 RL 算法（选择 DQN baseline，优先代码清晰与可复现性）
-- 不追求"大模型驱动"（游戏 AI 走 RL，不用 LLM）
+- 不追求大模型驱动（游戏 AI 走 RL，不用 LLM）
 
 ---
 
@@ -49,16 +49,18 @@
 │    headless/   HeadlessTicker · HeadlessContext（Node 训练 / 测试） │
 │    browser/    RealtimeTicker · LocalStorage · WebAudio Sound ·     │
 │                键盘 · 返回键 · 前后台 · 离线缓存 · BrowserContext   │
+│    wechat/     wx 存储 · 触控 · WebAudio · 前后台 · WechatContext   │
 │                                                                    │
 │  ui/        React 视图：Device · ContentScreen · SidePanel · Buttons│
 │                                                                    │
 │  app/       入口装配，每个运行入口一个子目录                        │
 │    web/        网页与 Android WebView：browser 平台 + machine + ui  │
+│    wechat/     微信小游戏：wechat 平台 + machine + canvas 机身      │
 └────────────────────────────────────────────────────────────────────┘
   工具：ai/（DQN 训练与推理）· training/（训练看板）
 ```
 
-一个入口做的事情：用对应平台创建 `HardwareContext`，把它和游戏注册表交给 `createMachine`，再把宿主事件（键盘、返回键、前后台）接到 machine，并把 machine 的状态渲染出来。网页入口用 React 渲染；以后的微信小游戏入口用 canvas 渲染，共用同一个 machine。
+一个入口做的事情：用对应平台创建 `HardwareContext`，把它和游戏注册表交给 `createMachine`，再把宿主事件（键盘、返回键、前后台）接到 machine，并把 machine 的状态渲染出来。网页入口（`app/web/`）用 React 渲染，微信小游戏入口（`app/wechat/`）用 canvas 渲染，共用同一个 machine。
 
 Node 训练不经过 machine：`ai/` 用 `platform/headless` 加单款游戏直接跑，训练完写出 `model.json`，网页入口通过 machine 的自动玩钩子加载推理。
 
@@ -97,7 +99,7 @@ Node 训练不经过 machine：`ai/` 用 `platform/headless` 加单款游戏直�
 接口集中定义在 `src/engine/types.ts`，下面是与运行时实现对齐的当前签名：
 
 ```ts
-// Screen —— 纯 framebuffer，硬件屏幕的抽象
+// Screen：纯 framebuffer，硬件屏幕的抽象
 interface Screen {
   readonly width: number;
   readonly height: number;
@@ -111,7 +113,7 @@ interface Screen {
   subscribe(fn: () => void): () => void;
 }
 
-// Ticker —— 固定步长循环
+// Ticker：固定步长循环
 interface Ticker {
   readonly speed: number; // ticks/second（语义约定，驱动方式由实现决定）
   readonly tickCount: number; // 已推进 tick 总数，作为逻辑时钟
@@ -126,7 +128,7 @@ interface Ticker {
 //   src/platform/browser/  RealtimeTicker  requestAnimationFrame + 累积器
 //   src/platform/headless/ HeadlessTicker  非自驱，外部 advance 推进（训练 / 测试）
 
-// InputBus —— 统一按键总线
+// InputBus：统一按键总线
 type Button =
   | 'Up'
   | 'Down'
@@ -149,7 +151,7 @@ interface InputBus {
   readonly pressed: ReadonlySet<Button>;
 }
 
-// Counter / Toggle —— 可订阅的原子状态
+// Counter / Toggle：可订阅的原子状态
 interface Counter {
   readonly value: number;
   set(n: number): void;
@@ -164,9 +166,10 @@ interface Toggle {
   subscribe(fn: (v: boolean) => void): () => void;
 }
 
-// Sound —— 8-bit 音效抽象
+// Sound：8-bit 音效抽象
 //   browser 实现：移动 / 死亡走 sample 切片（public/sounds/sfx.m4a），
 //                  其它走 WebAudio Oscillator 合成；masterGain 实时静音
+//   以上逻辑在 engine 的 createSynthSound，浏览器 / 小游戏只注入音频上下文与采样加载
 //   headless 实现：Null Sound（所有方法 no-op）
 interface Sound {
   readonly enabled: boolean;
@@ -181,7 +184,7 @@ interface Sound {
   canAutoplay(): Promise<boolean>;
 }
 
-// Storage —— 键值持久化抽象
+// Storage：键值持久化抽象
 interface Storage {
   get<T>(key: string): T | null;
   set<T>(key: string, value: T): void;
@@ -189,7 +192,7 @@ interface Storage {
   clear(): void;
 }
 
-// HardwareContext —— 游戏看到的"硬件上下文"聚合
+// HardwareContext：游戏看到的硬件上下文聚合
 interface HardwareContext {
   screen: Screen;
   /** 4×2 副屏，画下一块 / 辅助信息；UI 订阅渲染到 SidePanel */
@@ -218,8 +221,8 @@ interface HardwareContext {
 ### 3.2 sdk
 
 ```ts
-// GameEnv —— 游戏看到的 HardwareContext 切片
-//   屏蔽 Ticker / Storage / pause / soundOn 等"应用级"权限；游戏只能访问
+// GameEnv：游戏看到的 HardwareContext 切片
+//   屏蔽 Ticker / Storage / pause / soundOn 等应用级权限；游戏只能访问
 //   屏幕 / 输入 / 音效 / RNG / 逻辑时钟 / 计数器
 interface GameEnv {
   readonly screen: Screen;
@@ -239,7 +242,7 @@ interface GameInitOptions {
   readonly level: number; // 1..9
 }
 
-// Game —— 核心接口，每款游戏一个实现。仅 id / name / preview 必填，
+// Game：核心接口，每款游戏一个实现。仅 id / name / preview 必填，
 // 其它字段缺省即视为 preview-only 占位条目（菜单可见但按 A 不进游戏）
 interface Game<S = unknown> {
   readonly id: string;
@@ -261,7 +264,7 @@ interface Game<S = unknown> {
   demoStep?(env: GameEnv, state: S): S;
 }
 
-// GameRegistry —— 冻结列表，O(1) id 查找
+// GameRegistry：冻结列表，O(1) id 查找
 interface GameRegistry {
   list(): ReadonlyArray<Game>;
   get(id: string): Game | undefined;
@@ -339,7 +342,7 @@ ctx.ticker.start(() => dispatch({ type: 'TICK' }));
 
 ### 4.1 渲染策略：Declarative Full-Redraw
 
-每次 state 变化，machine 在 `screen.batch()` 内调用 `game.render(env, state)`，游戏先 `screen.clear()` 再按当前 state 画出整屏，即 **声明式全量重绘**。
+每次 state 变化，machine 在 `screen.batch()` 内调用 `game.render(env, state)`，游戏先 `screen.clear()` 再按当前 state 画出整屏，即声明式全量重绘。
 
 - 游戏代码只描述当前状态对应的画面，无需关心上一帧的状态
 - 天然支持游戏切换、暂停、回放：给定一个 state 就能画出对应画面
@@ -349,13 +352,13 @@ ctx.ticker.start(() => dispatch({ type: 'TICK' }));
 
 ### 4.2 Renderer
 
-`ContentScreen` 通过 `renderer` prop（`'dom'` | `'canvas'`，默认 `'dom'`）选择具体渲染器，样式默认值只在这一处补齐。默认的 `DomScreen` 是 **保留式 DOM 像素格**：`width×height` 个长期存在的 `<div>` 格子（外框 + 内方块，熄灭态按半透明底色画出），模拟真机 LCD 阴影格。格子在尺寸不变时只创建一次，不随游戏 tick 重建；订阅 `Screen.subscribe` 后只更新亮灭状态发生变化的格子的 `data-on` 属性，配合 Screen 的 `batch()`（见下），每帧的 DOM 写入次数与变化格数成正比。
+`ContentScreen` 通过 `renderer` prop（`'dom'` | `'canvas'`，默认 `'dom'`）选择具体渲染器，样式默认值只在这一处补齐。默认的 `DomScreen` 是保留式 DOM 像素格：`width×height` 个长期存在的 `<div>` 格子（外框 + 内方块，熄灭态按半透明底色画出），模拟真机 LCD 阴影格。格子在尺寸不变时只创建一次，不随游戏 tick 重建；订阅 `Screen.subscribe` 后只更新亮灭状态发生变化的格子的 `data-on` 属性，配合 Screen 的 `batch()`（见下），每帧的 DOM 写入次数与变化格数成正比。
 
-**通知批处理（`Screen.batch`）**：单次 `setPixel` 默认立即通知，但一次 `game.render()` 常做上百次 `setPixel`，逐次通知会让渲染器整屏重画上百遍。machine 把整段绘制包在 `screen.batch(() => auxScreen.batch(paint))` 里，使主屏 / 副屏每逻辑帧各只通知订阅者一次。该语义在 engine 内实现（DOM-agnostic），Web / 原生 / 小游戏渲染器共享。
+通知批处理（`Screen.batch`）：单次 `setPixel` 默认立即通知，但一次 `game.render()` 常做上百次 `setPixel`，逐次通知会让渲染器整屏重画上百遍。machine 把整段绘制包在 `screen.batch(() => auxScreen.batch(paint))` 里，使主屏 / 副屏每逻辑帧各只通知订阅者一次。该语义在 engine 内实现（DOM-agnostic），Web / 原生 / 小游戏渲染器共享。
 
 `CanvasScreen` 订阅后整屏重画，位图按 `devicePixelRatio` 放大保证高分屏清晰。绘制逻辑抽在纯函数 `drawLcd(ctx, screen, style)` 里，只依赖最小 2D 绘图接口 `LcdContext2D`，不绑定 DOM 类型，微信 / 抖音小游戏的 canvas 可直接复用。
 
-**多 renderer 切换**：三者都基于 `Screen.subscribe` + `Screen.buffer` 平行实现，只换视图层不动数据。DOM / Canvas2D 已落地，运行时切换的 UI 入口与 WebGL 待做：
+多 renderer 切换：三者都基于 `Screen.subscribe` + `Screen.buffer` 平行实现，只换视图层不动数据。DOM / Canvas2D 已落地，运行时切换的 UI 入口与 WebGL 待做：
 
 | Renderer | 实现要点                        | 状态           | 适用                         |
 | -------- | ------------------------------- | -------------- | ---------------------------- |
@@ -365,7 +368,7 @@ ctx.ticker.start(() => dispatch({ type: 'TICK' }));
 
 主题系统（点亮像素颜色 / 形状）也走类似机制，留作后续迭代。
 
-刻意 **不做**：CRT 扫描线 / 暗角效果。Brick Game 是固定点阵 LCD，不是 CRT，这类效果与 LCD 不符。
+刻意不做：CRT 扫描线 / 暗角效果。Brick Game 是固定点阵 LCD，不是 CRT，这类效果与 LCD 不符。
 
 ---
 
@@ -373,7 +376,7 @@ ctx.ticker.start(() => dispatch({ type: 'TICK' }));
 
 ### 5.1 核心要求
 
-给定 `{ seed, actions[] }`，**任意环境下重放都必须得到完全一致的 state 序列**。
+给定 `{ seed, actions[] }`，**任意环境下重放都必须得到一致的 state 序列**。
 
 ### 5.2 硬规则
 
@@ -385,7 +388,7 @@ ctx.ticker.start(() => dispatch({ type: 'TICK' }));
 
 ### 5.3 PRNG 实现
 
-选用 **mulberry32**：实现约 10 行，跨平台行为一致，伪随机质量满足游戏与 RL 训练需求：
+选用 mulberry32：实现约 10 行，跨平台行为一致，伪随机质量满足游戏与 RL 训练需求：
 
 ```ts
 export function mulberry32(seed: number): () => number {
@@ -412,7 +415,7 @@ interface Episode {
 }
 ```
 
-一局 1000 tick 的贪吃蛇，Episode 大约 **1 KB**，可完整复现。
+一局 1000 tick 的贪吃蛇，Episode 大约 1 KB，可完整复现。
 
 ---
 
@@ -420,15 +423,15 @@ interface Episode {
 
 覆盖从编码到发布的 AI 辅助闭环；表内每行对应仓库中的具体位置。
 
-| #   | 模块          | 技术选型                           | 当前落地点                                                                                   |
-| --- | ------------- | ---------------------------------- | -------------------------------------------------------------------------------------------- |
-| 1   | **编码规范**  | `AGENTS.md`                        | 项目根 + 各层目录 `AGENTS.md`，pre-commit `eslint --fix` + `prettier --write`                |
-| 2   | **Skills**    | Cursor Skills                      | `.cursor/skills/add-game/`：新游戏骨架生成 + Registry 注册                                   |
-| 3   | **自动 PR**   | `gh` CLI                           | AI 助手按 `AGENTS.md` 走"先 CR 再 `gh pr create`"流程，不要求 GitHub App                     |
-| 4   | **远端 CR**   | CodeRabbit                         | `.coderabbit.yaml`，PR 自动评论 + 与本地规则互补                                             |
-| 5   | **RL 玩游戏** | tfjs-node 训练 + tfjs 推理 + DQN   | `src/ai/`（dqn/replay/train/inference）+ `src/games/snake/rl.ts`，模型在 `models/snake-dqn/` |
-| 6   | **训练 UI**   | Vite 多入口 + ECharts              | `training.html` + `src/training/`，浏览器端可视化训练曲线                                    |
-| 7   | **AI 测试**   | Vitest 4 + jsdom + AudioContext 桩 | `__tests__/` 全层覆盖，含 RL 网络结构、状态机、声音通路                                      |
+| #   | 模块      | 技术选型                           | 当前落地点                                                                                   |
+| --- | --------- | ---------------------------------- | -------------------------------------------------------------------------------------------- |
+| 1   | 编码规范  | `AGENTS.md`                        | 项目根 + 各层目录 `AGENTS.md`，pre-commit `eslint --fix` + `prettier --write`                |
+| 2   | Skills    | Cursor Skills                      | `.cursor/skills/add-game/`：新游戏骨架生成 + Registry 注册                                   |
+| 3   | 自动 PR   | `gh` CLI                           | AI 助手按 `AGENTS.md` 走"先 CR 再 `gh pr create`"流程，不要求 GitHub App                     |
+| 4   | 远端 CR   | CodeRabbit                         | `.coderabbit.yaml`，PR 自动评论 + 与本地规则互补                                             |
+| 5   | RL 玩游戏 | tfjs-node 训练 + tfjs 推理 + DQN   | `src/ai/`（dqn/replay/train/inference）+ `src/games/snake/rl.ts`，模型在 `models/snake-dqn/` |
+| 6   | 训练 UI   | Vite 多入口 + ECharts              | `training.html` + `src/training/`，浏览器端可视化训练曲线                                    |
+| 7   | AI 测试   | Vitest 4 + jsdom + AudioContext 桩 | `__tests__/` 全层覆盖，含 RL 网络结构、状态机、声音通路                                      |
 
 未来计划：Playwright MCP 接入 visual regression、PR 模型门禁；尚未落地，写在 backlog 里。
 
@@ -462,6 +465,7 @@ react-gamebaby/
 │  ├─ DEPLOY.md                master 自动部署到 VPS 流程
 │  └─ MOBILE.md                Capacitor 移动端开发说明（当前仅 Android）
 ├─ android/                    Capacitor Android 原生工程
+├─ wechat/                     微信小游戏工程：project.config.json（miniprogramRoot 指向 dist/）
 ├─ capacitor.config.ts         Capacitor 配置
 ├─ public/
 │  └─ sounds/sfx.m4a           move / over 的预录 PCM 切片源
@@ -472,8 +476,10 @@ react-gamebaby/
 │  │  ├─ screen.ts             framebuffer
 │  │  ├─ input.ts              按键事件总线
 │  │  ├─ repeat.ts             bindPressRepeat 长按连发（计时器由调用方注入）
+│  │  ├─ frame-ticker.ts       createFrameTicker 帧驱动 Ticker（帧调度与时钟由调用方注入）
 │  │  ├─ counter.ts            Counter / Toggle / PersistentToggle
 │  │  ├─ sound.ts              createNullSound（headless 默认）
+│  │  ├─ synth-sound.ts        createSynthSound 采样切片 + 方波合成（音频上下文与采样加载由调用方注入）
 │  │  ├─ storage.ts            createMemoryStorage（headless 默认）
 │  │  └─ rng.ts                mulberry32 可播种 PRNG
 │  ├─ sdk/                     核心 · 游戏契约
@@ -494,16 +500,23 @@ react-gamebaby/
 │  │  ├─ headless/             Node / 训练 / 单测
 │  │  │  ├─ ticker.ts          createHeadlessTicker（非自驱）
 │  │  │  └─ context.ts         createHeadlessContext（复用 engine null/memory 实现）
-│  │  └─ browser/              浏览器与 Android WebView
-│  │     ├─ ticker.ts          createRealtimeTicker（requestAnimationFrame）
-│  │     ├─ input.ts           bindKeyboardInput（键盘桥接）+ timeoutSchedule
-│  │     ├─ storage.ts         createLocalStorage
-│  │     ├─ sound.ts           createBrowserSound（WebAudio sample + oscillator）
-│  │     ├─ back-button.ts     bindBackButton（Android 系统返回键桥接）
-│  │     ├─ app-state.ts       bindAppState（前后台切换桥接）
-│  │     ├─ app-info.ts        isDevBuild（开发版识别）
-│  │     ├─ offline.ts         setupOfflineCache（Service Worker 注册与清理）
-│  │     └─ context.ts         createBrowserContext
+│  │  ├─ browser/              浏览器与 Android WebView
+│  │  │  ├─ ticker.ts          createRealtimeTicker（requestAnimationFrame 驱动 engine 的 FrameTicker）
+│  │  │  ├─ input.ts           bindKeyboardInput（键盘桥接）+ timeoutSchedule
+│  │  │  ├─ storage.ts         createLocalStorage
+│  │  │  ├─ sound.ts           createBrowserSound（new AudioContext + fetch 采样）
+│  │  │  ├─ back-button.ts     bindBackButton（Android 系统返回键桥接）
+│  │  │  ├─ app-state.ts       bindAppState（前后台切换桥接）
+│  │  │  ├─ app-info.ts        isDevBuild（开发版识别）
+│  │  │  ├─ offline.ts         setupOfflineCache（Service Worker 注册与清理）
+│  │  │  └─ context.ts         createBrowserContext
+│  │  └─ wechat/               微信小游戏
+│  │     ├─ api.ts             用到的 wx 能力的最小类型声明
+│  │     ├─ storage.ts         createWxStorage（wx 同步存储）
+│  │     ├─ touch.ts           bindTouchInput（多指触控 → InputBus）
+│  │     ├─ lifecycle.ts       bindAppLifecycle（wx.onShow / onHide）
+│  │     ├─ sound.ts           createWechatSound（wx.createWebAudioContext + 包内采样）
+│  │     └─ context.ts         createWechatContext
 │  ├─ ui/                      外围 · React 视图
 │  │  ├─ Device/               外壳容器
 │  │  ├─ ContentScreen/        DOM 像素格主屏渲染
@@ -511,9 +524,15 @@ react-gamebaby/
 │  │  ├─ Buttons/              方向键 + 功能键面板
 │  │  └─ locale/               按钮标签 i18n（按浏览器首选语言一次装配）
 │  ├─ app/                     外围 · 入口装配
-│  │  └─ web/                  网页与 Android WebView 入口
-│  │     ├─ main.tsx           createRoot 渲染入口 + 离线缓存配置
-│  │     └─ App.tsx            装配 browser 平台 + machine + ui，绑定宿主事件
+│  │  ├─ web/                  网页与 Android WebView 入口
+│  │  │  ├─ main.tsx           createRoot 渲染入口 + 离线缓存配置
+│  │  │  └─ App.tsx            装配 browser 平台 + machine + ui，绑定宿主事件
+│  │  └─ wechat/               微信小游戏入口
+│  │     ├─ main.ts            收集小游戏全局 wx / requestAnimationFrame 等并启动
+│  │     ├─ app.ts             startWechatApp：装配 wechat 平台 + machine，渲染循环
+│  │     ├─ layout.ts          机身布局（网页版 580 宽设计坐标 + 同样的缩放与留白规则）与触摸判定
+│  │     ├─ draw.ts            canvas 复刻网页版机身；静态部分缓存为离屏图层
+│  │     └─ public/            game.json（构建时复制到 wechat/dist/）
 │  ├─ ai/                      工具 · RL 通用层
 │  │  ├─ dqn.ts                DQN 网络结构
 │  │  ├─ replay-buffer.ts      经验回放
@@ -563,19 +582,20 @@ react-gamebaby/
 - ui：Device / ContentScreen（DOM 像素格）/ SidePanel / Buttons + 多语言按钮标签
 - AI：tfjs-node 训练（`pnpm train`）+ tfjs 浏览器推理 + 训练 dashboard（`training.html`）
 - AI 工程基础设施：`AGENTS.md` + 各层 `AGENTS.md` + `.cursor/skills/add-game/` + CodeRabbit + GitHub Actions（lint/test/build/部署）
+- 微信小游戏：`src/platform/wechat/`（wx 存储、多指触控、WebAudio 音效、前后台）+ `src/app/wechat/`（canvas 复刻网页版机身，静态部分缓存为离屏图层），`pnpm wechat:build` 构建到 `wechat/dist/`，开发者工具导入 `wechat/`；不含 AI 自动玩
 - 移动端混合应用：Capacitor 8（`android/`），复用同一套 Web 游戏逻辑与 UI；锁竖屏、安全区适配、系统返回键映射到 InputBus（`src/platform/browser/back-button.ts`）；iOS 暂不在迭代范围内
 
 Backlog（顺序无承诺）：
 
-- 微信小游戏入口：新增 `src/platform/wechat/`（Ticker / 存储 / 声音 / 触控 / 前后台）与 `src/app/wechat/`（canvas 机身绘制），复用 machine
-- **多 renderer 切换**：DOM / Canvas2D 已可通过 `renderer` prop 选择；待补 PC 端切换按钮（选择存 Zustand）与 WebGL 渲染器，同步落地像素主题系统（颜色 / 形状）
+- 微信小游戏：真机验证 WebAudio 与采样解码、发布体验版
+- 多 renderer 切换：DOM / Canvas2D 已可通过 `renderer` prop 选择；待补 PC 端切换按钮（选择存 Zustand）与 WebGL 渲染器，同步落地像素主题系统（颜色 / 形状）
 - 第二款 RL 游戏（Tetris RL env）
 - Playwright MCP 驱动 visual regression
 - PR 阶段的模型回归门禁（推理胜率 / Episode 长度退化即拦截）
 - Android 启动闪屏（`@capacitor/splash-screen`）
 - 把移动端专属代码（当前位于 `src/platform/browser/` 的 `back-button.ts`、`app-state.ts`、`app-info.ts`）抽到独立的 `src/platform/mobile/`，并补齐首次手势解锁 AudioContext 等行为
 - Android 打包发布流水线（签名、AAB 产物、内测分发）
-- iOS 端：评估上架成本与 Web 体验差异后再开（`pnpm cap add ios` 即可恢复）
+- iOS 端：评估上架成本与 Web 体验差异后再开（`pnpm cap add ios` 可恢复）
 
 ---
 

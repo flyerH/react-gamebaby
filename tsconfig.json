@@ -31,6 +31,6 @@
 
     "types": ["node", "vitest/globals", "vite/client", "vite-plugin-pwa/client"]
   },
-  "include": ["src", "vite.config.ts", "vitest.config.ts"],
+  "include": ["src", "vite.config.ts", "vite.wechat.config.ts", "vitest.config.ts"],
   "exclude": ["node_modules", "dist"]
 }
