@@ -76,4 +76,4 @@ master 每次 push 自动通过 GitHub Actions 构建并 rsync 到 VPS，详见 
 
 ## License
 
-[MIT](LICENSE)
+允许查看、修改、fork 和部署网页版；未经书面许可，不得上架到应用商店、小程序或小游戏平台，也不得用于商业目的。详见 [LICENSE](LICENSE)。
