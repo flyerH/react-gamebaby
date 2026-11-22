@@ -401,6 +401,8 @@ export function App(): React.ReactElement {
   // 应用是否处于后台：后台时暂停 ticker 与音频，回前台不追帧。与用户主动
   // 暂停（ctx.pause）正交，二者任一成立都暂停，恢复时不覆盖对方
   const [backgrounded, setBackgrounded] = useState(false);
+  // 自动通电的异步回调需要读取最新的后台状态
+  const backgroundedRef = useRef(false);
 
   // 通电：把"播放开机音乐"和"切 mode 到 boot"封装成单一动作，让 ON/OFF 按键
   // 触发和 mount 时探测 autoplay 自动触发走同一通路。playMelody 必须在
@@ -579,12 +581,14 @@ export function App(): React.ReactElement {
   useEffect(() => {
     const unbind = bindAppState({
       onBackground: () => {
+        backgroundedRef.current = true;
         setBackgrounded(true);
         melodyCancelRef.current?.();
         melodyCancelRef.current = null;
         ctx.sound.suspend();
       },
       onForeground: () => {
+        backgroundedRef.current = false;
         setBackgrounded(false);
         ctx.sound.resume();
       },
@@ -602,7 +606,8 @@ export function App(): React.ReactElement {
     void (async () => {
       const canAuto = await ctx.sound.canAutoplay();
       if (cancelled) return;
-      if (canAuto) powerOn();
+      // 页面在后台时不自动通电，等用户切回后按开关键
+      if (canAuto && !backgroundedRef.current) powerOn();
     })();
     return () => {
       cancelled = true;

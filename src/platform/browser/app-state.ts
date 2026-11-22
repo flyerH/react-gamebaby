@@ -59,6 +59,8 @@ export function bindAppState(opts: BindAppStateOptions): Unsubscribe {
   const hasDocument = typeof document !== 'undefined';
   if (hasDocument) {
     document.addEventListener('visibilitychange', onVisibility);
+    // 挂载时页面可能已不可见（如在后台标签页打开），此时不会收到 visibilitychange，按当前可见性同步一次
+    setActive(!document.hidden);
   }
 
   return () => {

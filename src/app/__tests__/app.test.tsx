@@ -55,6 +55,24 @@ describe('App 开机音乐', () => {
       expect(playMelody).toHaveBeenCalledTimes(1);
     });
   });
+
+  it('页面挂载时处于后台，即使允许自动播放也不自动通电', async () => {
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+    try {
+      const { ctx, playMelody } = createMockContext(true);
+      vi.mocked(createBrowserContext).mockReturnValue(ctx);
+
+      render(<App />);
+
+      await waitFor(() => {
+        expect(ctx.sound.canAutoplay).toHaveBeenCalled();
+      });
+      await Promise.resolve();
+      expect(playMelody).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+    }
+  });
 });
 
 describe('App 关机态按键', () => {
