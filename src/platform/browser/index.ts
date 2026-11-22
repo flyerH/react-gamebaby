@@ -4,9 +4,12 @@
  * 目标运行环境：浏览器（requestAnimationFrame / window / document 可用）。
  * 对应的 Node / 测试实现见 `src/platform/headless/`。
  *
- * 本层只提供**有平台耦合**的组件：
+ * 本层只提供有平台耦合的组件：
  * - RealtimeTicker：rAF + 累积器驱动的固定步长循环
  * - bindKeyboardInput：键盘事件 → L3 InputBus 桥接
+ * - bindBackButton：Android 系统返回键桥接
+ * - bindAppState：应用前后台切换桥接
+ * - isDevBuild：识别是否运行在 Android 开发版
  * - createLocalStorage：基于 localStorage 的 Storage 适配
  * - createBrowserSound：基于 Web Audio 的 8-bit 音效合成
  * - createBrowserContext：把上述组件与 engine 跨平台模块组装成完整 HardwareContext
@@ -18,6 +21,9 @@ export { bindKeyboardInput, DEFAULT_KEY_MAP } from './input';
 export type { BindKeyboardOptions } from './input';
 export { bindBackButton } from './back-button';
 export type { BackButtonHandler, BindBackButtonOptions } from './back-button';
+export { isDevBuild } from './app-info';
+export { bindAppState } from './app-state';
+export type { BindAppStateOptions } from './app-state';
 export { createLocalStorage } from './storage';
 export { createBrowserSound } from './sound';
 export { createBrowserContext } from './context';

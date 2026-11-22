@@ -1,15 +1,9 @@
 import type { Note } from '@/engine/types';
 
 /**
- * 开机旋律：《Little Brown Jug》（小棕罐 / 棕色酒壶）开头 8 小节
+ * 开机音乐的音符序列，共 8 小节
  *
- * 出自 1869 年 Joseph E. Winner（笔名 Eastburn）创作的美国民谣，1939 年被
- * Glenn Miller 改编为 Big Band 经典。早过版权期，公有领域。Brick Game
- * 9999-in-1 在英美市场版本里常用此曲做开机 BGM；本项目目前作为兜底曲目，
- * 待识别出真机的精确旋律后再替换。
- *
- * 谱面以 D 大调 2/4 拍写出（依 Ruth, "Pioneer Western Folk Tunes",
- * 1948 的 ABC 转录）；速度 120 BPM 让一拍约 0.5s，整段 ≈ 8s。
+ * 谱面以 D 大调 2/4 拍写出；速度 120 BPM，一拍约 0.5s，整段约 8s。
  */
 
 const PITCH = {

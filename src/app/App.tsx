@@ -13,7 +13,13 @@ import { createPersistentCounter } from '@/engine/counter';
 import type { Button, ButtonAction, Counter } from '@/engine/types';
 import { defaultGames } from '@/games';
 import type { SnakeState } from '@/games/snake/state';
-import { bindBackButton, bindKeyboardInput, createBrowserContext } from '@/platform/browser';
+import {
+  bindAppState,
+  bindBackButton,
+  bindKeyboardInput,
+  createBrowserContext,
+  isDevBuild,
+} from '@/platform/browser';
 import { createHeadlessContext } from '@/platform/headless';
 import type { Game, GameEnv, GameRegistry } from '@/sdk';
 import { toGameEnv } from '@/sdk';
@@ -75,15 +81,15 @@ const DEMO_Y = 6;
  * 游戏内动画速度：每秒 30 帧。
  *
  * 在 game 进入"动画态"（Snake 死亡爆炸 / Tetris 消行闪烁等）时，App 把 ticker
- * 切到这个固定值。这样动画节奏不被玩家选的 baseline tickSpeed 拖慢——speed=1
- * 的慢节奏游戏也能用 ~33ms/帧 干脆的速度播完动画
+ * 切到这个固定值，动画节奏不受玩家所选 tickSpeed 影响：即使 speed=1，
+ * 动画也按约 33ms/帧播放
  */
 const ANIM_TICK_SPEED = 30;
 
 /**
  * 应用 mode 状态机：
  *   off    —— 关机：屏幕黑，无声音，仅 ON/OFF (Start/A) 能"通电"
- *   boot   —— 开机动画 + Korobeiniki 旋律；任意键停止旋律切到 select
+ *   boot   —— 开机动画 + 开机音乐；任意键停止音乐切到 select
  *   select —— 游戏选择菜单
  *   playing—— 游戏运行中
  */
@@ -232,13 +238,13 @@ function reduce(state: AppState, action: Action, deps: ReduceDeps): AppState {
   if (action.kind !== 'press' && state.mode !== 'playing') return state;
   const { button, kind } = action;
 
-  // 关机状态忽略所有 INPUT —— 通电由外层 powerOn() 直接调度 POWER_ON action，
-  // 顺带启动旋律，确保旋律 playMelody 在 user gesture 调用栈内
+  // 关机状态忽略所有 INPUT：通电由外层 powerOn() 直接调度 POWER_ON action，
+  // 顺带播放开机音乐，确保 playMelody 在 user gesture 调用栈内
   if (state.mode === 'off') return state;
 
   if (state.mode === 'boot') {
     if (kind !== 'press') return state;
-    // boot 期间任意按键 → 进 select；旋律的 cancel 由 input subscribe
+    // boot 期间任意按键 → 进 select；开机音乐的 cancel 由 input subscribe
     // 同步触发，与 dispatch 共处一个事件回调内
     const menu = initialMenuState();
     const de = createDemoEnv();
@@ -282,8 +288,7 @@ function reduce(state: AppState, action: Action, deps: ReduceDeps): AppState {
   }
 
   // playing：Reset 重开当前局；Select 退回菜单；其它走 game.onButton。
-  // 原本游戏结束时按 Start 重开局的分支已不可达（input 层把 Start 拦截
-  // 作 POWER_OFF）。Reset 在 playing 重开 / select 时退回菜单
+  // Start 已由 input 层拦截作 POWER_OFF，不会进入这里
   if (state.playingId) {
     if (kind === 'press' && button === 'Reset') {
       const game = registry.get(state.playingId);
@@ -321,7 +326,7 @@ function reduce(state: AppState, action: Action, deps: ReduceDeps): AppState {
 /**
  * App —— 掌机应用层装配
  *
- * 四态状态机：off（关机）→ boot（开机动画 + 旋律）→ select（方向键切游戏）→
+ * 四态状态机：off（关机）→ boot（开机动画 + 开机音乐）→ select（方向键切游戏）→
  * playing（真游戏 loop；Select / R 返回 select）。
  *
  * 副作用都集中在 useEffect：键盘绑定、InputBus 订阅、Ticker 启停、
@@ -349,16 +354,16 @@ export function App(): React.ReactElement {
     initialAppState
   );
 
-  // 持有当前正在播的开机旋律的 cancel 函数，用于"按任意键停止旋律"+ unmount
+  // 持有当前正在播的开机音乐的 cancel 函数，用于"按任意键停止音乐"+ unmount
   // 时清理。Ref 而非 state：避免改它触发额外渲染
   const melodyCancelRef = useRef<(() => void) | null>(null);
-  // useReducer 内拿不到最新 state，需要 ref 转一手给 input subscribe 判断 mode
+  // input subscribe 的闭包拿不到最新 state，通过 ref 读取当前 mode
   const modeRef = useRef(state.mode);
   useEffect(() => {
     modeRef.current = state.mode;
   }, [state.mode]);
 
-  // AI 推理相关 refs —— 存在 ref 里避免触发渲染
+  // AI 推理相关状态存在 ref 里，避免触发渲染
   const aiAgentRef = useRef<{ act(obs: Float32Array): number; dispose(): void } | null>(null);
   const aiPlayingRef = useRef(state.aiPlaying);
   const gameStateRef = useRef(state.gameState);
@@ -381,15 +386,42 @@ export function App(): React.ReactElement {
 
   const [aiLoading, setAiLoading] = useState(false);
 
-  // 通电：把"启动旋律"和"切 mode 到 boot"封装成单一动作，让 ON/OFF 按键
+  // Android 开发版在机身标题旁贴 DEV 角标，与同机安装的正式版区分
+  const [devBuild, setDevBuild] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    void isDevBuild().then((dev) => {
+      if (alive) setDevBuild(dev);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // 应用是否处于后台：后台时暂停 ticker 与音频，回前台不追帧。与用户主动
+  // 暂停（ctx.pause）正交，二者任一成立都暂停，恢复时不覆盖对方
+  const [backgrounded, setBackgrounded] = useState(false);
+  // 自动通电的异步回调需要读取最新的后台状态
+  const backgroundedRef = useRef(false);
+
+  // 通电：把"播放开机音乐"和"切 mode 到 boot"封装成单一动作，让 ON/OFF 按键
   // 触发和 mount 时探测 autoplay 自动触发走同一通路。playMelody 必须在
   // user gesture 同步调用栈内才能被浏览器允许 resume AudioContext
   const powerOn = useCallback(() => {
     if (modeRef.current !== 'off') return;
-    // 用户静音时开机不触发旋律，避免任何浏览器音频时序抖动导致的漏声
+    // 用户静音时不播放开机音乐，避免浏览器音频时序抖动导致漏出声音
     melodyCancelRef.current = ctx.soundOn.value ? ctx.sound.playMelody(BOOT_MELODY) : null;
     dispatch({ type: 'POWER_ON' });
   }, [ctx.sound, ctx.soundOn]);
+
+  // 稳定的按键回调：ctx.input 引用稳定，让 memo 化的 Buttons 在每次 App
+  // 重渲染（每 tick）时被跳过，只在真正需要时重渲染
+  const handleInput = useCallback(
+    (btn: Button, action: ButtonAction) => {
+      ctx.input.emit(btn, action);
+    },
+    [ctx.input]
+  );
 
   // 加载 AI 模型并进入 AI 自动玩模式；通过 ref 暴露给 input subscriber，
   // 避免 subscriber effect 因 menu/aiLoading 变化而频繁重建
@@ -439,10 +471,9 @@ export function App(): React.ReactElement {
   useEffect(() => {
     const unbind = bindKeyboardInput(ctx.input);
     const unsub = ctx.input.subscribe((button, kind) => {
-      // 关机：只允许"按 Start 通电"。其它任何 press / repeat / release 全
-      // 部忽略 —— 关机状态下不应再切 Sound / 改暂停 / 触发 reducer。这一
-      // 条必须早于下面的 press 控制键 switch，否则 case 'Sound' 会先于
-      // 关机检查把 soundOn 翻掉
+      // 关机：只允许按 Start 通电，其余 press / repeat / release 全部忽略，
+      // 关机状态下不切换 Sound、不改暂停、不触发 reducer。这段判断必须早于
+      // 下面的控制键 switch，否则 case 'Sound' 会在关机检查之前切换 soundOn
       if (modeRef.current === 'off') {
         if (kind === 'press' && button === 'Start') powerOn();
         return;
@@ -452,7 +483,7 @@ export function App(): React.ReactElement {
       if (kind === 'press') {
         switch (button) {
           case 'Start':
-            // 通电态按 Start = 关机：取消旋律 + 重置 pause + state 整体清零
+            // 通电态按 Start = 关机：停止开机音乐 + 重置 pause + state 整体清零
             melodyCancelRef.current?.();
             melodyCancelRef.current = null;
             ctx.pause.set(false);
@@ -483,7 +514,7 @@ export function App(): React.ReactElement {
         return;
       }
 
-      // 暂停态拦截游戏键 —— 不让 onButton 改 game state。Reset 已在上面先放行 +
+      // 暂停态拦截游戏键，不让 onButton 改 game state。Reset 已在上面先放行 +
       // 清了 pause，到这里 ctx.pause.value 已经是 false 不会被拦
       if (ctx.pause.value && modeRef.current === 'playing') {
         switch (button) {
@@ -497,14 +528,13 @@ export function App(): React.ReactElement {
         }
       }
 
-      // 游戏键反馈音：press 和 repeat 都响，让加速期间有"嘀嘀嘀"连击反馈
-      // （对齐 react-tetris move 音节奏）。release 不响（松开本来就没声）。
-      // Reset 不响（控制键已在前面单独处理）
+      // 游戏键反馈音：press 和 repeat 都发声，长按加速期间持续发出按键音；
+      // release 不发声。Reset 不发声（控制键已在前面单独处理）
       if ((kind === 'press' || kind === 'repeat') && button !== 'Reset') {
         ctx.sound.play('move');
       }
 
-      // 开机动画期间任意 press 先打断旋律
+      // 开机动画期间任意 press 先停止开机音乐
       if (kind === 'press' && modeRef.current === 'boot') {
         melodyCancelRef.current?.();
         melodyCancelRef.current = null;
@@ -521,16 +551,8 @@ export function App(): React.ReactElement {
   // Android 系统返回键 / 边缘手势 → 按当前 mode 给不同语义：
   //   playing                → emit 'Select'（退回菜单），复用按键状态机
   //   off / boot / select    → 弹原生 AlertDialog 确认 → 是 → exitApp；否 → 留在原状态
-  //
-  // 关键设计点：屏幕上的"关机按钮"（emit Start）和系统返回键 / 边缘右滑是两条
-  // 独立路径——前者只切到 off 态（屏幕黑，App 留前台），永不弹窗、永不退出 App；
-  // 后者明确表达"我要退出 App"的意图，所以在所有非游戏态都给确认窗。这样
-  // "按关机 → 再右滑想退出"是顺畅的两步动作，而不是被 off 状态吞掉的死路。
-  //
-  // 用 @capacitor/dialog 而不是 window.confirm 是为了让按钮文字（"退出"/"取消"）
-  // 走 locale，符合中文用户预期；浏览器原生 confirm 的 OK/Cancel 按钮文字不可定制。
-  // Web 环境下 @capacitor/dialog 会 fallback 到 window.confirm；bindBackButton 内部
-  // 也有 try/catch 兜底，让本 effect 在普通浏览器构建里也安全 no-op。
+  // 与屏幕关机键的区别、选用 @capacitor/dialog 的原因见 docs/MOBILE.md「系统返回键 /
+  // 边缘右滑行为」。bindBackButton 内部有 try/catch，普通浏览器构建里本 effect 安全 no-op
   useEffect(() => {
     const unbind = bindBackButton({
       handler: async () => {
@@ -553,15 +575,39 @@ export function App(): React.ReactElement {
     };
   }, [ctx.input, dialogLabels]);
 
+  // 前后台生命周期：进后台暂停 ticker + 挂起音频 + 停止开机音乐；回前台恢复
+  // 音频并解除后台暂停。ticker 的暂停 / 恢复由上面的合并 effect 统一处理，
+  // 这里只切换 backgrounded 状态，避免与用户主动暂停互相覆盖
+  useEffect(() => {
+    const unbind = bindAppState({
+      onBackground: () => {
+        backgroundedRef.current = true;
+        setBackgrounded(true);
+        melodyCancelRef.current?.();
+        melodyCancelRef.current = null;
+        ctx.sound.suspend();
+      },
+      onForeground: () => {
+        backgroundedRef.current = false;
+        setBackgrounded(false);
+        ctx.sound.resume();
+      },
+    });
+    return () => {
+      unbind();
+    };
+  }, [ctx.sound]);
+
   // mount 时探测能否 autoplay。常见情况：用户已和站点交互过 / 浏览器允许此源
   // autoplay，AudioContext.resume() 后立即变 'running'，那就直接通电；首次访问 /
-  // Safari 等场景 promise reject 或 state 仍 suspended，安静失败，等用户按 ON/OFF
+  // Safari 等场景 promise reject 或 state 仍 suspended，静默失败，等用户按 ON/OFF
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       const canAuto = await ctx.sound.canAutoplay();
       if (cancelled) return;
-      if (canAuto) powerOn();
+      // 页面在后台时不自动通电，等用户切回后按开关键
+      if (canAuto && !backgroundedRef.current) powerOn();
     })();
     return () => {
       cancelled = true;
@@ -635,46 +681,52 @@ export function App(): React.ReactElement {
     registry,
   ]);
 
-  // 屏幕渲染
+  // 屏幕渲染：整段包在 batch 里，一次 render 中的多次 setPixel，主屏和副屏
+  // 各只通知一次订阅者
   useEffect(() => {
-    const { screen } = ctx;
-    if (state.mode === 'off') {
-      // 关机：屏幕全暗（LCD 阴影格仍按底色显示，整体看起来"没通电"）
-      screen.clear();
-      return;
-    }
-    if (state.mode === 'boot') {
-      screen.clear();
-      for (const [x, y] of projectBoot(anim, state.boot)) {
-        screen.setPixel(x, y, true);
+    const { screen, auxScreen } = ctx;
+    const paint = (): void => {
+      if (state.mode === 'off') {
+        // 关机：屏幕全暗（LCD 阴影格仍按底色显示，整体看起来"没通电"）
+        screen.clear();
+        return;
       }
-      return;
-    }
-    if (state.mode === 'select') {
-      screen.clear();
-      const game = currentGame(registry, state.menu);
-      // demo 画到小屏幕，再偏移复制到主屏中间区域
-      if (game?.render && state.demoState !== null && state.demoEnv) {
-        game.render(state.demoEnv, state.demoState);
-        const ds = state.demoEnv.screen;
-        for (let y = 0; y < ds.height; y++)
-          for (let x = 0; x < ds.width; x++)
-            if (ds.getPixel(x, y)) screen.setPixel(x, y + DEMO_Y, true);
+      if (state.mode === 'boot') {
+        screen.clear();
+        for (const [x, y] of projectBoot(anim, state.boot)) {
+          screen.setPixel(x, y, true);
+        }
+        return;
       }
-      // 叠加静态 preview（图标 + 编号）
-      if (game) {
+      if (state.mode === 'select') {
+        screen.clear();
+        const game = currentGame(registry, state.menu);
+        // demo 画到小屏幕，再偏移复制到主屏中间区域
+        if (game?.render && state.demoState !== null && state.demoEnv) {
+          game.render(state.demoEnv, state.demoState);
+          const ds = state.demoEnv.screen;
+          for (let y = 0; y < ds.height; y++)
+            for (let x = 0; x < ds.width; x++)
+              if (ds.getPixel(x, y)) screen.setPixel(x, y + DEMO_Y, true);
+        }
+        // 叠加静态 preview（图标 + 编号）
+        if (game) {
+          for (const [x, y] of game.preview) screen.setPixel(x, y, true);
+        }
+        return;
+      }
+      // playing
+      const game = state.playingId ? registry.get(state.playingId) : undefined;
+      if (game?.render) {
+        game.render(env, state.gameState);
+      } else if (game) {
+        screen.clear();
         for (const [x, y] of game.preview) screen.setPixel(x, y, true);
       }
-      return;
-    }
-    // playing
-    const game = state.playingId ? registry.get(state.playingId) : undefined;
-    if (game?.render) {
-      game.render(env, state.gameState);
-    } else if (game) {
-      screen.clear();
-      for (const [x, y] of game.preview) screen.setPixel(x, y, true);
-    }
+    };
+    screen.batch(() => {
+      auxScreen.batch(paint);
+    });
   }, [state, ctx, registry, anim, env]);
 
   const score = useSyncExternalStore(
@@ -708,15 +760,18 @@ export function App(): React.ReactElement {
     useMemo(() => () => ctx.pause.value, [ctx.pause])
   );
 
-  // 暂停状态接 ticker —— playing+paused 时停掉 tick 调度，否则恢复。其它
-  // mode（off/boot/select）不参与 pause 语义；boot 动画始终跑，不让 P 键打断
+  // 暂停状态接 ticker：后台、或 playing+paused 任一成立都停掉 tick 调度，
+  // 否则恢复。ticker.resume 内部重置真实时间基准，回前台不会补跑积压的 tick。
+  // 其它 mode（off/boot/select）不参与用户 pause 语义；boot 动画始终跑，
+  // 不让 P 键打断，但后台仍会整体冻结
   useEffect(() => {
-    if (state.mode === 'playing' && paused) {
+    const shouldPause = backgrounded || (state.mode === 'playing' && paused);
+    if (shouldPause) {
       ctx.ticker.pause();
     } else {
       ctx.ticker.resume();
     }
-  }, [state.mode, paused, ctx.ticker]);
+  }, [backgrounded, state.mode, paused, ctx.ticker]);
 
   // 本局分数超越 hi-score 时推进。用 ref 式同步调用是安全的：
   // createCounter.set 在值未变时不通知，不会反向触发 score 订阅造成循环。
@@ -725,7 +780,7 @@ export function App(): React.ReactElement {
     if (score > hiCounter.value) hiCounter.set(score);
   }, [score, state.mode, hiCounter]);
 
-  // 把 game over 判断抽成稳定 boolean —— 死亡动画里 gameState 会反复变化，
+  // 把 game over 判断抽成稳定 boolean：死亡动画里 gameState 会反复变化，
   // 但这个 boolean 一旦 true 就稳定到下一局，避免 effect 反复清理重建 setTimeout
   const aiGameOver = useMemo(() => {
     if (!state.aiPlaying || state.mode !== 'playing' || !state.playingId) return false;
@@ -761,6 +816,7 @@ export function App(): React.ReactElement {
   return (
     <div className={styles.page}>
       <Device
+        badge={devBuild ? 'DEV' : undefined}
         screen={<ContentScreen screen={ctx.screen} cellSize={16} innerSize={9} />}
         side={
           <SidePanel
@@ -775,14 +831,7 @@ export function App(): React.ReactElement {
             aiMode={state.aiPlaying}
           />
         }
-        buttons={
-          <Buttons
-            labels={buttonLabels}
-            onInput={(btn, action) => {
-              ctx.input.emit(btn, action);
-            }}
-          />
-        }
+        buttons={<Buttons labels={buttonLabels} onInput={handleInput} />}
       />
     </div>
   );

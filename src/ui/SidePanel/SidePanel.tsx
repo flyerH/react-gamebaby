@@ -1,4 +1,4 @@
-import { useEffect, useReducer } from 'react';
+import { memo, useEffect, useReducer } from 'react';
 
 import type { Screen } from '@/engine/types';
 
@@ -27,7 +27,7 @@ export interface SidePanelProps {
 
 /**
  * 固定 4×2 的迷你像素网格，与主屏同风格（外框 + 内方块）。
- * 订阅 Screen buffer 变化触发 re-render，用 DOM span 模拟像素
+ * 订阅 Screen buffer 变化触发重新渲染，用 DOM span 模拟像素
  */
 function AuxPreview({
   screen,
@@ -61,10 +61,10 @@ function AuxPreview({
  * SidePanel —— LCD 屏右侧的静态信息区
  *
  * 只显示分数 / 高分 / 等级 / 速度 + 指示灯。
- * 当前游戏的"编号 + 名字"不在这里以文字形式呈现——真机是把
+ * 当前游戏的"编号 + 名字"不在这里以文字形式呈现：真机是把
  * 当前游戏的代号用像素字打在主屏上的 preview 点阵里，我们沿用这种做法。
  */
-export function SidePanel({
+export const SidePanel = memo(function SidePanel({
   power = true,
   score = 0,
   hiScore = 0,
@@ -105,4 +105,4 @@ export function SidePanel({
       </div>
     </div>
   );
-}
+});

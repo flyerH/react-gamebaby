@@ -14,9 +14,9 @@ const DEVICE_MIN_HEIGHT = 950;
 
 function computeScale(width: number, height: number): number {
   if (width <= 0) return 1;
-  // 主路：按"内容安全宽"算 scale，机身蓝边可被裁。这样在 360 宽手机上整机
-  // 视觉宽 580×0.75 = 435 溢出 37.5px each side（恰好等于机身蓝边宽度），
-  // 按钮组 480×0.75 = 360 完整可见。.app 的 max(950, 100%/scale) 反向补偿
+  // 常规情况：按"内容安全宽"算 scale，机身两侧蓝边允许被裁掉。例如 360 宽的
+  // 手机上 scale≈0.706，整机视觉宽 580×0.706≈409，每侧溢出约 25px；按钮组
+  // 447×0.706≈316，完整可见。.app 的 max(950, 100%/scale) 反向补偿
   // layout 高，让整机视觉贴满容器纵向
   const widthScale = Math.min(1, width / DEVICE_SAFE_WIDTH);
   // 兜底：当容器极矮（h < 950 × widthScale）时，按高度收紧避免内容溢出
@@ -34,6 +34,8 @@ function initialScale(): number {
 export interface DeviceProps {
   /** 机身上部印刷的品牌标题 */
   title?: string;
+  /** 贴在标题右侧的小角标（如开发版的 "DEV"）；不传则不显示 */
+  badge?: string;
   /** 主点阵屏；通常传入一个 <ContentScreen> */
   screen: ReactNode;
   /** 屏幕右侧的信息区；通常传入一个 <SidePanel> */
@@ -49,20 +51,22 @@ export interface DeviceProps {
  * 3D 凹陷蓝色内框 + LCD 黄绿屏底 + 红色实体按键。
  *
  * 本组件只负责外观与布局，屏幕 / 侧栏 / 按键区等内容由调用方以 slot 形式注入，
- * 这样外壳与内部实现（Canvas renderer、分数、按键映射）完全解耦。
+ * 这样外壳与内部实现（渲染器、分数、按键映射）解耦。
  *
  * 适配策略（"内容安全宽"驱动的连续响应式）：
- * - --device-scale 按 SAFE_WIDTH=480（按钮组实际宽度）而非整机 580 算，
+ * - --device-scale 按 DEVICE_SAFE_WIDTH=510（按钮组宽度加两侧余量）而非整机 580 算，
  *   机身蓝边可在窄屏上被 wrapper 裁切，让按钮 / 屏幕在小屏上视觉更大
  * - .app layout 高度反向补偿 scale，让整机视觉贴满 100dvh
- * - 内部 .content flex column 居中：屏幕 + 按钮作为整体居中，多余纵向
- *   空间均分到上下；窄屏上余量更小，整机更紧凑
+ * - 内部 .content flex column：标题 / 屏幕 / 按钮按设计稿间距排版，多余纵向
+ *   空间按「标题上方 : 标题与屏幕之间 : 按钮下方」= 3 : 0.5 : 4.5 分配；
+ *   窄屏上余量更小，整机更紧凑
  *
  * scale 用 useState lazy initializer 在首帧就算好，避免先以默认 scale=1
  * 渲染一次再 effect 里修正带来的"大 → 小"闪烁。
  */
 export function Device({
   title = 'GameBaby',
+  badge,
   screen,
   side,
   buttons,
@@ -73,11 +77,16 @@ export function Device({
   useEffect(() => {
     const el = wrapperRef.current;
     if (!el) return;
-    // 用 ResizeObserver 监听 wrapper 的 *实际可用尺寸*：移动端 safe-area
-    // padding 已在父级扣掉，window.innerHeight 包含状态栏/手势条，按容器
-    // 算缩放比窗口算更准。降级路径用 innerWidth/innerHeight，不保证安全区精度
+    // 用 ResizeObserver 监听 wrapper 的实际尺寸。机身会延伸到上下安全区
+    // （状态栏 / 手势条），内容只能用扣掉安全区后的高度，所以这里减去
+    // CSS 里 --safe-top / --safe-bottom 的解析值。降级路径用
+    // innerWidth/innerHeight，不保证安全区精度
     const updateFromEl = (): void => {
-      setScale(computeScale(el.clientWidth, el.clientHeight));
+      const style = getComputedStyle(el);
+      const safeY =
+        (parseFloat(style.getPropertyValue('--safe-top')) || 0) +
+        (parseFloat(style.getPropertyValue('--safe-bottom')) || 0);
+      setScale(computeScale(el.clientWidth, el.clientHeight - safeY));
     };
     updateFromEl();
     if (typeof ResizeObserver !== 'undefined') {
@@ -103,8 +112,14 @@ export function Device({
     <div ref={wrapperRef} className={styles.wrapper} style={wrapperStyle}>
       <div className={styles.app}>
         <div className={styles.content}>
+          <p className={styles.title}>
+            <span className={styles.titleText}>
+              {title}
+              {badge && <span className={styles.badge}>{badge}</span>}
+            </span>
+          </p>
+          <div className={styles.titleGap} aria-hidden="true" />
           <div className={styles.contentTop}>
-            <p className={styles.title}>{title}</p>
             <div className={styles.screenFrame}>
               <div className={styles.screenInner3d}>
                 <div className={styles.screen}>

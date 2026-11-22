@@ -1,8 +1,8 @@
 # AGENTS.md
 
-本文件定义本仓库的**编码与协作规范**，适用于所有 AI 编码助手（Cursor / Claude Code / Codex 等）以及人类贡献者。
+本文件定义本仓库的编码与协作规范，适用于所有 AI 编码助手（Cursor / Claude Code / Codex 等）以及人类贡献者。
 
-> 项目业务定位、阶段性决策、临时状态等**不写在此处**，请改写到 `docs/` 或 commit message。
+> 项目业务定位、阶段性决策、临时状态等不写在此处，请改写到 `docs/` 或 commit message。
 
 ## 技术栈
 
@@ -35,8 +35,8 @@ pre-commit 钩子会自动对 staged 文件跑 `eslint --fix` + `prettier --writ
   - 需要解释原因时，空行后写 body
 - 不提交 `console.log` / `debugger` / 死代码 / 被注释掉的旧实现
 - AI 助手不得主动 `git push` 或执行 `gh pr create` / `gh pr edit` 等对远端产生可见变更的动作；**推送 / 开 PR / 改远端 PR 只能在用户明确指令后执行**
-- `gh` CLI 已纳入项目工具链；AI 处理 PR 相关操作（提 / 关 / 改 body / 评论）一律走 `gh`，不让用户手动点链接
-- **AI 每次 `git commit` 前必须先把拟用的 commit message（标题 + body）完整展示给用户确认**，用户点头再真正 commit；用户可以在确认前要求改措辞 / 拆分 / 合并
+- `gh` CLI 已纳入项目工具链；AI 处理 PR 相关操作（提 / 关 / 改 body / 评论）一律走 `gh`，不要求用户手动打开链接
+- **AI 每次 `git commit` 前必须先把拟用的 commit message（标题 + body）完整展示给用户确认**，用户确认后再执行 commit；用户可以在确认前要求改措辞 / 拆分 / 合并
 - **AI 每次 `gh pr create` / `gh pr edit` 后必须在回复里输出 PR 链接**（形如 `https://github.com/<owner>/<repo>/pull/<n>`），方便用户直接跳转
 
 ## AI 协作流程
@@ -48,8 +48,7 @@ pre-commit 钩子会自动对 staged 文件跑 `eslint --fix` + `prettier --writ
 - 远程侧由 CodeRabbit（GitHub App）自动复审，配置文件在 `.coderabbit.yaml`；AI 本地 CR 与远程 App CR 互为补充
 - **AI 修复 CR 问题后必须收尾**：
   1. 已修复的 review thread 要 resolve（通过 GraphQL `resolveReviewThread`）
-  2. PR body 中的 test plan checklist 要据实打勾
-  3. PR body 要同步更新以反映后续 commit 的变更（如新增 / 删除的功能点）
+  2. PR body 要同步更新以反映后续 commit 的变更（如新增 / 删除的功能点）
 
 ## 四层架构
 
@@ -64,23 +63,26 @@ L1  Games      —— 各款游戏实现（纯函数）
 详见 `docs/ARCHITECTURE.md`。以下是必须遵守的约束：
 
 - **L3 Engine 完全 DOM-agnostic**：`src/engine/` 下不得 `import` React、`document`、`window`、`HTMLElement` 等；Engine 必须能在 Node 里运行（RL 训练会用到）。
-- **Platform 按运行环境分目录**：`src/platform/headless/` 为 Node / 测试实现，`src/platform/browser/` 为浏览器实现；二者互不依赖，都只依赖 `@/engine/*`。`src/platform/browser/` 是**唯一**允许直接调用 `window` / `document` / `performance.now()` / `requestAnimationFrame` 等真实环境 API 的目录——它的职责就是把墙钟与 DOM 事件桥接到 L3 接口。
+- **宿主 API 按职责划分**：
+  - L1 / L2 / L3 / `platform/headless`：不得使用 `window` / `document` / `navigator` / `performance.now()` 等宿主 API（确定性与可在 Node 运行）
+  - `src/platform/browser/`：用宿主 API 把真实时间、输入、音频、存储、生命周期、离线缓存等桥接到 L3 接口；`headless` 与 `browser` 互不依赖，都只依赖 `@/engine/*`
+  - L4 UI（`src/app/`、`src/ui/`）：可为渲染与布局测量使用 DOM（如 `ResizeObserver`、`devicePixelRatio`、`getComputedStyle`）；系统返回键、前后台、Service Worker 等宿主桥接仍放 `src/platform/browser/`
 - **L1 Games 是纯函数**：`src/games/<name>/` 的 `init` / `step` / `render` 除 `ctx` 参数外，不得有外部副作用、不得引用模块级可变状态。
 - **依赖方向单向**：L1 → L2 → L3，不得反向。L4 UI 可依赖全部下层，并按环境从 `@/platform/<platform>` 装配 `HardwareContext`。
 - **UI 与状态分离**：L4 组件只通过 `subscribe` 观察状态，不直接修改；所有状态变更经由 L3 API。
 
-**Engine 还是 SDK？** 新增文件纠结归哪层时，问自己："删掉它，这台机器还能开机吗？"
+**Engine 还是 SDK？** 新增文件无法确定归属哪一层时，问自己："删掉它，这台机器还能开机吗？"
 
-- 不能（比如屏幕根本点不亮、按键收不到、循环转不起来） → 放 `src/engine/`
-- 能（只是游戏开发者要重复造轮子、每款游戏重写一遍） → 放 `src/sdk/`
+- 不能（比如屏幕无法显示、按键无法响应、主循环无法运行） → 放 `src/engine/`
+- 能（只是每款游戏都要重复实现） → 放 `src/sdk/`
 
 ## 确定性约束（硬规则）
 
 在 `src/engine/` / `src/platform/headless/` / `src/sdk/` / `src/games/` / `src/ai/` 下：
 
-- ❌ `Math.random()` / `Date.now()` / `performance.now()`
-- ✅ 随机性一律走 `ctx.rng()`（可播种 PRNG）
-- ✅ 时间读取一律走 `ctx.now()`（由 Ticker 注入的逻辑时钟）
+- 禁用 `Math.random()` / `Date.now()` / `performance.now()`
+- 随机性一律走 `ctx.rng()`（可播种 PRNG）
+- 时间读取一律走 `ctx.now()`（由 Ticker 注入的逻辑时钟）
 
 ESLint 的 `no-restricted-properties` / `no-restricted-globals` 会拦截上述违规，但规则本身优先级更高：即便 lint 暂未覆盖的变体（例如解构后使用），同样禁止。
 
@@ -113,13 +115,23 @@ ESLint 的 `no-restricted-properties` / `no-restricted-globals` 会拦截上述�
 
 ## 注释
 
-- 写"**为什么**"，不写"**是什么**"；代码能自解释的不加注释
-- 涉及**非显然的算法**、**工程权衡**、**与规范的偏离**时必须加注释
-- `TODO` / `FIXME` 必须带上下文：**何时处理**、**依赖什么条件**
+- 写为什么，不写是什么；代码能自解释的不加注释
+- 涉及非显然的算法、工程权衡、与规范的偏离时必须加注释
+- `TODO` / `FIXME` 必须带上下文：何时处理、依赖什么条件
+
+## 行文风格
+
+适用于代码注释、文档、commit message 与 PR 描述。
+
+- 用陈述句写事实和原因，不用夸张或强调的措辞，如杜绝、彻底、完全、风暴、量级
+- 用书面语，不用口语，如掐断应写作停止、翻标志应写作切换状态、兜住应写作覆盖、瓜分应写作分配
+- 不复述需求来源或对话过程，如对齐某某诉求、按要求实现；读代码的人看不到这些上下文
+- 少用引号包短语、破折号和加粗；加粗只用于硬性约束
+- 同一个设计点只在一处详细解释，其他位置引用，不在多个文件重复同一句话
 
 ## 测试
 
-- 单元测试放在源文件**同级的 `__tests__/` 子目录**下，命名 `<name>.test.ts` / `<name>.spec.ts`（例如 `src/engine/rng.ts` 对应 `src/engine/__tests__/rng.test.ts`）
+- 单元测试放在源文件同级的 `__tests__/` 子目录下，命名 `<name>.test.ts` / `<name>.spec.ts`（例如 `src/engine/rng.ts` 对应 `src/engine/__tests__/rng.test.ts`）
 - L1 / L2 / L3 的纯函数层**必须**有单元测试
 - L4 UI 组件按需测试，交互密集处使用 Testing Library
 - 测试的确定性：`vi.useFakeTimers()` + 固定 `ctx.rng` seed；禁止依赖真实时钟或真随机

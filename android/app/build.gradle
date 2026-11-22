@@ -22,6 +22,18 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+    // dev 用独立包名，与 prod 并存安装：本地调试 / livereload 不覆盖已安装的线上正式版。
+    // 桌面名称在 src/dev/res/values/strings.xml 里覆盖为 "GameBaby Dev" 以便区分
+    flavorDimensions = ["channel"]
+    productFlavors {
+        dev {
+            dimension "channel"
+            applicationIdSuffix ".dev"
+        }
+        prod {
+            dimension "channel"
+        }
+    }
 }
 
 repositories {

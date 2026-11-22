@@ -27,9 +27,9 @@
     "build": "tsc --noEmit && vite build",
     "mobile:sync": "pnpm build && cap sync android",
     "mobile:android": "pnpm build && cap sync android && cap open android",
-    "mobile:run:android": "pnpm build && cap run android",
-    "mobile:run:android:online": "pnpm build && CAP_REMOTE_URL=https://gamebaby.strawtc.cn cap run android",
-    "mobile:dev:android": "cap run android -l --port 8088 --host localhost --forwardPorts 8088:8088",
+    "mobile:run:android": "pnpm build && cap run android --flavor dev",
+    "mobile:run:android:online": "pnpm build && CAP_REMOTE_URL=https://gamebaby.strawtc.cn cap run android --flavor prod",
+    "mobile:dev:android": "cap run android --flavor dev -l --port 8088 --host localhost --forwardPorts 8088:8088",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
@@ -86,8 +86,7 @@
     "workbox-window": "^7.4.1"
   },
   "engines": {
-    "node": ">=20.19.0",
-    "pnpm": ">=10.0.0"
+    "node": ">=20.19.0"
   },
   "packageManager": "pnpm@10.33.2+sha512.a90faf6feeab71ad6c6e57f94e0fe1a12f5dcc22cd754db40ae9593eb6a3e0b6b12e3540218bb37ae083404b1f2ce6db2a4121e979829b4aff94b99f49da1cf8",
   "pnpm": {

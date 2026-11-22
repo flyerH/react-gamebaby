@@ -1,6 +1,6 @@
 # `src/ui` · UI 外壳层
 
-掌机的"外观"（外壳、屏幕、按钮、侧栏）。**唯一允许使用 DOM / React 的层**。
+掌机的"外观"（外壳、屏幕、按钮、侧栏）。可以使用 DOM 与 React；与运行环境相关的桥接（真实时间、输入事件、音频、系统返回键、离线缓存等）放在 `src/platform/browser/`。
 
 ## 组件规划
 
@@ -10,13 +10,13 @@
 | `ContentScreen` | 主显示区。通过 `renderer` 策略把 `Screen` 的帧缓冲绘制到 `<canvas>` / `<div>` / WebGL |
 | `SidePanel`     | 右侧信息区：分数、关卡、最高分、暂停指示等                                            |
 | `Buttons`       | 方向键、功能键（开始 / 暂停 / 重置 / 音量）                                           |
-| `renderers/`    | 多种渲染策略：`canvas2d`（默认）/ `dom` / `webgl`（Phase 2）                          |
+| 渲染器          | 位于 `ContentScreen/`：`DomScreen`（默认）/ `CanvasScreen`；`webgl` 待加              |
 | `themes/`       | 像素风主题（经典绿、填充黑、描边等）                                                  |
 
 ## 规则
 
 - **UI 层 → 引擎层单向依赖**：只能调用 L3 硬件接口，不得反向依赖。
-- **渲染策略可热切换**：由 props 控制，游戏逻辑完全无感。
+- **渲染策略可热切换**：由 props 控制，游戏逻辑不受影响。
 - **主题仅影响像素的显示效果**（颜色 / 形状 / 间距），不改变像素网格本身。
 
 完整规划见 [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §4。

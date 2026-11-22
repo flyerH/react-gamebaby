@@ -12,14 +12,14 @@ import type { Note, Sound, SoundEffect } from '@/engine/types';
  *
  * Sample 在 createBrowserSound 时就 fire-and-forget 开始 fetch + decode，
  * 用户首次按键时基本已就绪。加载失败 / 未完成 → move/over 静默（合成
- * 版还原度太低，不做 fallback 反而更干净）；其它 effect 不依赖 sample，
- * 永远可用。
+ * 版音色与原声差异过大，不做 fallback）；其它 effect 不依赖 sample，
+ * 始终可用。
  *
  * 浏览器自动播放策略：AudioContext 在首次用户手势前处于 'suspended'，
  * 即使 enabled=true 调 play 也无声。play() 入口检查到 suspended 会
- * 立即 resume()——若调用栈在 user gesture 内，浏览器允许；否则
+ * 立即 resume()：若调用栈在 user gesture 内，浏览器允许；否则
  * 静默 no-op，等下次手势再试。canAutoplay() 提前探测当前权限，便于
- * 调用方决定是直接开机播放旋律还是等用户首次按键再触发。
+ * 调用方决定是直接播放开机音乐还是等用户首次按键再触发。
  */
 
 /**
@@ -46,7 +46,7 @@ interface Preset {
 }
 
 /**
- * 走 oscillator 合成的 effect。move / over 不在这里——它们由 SAMPLE_RANGES
+ * 走 oscillator 合成的 effect。move / over 不在这里，由 SAMPLE_RANGES
  * 接管。Partial 让类型显式表达"不是每个 effect 都有合成预设"
  */
 const PRESETS: Partial<Record<SoundEffect, Preset>> = {
@@ -62,7 +62,7 @@ const PRESETS: Partial<Record<SoundEffect, Preset>> = {
  *   [0.1437  , 1.2874)   over   —— 死亡嗡鸣
  *
  * move duration 0.1s 配合"新 click 触发时截断旧 click"机制（见 play 实现），
- * 长按时听感是干脆的"嘀-嘀-嘀"而不是叠加糊在一起
+ * 长按时每次按键音清晰分开，不会相互叠加
  */
 const SAMPLE_URL = 'sounds/sfx.m4a';
 const SAMPLE_RANGES: Partial<Record<SoundEffect, { offset: number; duration: number }>> = {
@@ -71,8 +71,8 @@ const SAMPLE_RANGES: Partial<Record<SoundEffect, { offset: number; duration: num
 };
 /**
  * Sample 总音量缩放（0..1）。原录音电平较高，直送 destination 会盖过
- * oscillator 合成的其它音效；这里统一压一档让 move/over 与 PRESETS 听感
- * 平衡。觉得整体太响 / 太轻就动这个常量
+ * oscillator 合成的其它音效；这里统一降低音量，使 move/over 与 PRESETS 听感
+ * 平衡。需要整体调整响度时修改此常量
  */
 const SAMPLE_GAIN = 0.4;
 
@@ -109,7 +109,7 @@ export function createBrowserSound(): Sound {
   let sampleBuffer: AudioBuffer | null = null;
   let sampleLoading = false;
   // 每个 sample effect 当前在播的 BufferSource —— 新 click 触发时把同 effect
-  // 的旧 BufferSource 截断，避免长按时声音叠在一起糊
+  // 的旧 BufferSource 截断，避免长按时声音相互叠加
   const activeSamples = new Map<SoundEffect, AudioBufferSourceNode>();
 
   const ensureCtx = (): AudioContext | null => {
@@ -157,7 +157,7 @@ export function createBrowserSound(): Sound {
   return {
     play(effect: SoundEffect): void {
       // 注意：不再因 enabled=false 提前 return。所有音源照常调度，masterGain
-      // 决定听不听见——这样静音期间触发的死亡音 / 按键 click 仍在跑，玩家
+      // 决定是否可闻，这样静音期间触发的死亡音 / 按键 click 仍在跑，玩家
       // 切回 ON 时能立刻听见尾段，对应"实时 mute"语义
       const ac = ensureCtx();
       if (!ac) return;
@@ -168,11 +168,11 @@ export function createBrowserSound(): Sound {
       // sample 路径：move / over 切片播放
       const range = SAMPLE_RANGES[effect];
       if (range) {
-        // buffer 还没就绪 / 加载失败 → 静默。不 fallback 合成（用户确认合成版完全不像）
+        // buffer 还没就绪 / 加载失败 → 静默。不 fallback 合成（合成版音色与原声差异过大）
         if (!sampleBuffer) return;
         // 截断同 effect 的上一个 BufferSource（如果它还在播）。常见场景：长按
-        // 方向键时每 100ms 触发一次 move click，旧 click 还在播 → 直接砍掉让
-        // 新 click 接上，听感是干脆的"嘀-嘀-嘀"而不是糊在一起
+        // 方向键时每 100ms 触发一次 move click，旧 click 还在播时直接停止，
+        // 由新 click 接上（原因见 SAMPLE_RANGES 注释）
         const prev = activeSamples.get(effect);
         if (prev) {
           try {
@@ -241,7 +241,7 @@ export function createBrowserSound(): Sound {
           const gainNode = ac.createGain();
           osc.type = 'square';
           osc.frequency.setValueAtTime(freq, t);
-          // 0.95 倍 duration 给一点点 release，相邻音符不糊在一起
+          // 按 0.95 倍 duration 衰减，留出短暂间隙，使相邻音符分开
           gainNode.gain.setValueAtTime(0.08, t);
           gainNode.gain.exponentialRampToValueAtTime(0.0001, t + duration * 0.95);
           osc.connect(gainNode).connect(out(ac));
@@ -263,13 +263,28 @@ export function createBrowserSound(): Sound {
         }
       };
     },
+    suspend(): void {
+      // 进入后台：挂起 AudioContext 冻结音频时钟并停声。不动 enabled，
+      // 回前台 resume 后用户的声音偏好保持不变。ensureCtx 不新建（尚未
+      // 初始化时无需挂起），只在已有 running 上下文时挂起
+      if (audioCtx && audioCtx.state === 'running') {
+        void audioCtx.suspend();
+      }
+    },
+    resume(): void {
+      // 回到前台：仅恢复被挂起的上下文时钟。是否出声仍由 masterGain
+      // （enabled）决定；用户静音时恢复后依旧无声
+      if (audioCtx && audioCtx.state === 'suspended') {
+        void audioCtx.resume();
+      }
+    },
     setEnabled(on: boolean): void {
       enabled = on;
       const ac = ensureCtx();
       if (!ac || !masterGain) return;
       if (ac.state === 'suspended') {
         // AudioContext 尚未运行，计时器冻结在 0。setTargetAtTime 要等 resume
-        // 后才生效，届时会从旧值（1）起跳 —— 若 on=false 仍会短暂出声。
+        // 后才生效，届时会从旧值（1）开始过渡，若 on=false 仍会短暂出声。
         // suspended 期间直接写目标值并清除已有自动化，resume 时从正确电平
         // 开始，不产生过渡噪声（此时没有任何正在播放的声音，不存在硬切咔哒声）
         masterGain.gain.cancelScheduledValues(ac.currentTime);

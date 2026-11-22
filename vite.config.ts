@@ -8,9 +8,9 @@ export default defineConfig({
   plugins: [
     react(),
     // PWA / Service Worker：让线上版本（含 Capacitor 远程域名模式打出的 APK）
-    // 在第二次启动起就能离线打开，并在后台静默拉新版本，下次启动自动生效。
+    // 在第二次启动起就能离线打开，并在后台静默下载新版本，下次启动自动生效。
     // - registerType: 'autoUpdate' —— 不弹窗，新 SW 安装后通过 skipWaiting 接管，
-    //   当前会话不强刷，下次冷启动用新版（与玩家手感一致）
+    //   当前会话不强刷，下次冷启动用新版
     // - workbox.globPatterns —— 把构建产物全部 precache（JS/CSS/HTML/icon/音效）
     // - navigateFallback —— SPA 路由兜底，离线情况下任意路径都回退到 index.html
     VitePWA({
@@ -57,6 +57,10 @@ export default defineConfig({
     target: 'es2022',
     sourcemap: false,
     outDir: 'dist',
+    // 默认 500KB 警告阈值是面向首屏 chunk 的。inference-*.js（@tensorflow/tfjs 及其依赖）
+    // 是 AI 自动玩 Snake 时才懒加载的旁路 chunk（gzip 后约 223KB），不影响首屏。
+    // 放宽到 1000KB 让构建保持静默；真正首屏入口 main-*.js 还远低于这个阈值。
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       // 生产构建只打包游戏入口；training.html 仅 dev 时可用
       input: { main: resolve(import.meta.dirname, 'index.html') },

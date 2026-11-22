@@ -1,4 +1,10 @@
-import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef } from 'react';
+import {
+  memo,
+  type PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useRef,
+} from 'react';
 
 import type { Button, ButtonAction } from '@/engine/types';
 import { BUTTON_LABELS, type ButtonLabels } from '@/ui/locale';
@@ -49,7 +55,7 @@ export interface ButtonsProps {
  * - D-pad 4 个方向键 → 'Up' / 'Down' / 'Left' / 'Right'
  * - Rotate 大椭圆     → 'A'（游戏内动作键：俄罗斯方块旋转 / 菜单确认 / Snake 启动）
  */
-export function Buttons({
+export const Buttons = memo(function Buttons({
   onInput,
   labels = BUTTON_LABELS['en-US'],
 }: ButtonsProps): React.ReactElement {
@@ -122,8 +128,8 @@ export function Buttons({
 
   return (
     <div className={styles.contentBottom}>
-      {/* 顶部一行辅助键：开/关 · 声音 · 重置；每个按钮 + 标签包成 group，
-       * 三个 group 横排在 topControls 内，让 div 自然把文字也包进去 */}
+      {/* 顶部一行辅助键：开/关 · 暂停 · 声音 · 重置；每个按钮和标签包成一个
+       * group，四个 group 横排在 topControls 内 */}
       <div className={styles.topControls}>
         <div className={styles.smallButtonGroup}>
           <button
@@ -226,4 +232,4 @@ export function Buttons({
       </div>
     </div>
   );
-}
+});

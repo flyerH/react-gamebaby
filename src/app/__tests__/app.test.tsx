@@ -33,8 +33,8 @@ function createMockContext(soundOn: boolean, canAutoplay = true) {
   };
 }
 
-describe('App 开机旋律', () => {
-  it('soundOn=false 时，autoplay 通电不会播放开机旋律', async () => {
+describe('App 开机音乐', () => {
+  it('soundOn=false 时，autoplay 通电不会播放开机音乐', async () => {
     const { ctx, playMelody } = createMockContext(false);
     vi.mocked(createBrowserContext).mockReturnValue(ctx);
 
@@ -45,7 +45,7 @@ describe('App 开机旋律', () => {
     });
   });
 
-  it('soundOn=true 时，autoplay 通电会播放开机旋律', async () => {
+  it('soundOn=true 时，autoplay 通电会播放开机音乐', async () => {
     const { ctx, playMelody } = createMockContext(true);
     vi.mocked(createBrowserContext).mockReturnValue(ctx);
 
@@ -54,6 +54,24 @@ describe('App 开机旋律', () => {
     await waitFor(() => {
       expect(playMelody).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('页面挂载时处于后台，即使允许自动播放也不自动通电', async () => {
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+    try {
+      const { ctx, playMelody } = createMockContext(true);
+      vi.mocked(createBrowserContext).mockReturnValue(ctx);
+
+      render(<App />);
+
+      await waitFor(() => {
+        expect(ctx.sound.canAutoplay).toHaveBeenCalled();
+      });
+      await Promise.resolve();
+      expect(playMelody).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+    }
   });
 });
 
