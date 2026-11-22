@@ -63,7 +63,10 @@ L1  Games      —— 各款游戏实现（纯函数）
 详见 `docs/ARCHITECTURE.md`。以下是必须遵守的约束：
 
 - **L3 Engine 完全 DOM-agnostic**：`src/engine/` 下不得 `import` React、`document`、`window`、`HTMLElement` 等；Engine 必须能在 Node 里运行（RL 训练会用到）。
-- **Platform 按运行环境分目录**：`src/platform/headless/` 为 Node / 测试实现，`src/platform/browser/` 为浏览器实现；二者互不依赖，都只依赖 `@/engine/*`。`src/platform/browser/` 是**唯一**允许直接调用 `window` / `document` / `performance.now()` / `requestAnimationFrame` 等真实环境 API 的目录，职责是把墙钟与 DOM 事件桥接到 L3 接口。
+- **宿主 API 按职责划分**：
+  - L1 / L2 / L3 / `platform/headless`：不得使用 `window` / `document` / `navigator` / `performance.now()` 等宿主 API（确定性与可在 Node 运行）
+  - `src/platform/browser/`：用宿主 API 把真实时间、输入、音频、存储、生命周期、离线缓存等桥接到 L3 接口；`headless` 与 `browser` 互不依赖，都只依赖 `@/engine/*`
+  - L4 UI（`src/app/`、`src/ui/`）：可为渲染与布局测量使用 DOM（如 `ResizeObserver`、`devicePixelRatio`、`getComputedStyle`）；系统返回键、前后台、Service Worker 等宿主桥接仍放 `src/platform/browser/`
 - **L1 Games 是纯函数**：`src/games/<name>/` 的 `init` / `step` / `render` 除 `ctx` 参数外，不得有外部副作用、不得引用模块级可变状态。
 - **依赖方向单向**：L1 → L2 → L3，不得反向。L4 UI 可依赖全部下层，并按环境从 `@/platform/<platform>` 装配 `HardwareContext`。
 - **UI 与状态分离**：L4 组件只通过 `subscribe` 观察状态，不直接修改；所有状态变更经由 L3 API。

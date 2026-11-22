@@ -115,7 +115,7 @@ Service Worker 只在线上域名模式（`mobile:run:android:online`）和网�
 | **第二次以后 + 有网且服务器有新版** | SW 在后台 fetch 新 `index.html`，发现 hash 变化就 install 新 precache；**当前会话不强刷**，下次冷启动用新版     |
 | **关键资源（hash 文件）改名**       | precache key 自带 revision，旧 cache 会被 Workbox `cleanupOutdatedCaches` 自动清掉，不会占无限空间              |
 
-注册位置：`src/app/main.tsx`。混合应用的本地模式（页面地址为 `https://localhost`）不调用 `registerSW`，并会注销旧版本留下的 Service Worker、清空其缓存，避免升级 APK 后首次启动仍加载旧资源；其余情况调用 `registerSW({ immediate: true })`。`virtual:pwa-register` 模块在 dev 模式下是 no-op，不会干扰 vite HMR。
+注册位置：`src/platform/browser/offline.ts` 的 `setupOfflineCache`，由 `src/app/main.tsx` 调用。混合应用的本地模式（页面地址为 `https://localhost`）不注册 Service Worker，并会注销旧版本留下的注册、清空其缓存，避免升级 APK 后首次启动仍加载旧资源；其余情况由入口传入的 `registerSW({ immediate: true })` 注册。`virtual:pwa-register` 模块在 dev 模式下是 no-op，不会干扰 vite HMR。
 
 为什么不支持首次安装即离线：
 

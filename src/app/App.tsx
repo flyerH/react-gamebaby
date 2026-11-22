@@ -756,7 +756,7 @@ export function App(): React.ReactElement {
   );
 
   // 暂停状态接 ticker：后台、或 playing+paused 任一成立都停掉 tick 调度，
-  // 否则恢复。ticker.resume 内部重置墙钟基准，回前台不会补跑积压的 tick。
+  // 否则恢复。ticker.resume 内部重置真实时间基准，回前台不会补跑积压的 tick。
   // 其它 mode（off/boot/select）不参与用户 pause 语义；boot 动画始终跑，
   // 不让 P 键打断，但后台仍会整体冻结
   useEffect(() => {
