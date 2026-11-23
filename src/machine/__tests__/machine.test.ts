@@ -369,6 +369,52 @@ describe('createMachine · 自动玩', () => {
     expect(dispose).toHaveBeenCalledTimes(1);
   });
 
+  it('stop 时释放实例并退出自动玩，再次 start 由玩家接管', async () => {
+    const { act, dispose, provider } = createPilot();
+    const { ticker, machine, press, toSelect } = setup({ autopilot: provider });
+    const listener = vi.fn();
+    machine.subscribe(listener);
+    toSelect();
+    press('B');
+    await vi.waitFor(() => {
+      expect(machine.getState().aiPlaying).toBe(true);
+    });
+
+    listener.mockClear();
+    machine.stop();
+    expect(dispose).toHaveBeenCalledTimes(1);
+    expect(machine.getState()).toMatchObject({ mode: 'playing', aiPlaying: false });
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    machine.start();
+    ticker.advance(1);
+    expect(act).not.toHaveBeenCalled();
+  });
+
+  it('加载期间切到其它游戏时丢弃加载结果', async () => {
+    const dispose = vi.fn();
+    let finish = (): void => undefined;
+    const provider: AutopilotProvider = {
+      gameId: 'count',
+      load: () =>
+        new Promise((resolve) => {
+          finish = () => {
+            resolve({ act: () => null, dispose });
+          };
+        }),
+    };
+    const { machine, press, toSelect } = setup({ autopilot: provider });
+    toSelect();
+    press('B');
+    press('Right');
+    finish();
+
+    await vi.waitFor(() => {
+      expect(dispose).toHaveBeenCalledTimes(1);
+    });
+    expect(machine.getState()).toMatchObject({ mode: 'select', aiPlaying: false });
+  });
+
   it('非 gameId 对应的游戏上按 B 不加载；加载失败时留在菜单', async () => {
     const provider: AutopilotProvider = {
       gameId: 'count',

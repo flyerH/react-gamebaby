@@ -441,15 +441,17 @@ export function createSynthSound<C extends AudioContextLike>(opts: SynthSoundOpt
     suspend(): void {
       // 进入后台：挂起 AudioContext 冻结音频时钟并停声。不动 enabled，
       // 回前台 resume 后用户的声音偏好保持不变。ensureCtx 不新建（尚未
-      // 初始化时无需挂起），只在已有 running 上下文时挂起
-      if (audioCtx && audioCtx.state === 'running') {
+      // 初始化时无需挂起）。
+      // state 要等挂起或恢复完成后才更新，快速切换前后台时读到的是旧值，
+      // 所以挂起与恢复不按 state 判断，交给 AudioContext 按调用顺序执行
+      if (audioCtx && audioCtx.state !== 'closed') {
         settle(audioCtx.suspend());
       }
     },
     resume(): void {
-      // 回到前台：仅恢复被挂起的上下文时钟。是否出声仍由 masterGain
+      // 回到前台：恢复上下文时钟，原因见 suspend。是否出声仍由 masterGain
       // （enabled）决定；用户静音时恢复后依旧无声
-      if (audioCtx && audioCtx.state === 'suspended') {
+      if (audioCtx && audioCtx.state !== 'closed') {
         settle(audioCtx.resume());
       }
     },

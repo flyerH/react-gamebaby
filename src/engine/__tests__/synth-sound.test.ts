@@ -143,17 +143,18 @@ describe('createSynthSound', () => {
     }
   });
 
-  it('suspend / resume 只在对应状态下调用上下文', () => {
+  it('挂起尚未完成就回到前台时仍请求恢复，上下文关闭后不再调用', () => {
     const { ctx, calls } = createFakeContext('running');
     const sound = createSynthSound({ createContext: () => ctx });
     sound.play('rotate');
-    sound.resume();
-    expect(calls.resume).toBe(0);
     sound.suspend();
-    expect(calls.suspend).toBe(1);
-    ctx.state = 'suspended';
     sound.resume();
-    expect(calls.resume).toBe(1);
+    expect(calls).toMatchObject({ suspend: 1, resume: 1 });
+
+    ctx.state = 'closed';
+    sound.suspend();
+    sound.resume();
+    expect(calls).toMatchObject({ suspend: 1, resume: 1 });
   });
 
   describe("toneMode: 'buffer'", () => {

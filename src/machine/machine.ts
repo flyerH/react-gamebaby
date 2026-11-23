@@ -463,8 +463,12 @@ export function createMachine(opts: MachineOptions): Machine {
     provider
       .load()
       .then((loaded) => {
-        // 加载期间可能已关机或切走，此时丢弃
-        if (!running || state.mode !== 'select') {
+        // 加载期间可能已关机、离开菜单或切到其它游戏，此时丢弃
+        if (
+          !running ||
+          state.mode !== 'select' ||
+          currentGame(registry, state.menu)?.id !== provider.gameId
+        ) {
           loaded.dispose();
           return;
         }
@@ -599,6 +603,11 @@ export function createMachine(opts: MachineOptions): Machine {
       ctx.ticker.stop();
       stopMelody();
       disposePilot();
+      // pilot 已释放，再次 start 时由玩家接管当前局
+      if (state.aiPlaying) {
+        state = { ...state, aiPlaying: false };
+        notify();
+      }
     },
 
     powerOn,
