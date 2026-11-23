@@ -7,7 +7,7 @@ import type { Pixel } from '@/sdk';
  * 每 tick 推进一个光标，屏幕上亮起从 trail[0] 到 trail[cursor] 的
  * 累积点；走到末尾后瞬间重置到 0，形成循环。
  *
- * 本模块是纯函数，不依赖 Screen 实例——由调用方（L4 App）把 state
+ * 本模块是纯函数，不依赖 Screen 实例，由 machine 把 state
  * 转译到 screen.setPixel 上，便于单测。
  */
 

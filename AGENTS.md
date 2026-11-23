@@ -6,19 +6,19 @@
 
 ## 技术栈
 
-- **包管理器**：pnpm 10（Node ≥ 20.19）
-- **构建 / 开发**：Vite 8
-- **UI**：React 19 + TypeScript 6（`strict` + `noUncheckedIndexedAccess` + `noUnusedLocals/Parameters`）
-- **Lint / Format**：ESLint 9（flat config）+ Prettier 3
-- **测试**：Vitest 4 + jsdom
-- **状态管理**：Zustand
+- 包管理器：pnpm 10（Node ≥ 20.19）
+- 构建 / 开发：Vite 8
+- UI：React 19 + TypeScript 6（`strict` + `noUncheckedIndexedAccess` + `noUnusedLocals/Parameters`）
+- Lint / Format：ESLint 9（flat config）+ Prettier 3
+- 测试：Vitest 4 + jsdom
+- 状态管理：Zustand
 
 ## 常用命令
 
-- `pnpm dev` —— 启动开发服务器
-- `pnpm build` —— 生产构建（含 `tsc --noEmit` 类型检查）
-- `pnpm lint` —— 对 `src/**/*.{ts,tsx}` 跑 ESLint
-- `pnpm test` —— 跑一次 Vitest（CI / 提交前用）
+- `pnpm dev`：启动开发服务器
+- `pnpm build`：生产构建（含 `tsc --noEmit` 类型检查）
+- `pnpm lint`：对 `src/**/*.{ts,tsx}` 跑 ESLint
+- `pnpm test`：跑一次 Vitest（CI / 提交前用）
 
 pre-commit 钩子会自动对 staged 文件跑 `eslint --fix` + `prettier --write`，并对项目跑 `tsc --noEmit`。不得使用 `--no-verify` 跳过。
 
@@ -50,35 +50,52 @@ pre-commit 钩子会自动对 staged 文件跑 `eslint --fix` + `prettier --writ
   1. 已修复的 review thread 要 resolve（通过 GraphQL `resolveReviewThread`）
   2. PR body 要同步更新以反映后续 commit 的变更（如新增 / 删除的功能点）
 
-## 四层架构
+## 架构分层
 
 ```
-L4  UI Shell   —— React 组件、DOM 渲染
-L3  Engine     —— Screen / Ticker / InputBus / Sound / Storage / Context（接口 + 跨平台通用实现）
- └─ Platform   —— 平台专属实现（src/platform/<platform>/），对称落地 L3 接口
-L2  SDK        —— Game 接口、GameEnv、Registry、draw helpers
-L1  Games      —— 各款游戏实现（纯函数）
+核心（纯 TS、确定性、可在 Node 运行）
+  engine/    硬件接口与通用实现：Screen / Ticker / InputBus / Sound / Storage / Counter / RNG / 长按连发
+  sdk/       游戏契约：Game 接口、GameEnv、Registry
+  games/     各款游戏（纯函数）
+  machine/   主机固件：模式状态机、菜单、开机动画与音乐、按键路由、调速、最高分
+外围
+  platform/  宿主驱动：按运行环境实现 engine 接口（headless / browser / wechat）
+  ui/        React 视图
+  app/       入口装配：每个运行入口一个子目录（web / wechat）
+工具
+  ai/ training/  RL 训练、推理与训练看板
 ```
 
 详见 `docs/ARCHITECTURE.md`。以下是必须遵守的约束：
 
-- **L3 Engine 完全 DOM-agnostic**：`src/engine/` 下不得 `import` React、`document`、`window`、`HTMLElement` 等；Engine 必须能在 Node 里运行（RL 训练会用到）。
-- **宿主 API 按职责划分**：
-  - L1 / L2 / L3 / `platform/headless`：不得使用 `window` / `document` / `navigator` / `performance.now()` 等宿主 API（确定性与可在 Node 运行）
-  - `src/platform/browser/`：用宿主 API 把真实时间、输入、音频、存储、生命周期、离线缓存等桥接到 L3 接口；`headless` 与 `browser` 互不依赖，都只依赖 `@/engine/*`
-  - L4 UI（`src/app/`、`src/ui/`）：可为渲染与布局测量使用 DOM（如 `ResizeObserver`、`devicePixelRatio`、`getComputedStyle`）；系统返回键、前后台、Service Worker 等宿主桥接仍放 `src/platform/browser/`
-- **L1 Games 是纯函数**：`src/games/<name>/` 的 `init` / `step` / `render` 除 `ctx` 参数外，不得有外部副作用、不得引用模块级可变状态。
-- **依赖方向单向**：L1 → L2 → L3，不得反向。L4 UI 可依赖全部下层，并按环境从 `@/platform/<platform>` 装配 `HardwareContext`。
-- **UI 与状态分离**：L4 组件只通过 `subscribe` 观察状态，不直接修改；所有状态变更经由 L3 API。
+- **依赖方向**：
 
-**Engine 还是 SDK？** 新增文件无法确定归属哪一层时，问自己："删掉它，这台机器还能开机吗？"
+  | 目录         | 可以依赖                                                         |
+  | ------------ | ---------------------------------------------------------------- |
+  | `engine`     | 无                                                               |
+  | `sdk`        | `engine`                                                         |
+  | `games`      | `sdk`、`engine`                                                  |
+  | `machine`    | `sdk`、`engine`（具体游戏由入口传入注册表，不 import `@/games`） |
+  | `platform/*` | `engine`；子目录之间互不依赖                                     |
+  | `ui`         | `engine` 的类型                                                  |
+  | `app/*`      | 全部                                                             |
 
-- 不能（比如屏幕无法显示、按键无法响应、主循环无法运行） → 放 `src/engine/`
-- 能（只是每款游戏都要重复实现） → 放 `src/sdk/`
+  例外：`src/games/<name>/rl.ts` 是给 RL 训练用的适配，可额外依赖 `@/ai` 与 `@/platform/headless`；游戏的 `index.ts` 不得引入 `rl.ts`。
+
+- **核心不碰宿主**：核心与 `platform/headless` 不得 `import` React，不得使用 `window` / `document` / `navigator` / `setTimeout` / `performance.now()` 等宿主 API。需要计时等宿主能力时，由调用方注入（例如 `bindPressRepeat` 的 `schedule`）。
+- **宿主桥接放 platform**：`src/platform/browser/`、`src/platform/wechat/` 用宿主 API 把真实时间、输入、音频、存储、生命周期、离线缓存等桥接到 engine 接口。ui 与 app 可为渲染与布局测量使用宿主绘图能力（如 `ResizeObserver`、`devicePixelRatio`、小游戏 canvas），系统返回键、前后台、Service Worker 等桥接仍放对应的 platform 子目录。
+- **games 是纯函数**：`src/games/<name>/` 的 `init` / `step` / `render` 除 `env` 参数外，不得有外部副作用、不得引用模块级可变状态。
+- **主机规则只写在 machine**：开关机、菜单、暂停、调速、绘制、最高分等规则写在 `src/machine/`，各入口只做装配，不重复实现。
+- **UI 与状态分离**：ui 组件只通过 `subscribe` 观察状态，不直接修改；状态变更经由 `InputBus.emit` 等 engine 接口或 machine 的方法。
+
+**新文件放哪？** 依次问两个问题：
+
+1. 它需要知道游戏接口吗？不需要 → `src/engine/`
+2. 需要的话，它是游戏作者使用的，还是负责调度游戏的？前者 → `src/sdk/`，后者 → `src/machine/`
 
 ## 确定性约束（硬规则）
 
-在 `src/engine/` / `src/platform/headless/` / `src/sdk/` / `src/games/` / `src/ai/` 下：
+在 `src/engine/` / `src/sdk/` / `src/games/` / `src/machine/` / `src/platform/headless/` / `src/ai/` 下：
 
 - 禁用 `Math.random()` / `Date.now()` / `performance.now()`
 - 随机性一律走 `ctx.rng()`（可播种 PRNG）
@@ -88,7 +105,7 @@ ESLint 的 `no-restricted-properties` / `no-restricted-globals` 会拦截上述�
 
 ## TypeScript
 
-- 禁用 `any`；需要"未知"时用 `unknown` + 收窄
+- 禁用 `any`；需要未知类型时用 `unknown` + 收窄
 - 优先 `readonly` 数组与 `Readonly<T>`；Game state 必须是不可变结构
 - 用联合字面量类型代替 `enum`：`type Dir = 'up' | 'down' | 'left' | 'right'`
 - 跨目录导入统一走 `@/` 路径别名；同目录使用相对路径
@@ -98,7 +115,7 @@ ESLint 的 `no-restricted-properties` / `no-restricted-globals` 会拦截上述�
 ## React
 
 - 只用函数组件 + hooks，禁用 class 组件
-- 副作用（`useEffect`、外部订阅）只能出现在 L4；L1 / L2 / L3 不得 `import` 任何 React API
+- React 只出现在 `src/ui/` 与 `src/app/` 的 `.tsx` 入口；核心不得 `import` 任何 React API
 - 单组件内部状态用 `useState` / `useReducer`；跨组件状态用 Zustand store
 - 组件文件命名 `PascalCase.tsx`，一个文件一个组件
 - `props` 超过 5 个或嵌套超过 2 层时，改走 Zustand 或拆组件
@@ -110,8 +127,8 @@ ESLint 的 `no-restricted-properties` / `no-restricted-globals` 会拦截上述�
 - 变量 / 函数：`camelCase`
 - 编译期常量：`SCREAMING_SNAKE_CASE`（不要用于普通配置对象）
 - 新增游戏放在 `src/games/<name>/`，目录内至少包含：
-  - `index.ts` —— 默认导出 `Game<S>` 对象
-  - `state.ts` —— 状态类型与 reducer
+  - `index.ts`：默认导出 `Game<S>` 对象
+  - `state.ts`：状态类型与 reducer
 
 ## 注释
 
@@ -132,8 +149,8 @@ ESLint 的 `no-restricted-properties` / `no-restricted-globals` 会拦截上述�
 ## 测试
 
 - 单元测试放在源文件同级的 `__tests__/` 子目录下，命名 `<name>.test.ts` / `<name>.spec.ts`（例如 `src/engine/rng.ts` 对应 `src/engine/__tests__/rng.test.ts`）
-- L1 / L2 / L3 的纯函数层**必须**有单元测试
-- L4 UI 组件按需测试，交互密集处使用 Testing Library
+- 核心（engine / sdk / games / machine）与 platform **必须**有单元测试
+- ui 组件与 app 入口按需测试，交互密集处使用 Testing Library
 - 测试的确定性：`vi.useFakeTimers()` + 固定 `ctx.rng` seed；禁止依赖真实时钟或真随机
 
 ## 依赖选型

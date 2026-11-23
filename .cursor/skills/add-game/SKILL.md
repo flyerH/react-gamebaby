@@ -17,11 +17,11 @@ description: 为 react-gamebaby 新增一款游戏，生成骨架文件并注册
 
 ```
 src/games/<name>/
-  state.ts     —— 状态类型
-  logic.ts     —— 游戏逻辑
-  preview.ts   —— 菜单预览点阵
-  index.ts     —— 导出 Game 对象
-  __tests__/<name>.test.ts —— 基础测试
+  state.ts     状态类型
+  logic.ts     游戏逻辑
+  preview.ts   菜单预览点阵
+  index.ts     导出 Game 对象
+  __tests__/<name>.test.ts  基础测试
 ```
 
 #### state.ts
@@ -96,9 +96,9 @@ export const <name>: Game<<Name>State> = {
 };
 ```
 
-### 3. 注册到 App
+### 3. 注册到默认注册表
 
-在 `src/app/App.tsx` 的 `GAMES` 数组中追加新游戏 import。
+在 `src/games/index.ts` 的 `defaultGames` 中追加新游戏；数组顺序即菜单里的游戏编号顺序。
 
 ### 4. 基础测试
 

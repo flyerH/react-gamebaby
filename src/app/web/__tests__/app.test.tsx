@@ -77,7 +77,7 @@ describe('App 开机音乐', () => {
 
 describe('App 关机态按键', () => {
   it('关机状态下按 Sound 不会切换 soundOn', async () => {
-    // canAutoplay=false：mount 后保持 off 状态，模拟"未点过页面"或 Safari
+    // canAutoplay=false：mount 后保持 off 状态，模拟用户尚未与页面交互或 Safari
     const { ctx } = createMockContext(true, false);
     vi.mocked(createBrowserContext).mockReturnValue(ctx);
 

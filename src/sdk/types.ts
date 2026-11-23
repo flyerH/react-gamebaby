@@ -1,27 +1,27 @@
 import type { Button, ButtonAction, Counter, InputBus, Screen, Sound } from '@/engine/types';
 
 /**
- * L2 SDK · Game 接口
+ * sdk · Game 接口
  *
  * 当前字段集：
- * - id / name / preview（必选）—— 菜单注册与选择态呈现
- * - init / step / render / onButton / tickSpeed（可选）—— 真正的
+ * - id / name / preview（必选）：菜单注册与选择态呈现
+ * - init / step / render / onButton / tickSpeed（可选）：真正的
  *   可玩游戏填上这些；仅 preview 的占位可省略。
  *
  * init / step / onButton 是纯函数：接收当前 state 返回新 state，
  * 不允许改动传入 state（AGENTS.md 要求 state 不可变）。render
- * 唯一副作用是写 GameEnv.screen——L3 Screen 会把 buffer 变化
+ * 唯一副作用是写 GameEnv.screen，engine 的 Screen 会把 buffer 变化
  * 通知给订阅者（Canvas 渲染器）。
  */
 
-/** 一个点阵坐标（列 x，行 y），与 L3 Screen.setPixel(x, y) 约定一致 */
+/** 一个点阵坐标（列 x，行 y），与 Screen.setPixel(x, y) 约定一致 */
 export type Pixel = readonly [number, number];
 
 /** 菜单 / 选择态下显示的游戏预览点阵；坐标落在 Screen 尺寸内 */
 export type GamePreview = ReadonlyArray<Pixel>;
 
 /**
- * 游戏看到的"硬件 / 平台"上下文切片
+ * 游戏看到的硬件与平台上下文的切片
  *
  * 从 HardwareContext 中选出游戏必需的能力：屏幕、输入、音效、RNG、
  * 逻辑时钟、可订阅计数器。**不暴露**：ticker（节奏由 Mode 外层
@@ -46,7 +46,7 @@ export interface GameEnv {
 }
 
 /**
- * 起始难度选项 —— 菜单选择阶段累计的 speed / level，进 playing
+ * 起始难度选项：菜单选择阶段累计的 speed / level，进 playing
  * 时由 App 传入 init。speed / level 都从 1 开始；游戏可只关心其
  * 中一个。游戏内部通常用 speed 决定 tickSpeed，用 level 决定起始
  * 形态（Snake：起始障碍砖；Tetris：起始已堆垃圾砖）。
@@ -96,11 +96,11 @@ export interface Game<S = unknown> {
   isGameOver?(state: S): boolean;
 
   /**
-   * 当前是否处于"游戏内动画"阶段（如 Snake 死亡爆炸、Tetris 消行闪烁）。
+   * 当前是否处于游戏内动画阶段（如 Snake 死亡爆炸、Tetris 消行闪烁）。
    *
-   * App 据此把 ticker 切到固定的 ANIM_TICK_SPEED，让动画节奏不被 baseline
-   * tickSpeed 拖慢 —— 玩家选 speed=1 (慢慢玩) 时，消行 / 死亡动画也能用
-   * 固定的 ~50ms/帧 节奏播完，而不是动辄 1~2 秒卡顿
+   * machine 据此把 ticker 切到固定的 ANIM_TICK_SPEED，让动画节奏不被 baseline
+   * tickSpeed 拖慢：speed=1 时，消行与死亡动画仍按约 50ms 一帧播完，
+   * 不会拖到 1 到 2 秒
    *
    * 默认假定 isGameOver=true 时也算动画期，省一次实现：Snake 不必再实现
    * 这个方法
@@ -119,7 +119,7 @@ export interface Game<S = unknown> {
   demoInit?(env: GameEnv): S;
 
   /**
-   * 推进一帧 demo：内部自行决定"按什么键" + 调 step，实现自动演示。
+   * 推进一帧 demo：内部决定按键并调用 step，实现自动演示。
    *
    * 死亡后可自动重开（复用 game over → init 的已有路径）
    */

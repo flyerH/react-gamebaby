@@ -33,11 +33,11 @@ export default tseslint.config(
 
   {
     // 确定性回放约束的覆盖面：
-    //   - engine/sdk/games/ai 四层是核心纯函数链路
+    //   - engine/sdk/games/machine 是核心，加上 ai，构成可在 Node 回放的纯逻辑链路
     //   - platform/headless 是 Node 训练 / 测试用的离屏适配器，必须确定性
-    //   - 文件后缀同时覆盖 .ts 与 .tsx（防御性：将来在这些层若新建 .tsx 也拦截）
-    //   - platform/browser 故意不在范围内 —— 它负责把真实时间 / DOM 桥接到 L3
-    files: ['src/{engine,sdk,games,ai,platform/headless}/**/*.{ts,tsx}'],
+    //   - 文件后缀同时覆盖 .ts 与 .tsx（防御性：将来在这些目录若新建 .tsx 也拦截）
+    //   - platform/browser 不在范围内：它负责把真实时间 / DOM 桥接到 engine 接口
+    files: ['src/{engine,sdk,games,machine,ai,platform/headless}/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-properties': [
         'error',

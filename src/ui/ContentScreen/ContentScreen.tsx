@@ -7,11 +7,11 @@ import { DomScreen } from './DomScreen';
 import type { ScreenRenderer } from './types';
 
 export interface ContentScreenProps {
-  /** L3 framebuffer：组件订阅其变化并重绘，不主动改 buffer */
+  /** engine 的 framebuffer：组件订阅其变化并重绘，不主动改 buffer */
   screen: Screen;
   /** 渲染器实现，默认 'dom'；切换时会卸载旧渲染器并按当前 buffer 重画 */
   renderer?: ScreenRenderer;
-  /** 单格总边长（CSS px），默认 19 —— 与真机 LCD 单格尺寸一致 */
+  /** 单格总边长（CSS px），默认 19，与真机 LCD 单格尺寸一致 */
   cellSize?: number;
   /** 单格内部方块边长，默认 11 */
   innerSize?: number;
@@ -23,15 +23,15 @@ export interface ContentScreenProps {
   rowGap?: number;
   /** 点亮色，默认纯黑 */
   onColor?: string;
-  /** 熄灭色，默认半透明黑 —— LCD 阴影格视觉要求熄灭态也要画出 */
+  /** 熄灭色，默认半透明黑，LCD 阴影格的熄灭态也要画出 */
   offColor?: string;
 }
 
 /**
- * ContentScreen —— 主点阵屏
+ * ContentScreen：主点阵屏
  *
  * 只负责补齐样式默认值并选择渲染器；各渲染器对同一份 Screen buffer 平行实现，
- * 视觉一致，游戏逻辑对渲染方式无感。
+ * 视觉一致，游戏逻辑不感知渲染方式。
  */
 function ContentScreenImpl({
   screen,

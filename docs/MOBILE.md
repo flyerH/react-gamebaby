@@ -2,13 +2,13 @@
 
 本文档说明如何把 `react-gamebaby` 以 Hybrid App 形式运行在 Android。
 
-> iOS 暂不在当前迭代范围内：架构上不阻塞，但工程文件、依赖、CI 都先不引入，避免同时维护 Android 和 iOS 两套工程。后续要加时再 `pnpm add @capacitor/ios && pnpm cap add ios` 即可。
+> iOS 暂不在当前迭代范围内：架构上不阻塞，但工程文件、依赖、CI 都先不引入，避免同时维护 Android 和 iOS 两套工程。需要时执行 `pnpm add @capacitor/ios && pnpm cap add ios` 加回。
 
 ## 1. 当前方案
 
-- 使用 **Capacitor 8** 打包 Android App；
-- 游戏核心（L1 Games / L2 SDK / L3 Engine）与 UI（L4）继续复用现有 Web 实现；
-- 移动端专属的"硬件桥接"放在 `src/platform/browser/`（如系统返回键），普通 Web 构建中安全 no-op；
+- 使用 Capacitor 8 打包 Android App；
+- 核心（engine / sdk / games / machine）与 ui 继续复用现有 Web 实现，入口是 `src/app/web/`；
+- 移动端专属的硬件桥接放在 `src/platform/browser/`（如系统返回键），普通 Web 构建中安全 no-op；
 - 平台差异先收敛在 Capacitor 配置与 `src/platform/browser/`，不破坏现有分层。
 
 仓库已包含：
@@ -17,7 +17,7 @@
 - `android/` 原生工程（`screenOrientation="portrait"` 锁竖屏）
 - `@capacitor/app` 插件 → 监听系统返回键
 
-> **关于 cap sync 生成的文件**：`android/capacitor.settings.gradle` 与 `android/app/capacitor.build.gradle` 不进版本库（`android/.gitignore` 已排除）。这两个文件由 `cap sync` 在本机生成，且 pnpm 严格隔离布局下路径含 hash，跨机器 / 依赖图变化时 hash 会漂移，提交进库会引入虚假 diff。下面所有 `pnpm mobile:*` 命令（除 `mobile:dev:android`）都自带 cap sync，使用这些命令无需额外操作；**但首次 clone 仓库后，如果想直接用 Android Studio 打开 `android/` 工程，必须先跑一次 `pnpm mobile:sync` 让 gradle 文件落地，否则 Studio 同步会找不到 Capacitor 插件**。
+> 关于 cap sync 生成的文件：`android/capacitor.settings.gradle` 与 `android/app/capacitor.build.gradle` 不进版本库（`android/.gitignore` 已排除）。这两个文件由 `cap sync` 在本机生成，且 pnpm 严格隔离布局下路径含 hash，跨机器 / 依赖图变化时 hash 会漂移，提交进库会引入虚假 diff。下面所有 `pnpm mobile:*` 命令（除 `mobile:dev:android`）都自带 cap sync，使用这些命令无需额外操作；**但首次 clone 仓库后，如果想直接用 Android Studio 打开 `android/` 工程，必须先跑一次 `pnpm mobile:sync` 让 gradle 文件落地，否则 Studio 同步会找不到 Capacitor 插件**。
 
 ## 2. 常用命令
 
@@ -41,38 +41,38 @@ pnpm dev
 pnpm mobile:dev:android
 ```
 
-`--forwardPorts 8088:8088` 等价 `adb reverse tcp:8088 tcp:8088`：手机访问 `localhost:8088` 实际命中电脑的 dev server。不依赖同 Wi-Fi，USB 数据线即可。
+`--forwardPorts 8088:8088` 等价 `adb reverse tcp:8088 tcp:8088`：手机访问 `localhost:8088` 实际命中电脑的 dev server。不依赖同一 Wi-Fi，只需 USB 数据线。
 
 之后 `src/` 下任何改动都会通过 vite HMR 推到手机 WebView，无需重装 APK。原生层（`android/` 工程、Capacitor 配置）改动仍需 `pnpm mobile:run:android` 重装。
 
 ## 3. 本地准备
 
-1. 安装 [Android Studio](https://developer.android.com/studio)（一并装齐 SDK / Build-Tools / `adb`）；
+1. 安装 [Android Studio](https://developer.android.com/studio)（同时安装 SDK / Build-Tools / `adb`）；
 2. SDK Manager 安装 Android SDK Platform 33+ 与 Build-Tools；
 3. 把 `~/Library/Android/sdk/platform-tools` 加到 `~/.zshrc` 的 `PATH`，让终端能直接用 `adb`。
 
 ### 真机 USB 调试
 
-1. 手机开发者选项打开 **USB 调试**（设置 → 关于本机 → 连点 7 次"版本号" 启用开发者选项）；
+1. 手机开发者选项打开 USB 调试（设置 → 关于本机 → 连点 7 次"版本号" 启用开发者选项）；
 2. USB 数据线连电脑，弹窗"允许此电脑调试" → 允许；
 3. 终端跑 `adb devices` 应能看到设备 ID。
 
 ### 真机无线调试（Android 11+）
 
-1. 开发者选项 → **无线调试** → 开启；
+1. 开发者选项 → 无线调试 → 开启；
 2. 选"使用配对码配对设备"，电脑跑 `adb pair <手机IP:端口>` 输配对码；
 3. `adb connect <手机IP:5555>`；之后所有 `cap run` 命令的设备列表里会带上这台无线设备。
 
 ### 四种入口
 
-| 命令                                   | 用途                         | 何时用                                |
-| -------------------------------------- | ---------------------------- | ------------------------------------- |
-| `pnpm mobile:android`                  | 打开 Android Studio 工程     | 第一次配置 / 调原生层 / 用 GUI 选设备 |
-| `pnpm mobile:run:android`              | 装一个跑**本地构建产物**的包 | 验证本地修改后的生产构建              |
-| `pnpm mobile:run:android:online`       | 装一个跑**线上域名**的 APK   | 验证已部署到线上的版本                |
-| `pnpm dev` + `pnpm mobile:dev:android` | 真机 livereload 开发         | 日常迭代（前端改一行立即热更到手机）  |
+| 命令                                   | 用途                     | 何时用                                |
+| -------------------------------------- | ------------------------ | ------------------------------------- |
+| `pnpm mobile:android`                  | 打开 Android Studio 工程 | 第一次配置 / 调原生层 / 用 GUI 选设备 |
+| `pnpm mobile:run:android`              | 装一个跑本地构建产物的包 | 验证本地修改后的生产构建              |
+| `pnpm mobile:run:android:online`       | 装一个跑线上域名的 APK   | 验证已部署到线上的版本                |
+| `pnpm dev` + `pnpm mobile:dev:android` | 真机 livereload 开发     | 日常迭代（前端改一行立即热更到手机）  |
 
-> **正式版与调试版并存**：Android 工程按 product flavor 分成两个包，可以同时装在一台手机上互不覆盖。
+> 正式版与调试版并存：Android 工程按 product flavor 分成两个包，可以同时装在一台手机上互不覆盖。
 >
 > | flavor | 包名                      | 桌面名称     | 对应命令                                    |
 > | ------ | ------------------------- | ------------ | ------------------------------------------- |
@@ -81,11 +81,11 @@ pnpm mobile:dev:android
 >
 > 在 Android Studio 中直接运行时，默认使用 `devDebug` 变体；手动用 Gradle 时任务名带上 flavor（如 `installDevDebug`）。
 
-第一次跑 `pnpm mobile:android` 时 Studio 同步 Gradle 较慢；之后日常使用 livereload 工作流即可。
+第一次跑 `pnpm mobile:android` 时 Studio 同步 Gradle 较慢；之后日常开发使用 livereload 工作流。
 
 ### 线上域名模式（`mobile:run:android:online`）
 
-这个模式装出来的 APK 与前两种的主要区别：**WebView 直接加载 `https://gamebaby.strawtc.cn`，不读 APK 里打包的本地 dist，也不连开发机的 vite**。典型用途：
+这个模式装出来的 APK 与前两种的主要区别：WebView 直接加载 `https://gamebaby.strawtc.cn`，不读 APK 里打包的本地 dist，也不连开发机的 vite。典型用途：
 
 - 把线上正式版安装到自己手机上日常使用；
 - 验证 master 部署后的产物在真机上的实际表现；
@@ -95,27 +95,27 @@ pnpm mobile:dev:android
 
 注意事项：
 
-- 装出来的仍然是 **debug-signed APK**（沿用 `cap run` 的默认行为），不是 Play Store 上架用的 release-signed APK。要做正式发布签名包是另一笔工作（生成 keystore + 改 `android/app/build.gradle` 的 `signingConfigs`），按需再做。
+- 装出来的仍然是 debug-signed APK（沿用 `cap run` 的默认行为），不是 Play Store 上架用的 release-signed APK。要做正式发布签名包是另一笔工作（生成 keystore + 改 `android/app/build.gradle` 的 `signingConfigs`），按需再做。
 - APK 里 `server.url` 是固化的：换域名要重新跑这条命令重装。
 - 普通 `pnpm mobile:run:android` 不受影响；没设环境变量时 `capacitor.config.ts` 走原来的本地 dist 模式。
 
 ### 离线缓存与自动更新（PWA Service Worker）
 
-`react-gamebaby` 是 PWA：通过 `vite-plugin-pwa` + Workbox 在前端层实现离线兜底与版本自动更新。配置见 `vite.config.ts` 的 `VitePWA({ registerType: 'autoUpdate', ... })`。配套两个 192 / 512 PWA 图标在 `public/pwa-*.png`。
+`react-gamebaby` 是 PWA：通过 `vite-plugin-pwa` + Workbox 在前端层实现离线可用与版本自动更新。配置见 `vite.config.ts` 的 `VitePWA({ registerType: 'autoUpdate', ... })`。配套两个 192 / 512 PWA 图标在 `public/pwa-*.png`。
 
 Service Worker 只在线上域名模式（`mobile:run:android:online`）和网页版 / PWA 下注册。本地模式的资源打包在 APK 内，本身离线可用，不注册 Service Worker（见下文"注册位置"）。
 
 线上域名模式下的实际行为：
 
-| 场景                                | 行为                                                                                                            |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| **首次安装 + 首次启动 + 没网**      | WebView 白屏（SW 还没装上，APK 里也没本地 dist 兜底）。所以安装后首次启动需要联网                               |
-| **首次启动 + 有网**                 | 正常加载，Workbox precache 把 `index.html` / `assets/*.js,css` / 图标 / 音效全部写入 Cache Storage（约 1.3 MB） |
-| **第二次以后 + 没网**               | SW 命中 cache，可离线使用；任何路由都通过 `NavigationRoute` 兜底到 `index.html`                                 |
-| **第二次以后 + 有网且服务器有新版** | SW 在后台 fetch 新 `index.html`，发现 hash 变化就 install 新 precache；**当前会话不强刷**，下次冷启动用新版     |
-| **关键资源（hash 文件）改名**       | precache key 自带 revision，旧 cache 会被 Workbox `cleanupOutdatedCaches` 自动清掉，不会占无限空间              |
+| 场景                            | 行为                                                                                                            |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| 首次安装 + 首次启动 + 没网      | WebView 白屏（SW 还没装上，APK 里也没有可回退的本地 dist）。所以安装后首次启动需要联网                          |
+| 首次启动 + 有网                 | 正常加载，Workbox precache 把 `index.html` / `assets/*.js,css` / 图标 / 音效全部写入 Cache Storage（约 1.3 MB） |
+| 第二次以后 + 没网               | SW 命中 cache，可离线使用；任何路由都通过 `NavigationRoute` 回退到 `index.html`                                 |
+| 第二次以后 + 有网且服务器有新版 | SW 在后台 fetch 新 `index.html`，发现 hash 变化就 install 新 precache；当前会话不强刷，下次冷启动用新版         |
+| 关键资源（hash 文件）改名       | precache key 自带 revision，旧 cache 会被 Workbox `cleanupOutdatedCaches` 自动清掉，不会占无限空间              |
 
-注册位置：`src/platform/browser/offline.ts` 的 `setupOfflineCache`，由 `src/app/main.tsx` 调用。混合应用的本地模式（页面地址为 `https://localhost`）不注册 Service Worker，并会注销旧版本留下的注册、清空其缓存，避免升级 APK 后首次启动仍加载旧资源；其余情况由入口传入的 `registerSW({ immediate: true })` 注册。`virtual:pwa-register` 模块在 dev 模式下是 no-op，不会干扰 vite HMR。
+注册位置：`src/platform/browser/offline.ts` 的 `setupOfflineCache`，由 `src/app/web/main.tsx` 调用。混合应用的本地模式（页面地址为 `https://localhost`）不注册 Service Worker，并会注销旧版本留下的注册、清空其缓存，避免升级 APK 后首次启动仍加载旧资源；其余情况由入口传入的 `registerSW({ immediate: true })` 注册。`virtual:pwa-register` 模块在 dev 模式下是 no-op，不会干扰 vite HMR。
 
 为什么不支持首次安装即离线：
 
@@ -132,9 +132,9 @@ Service Worker 只在线上域名模式（`mobile:run:android:online`）和网�
 | 项目                      | 实现位置                                          | 说明                                                                |
 | ------------------------- | ------------------------------------------------- | ------------------------------------------------------------------- |
 | `viewport-fit=cover`      | `index.html`                                      | 让 WebView 内容铺满刘海屏与底部手势条区域                           |
-| 安全区适配                | `src/app/App.module.css` + `src/ui/Device/`       | 左右安全区由 `.page` 让出；上下由机身覆盖，并在机身内部留出对应空间 |
-| 100dvh 总高度             | `src/app/App.module.css`                          | 跟随地址栏 / 工具栏伸缩，避免按钮被顶到屏外                         |
-| `overscroll: none`        | `src/app/App.module.css`                          | 禁用整页 pull-to-refresh / 弹性滚动                                 |
+| 安全区适配                | `src/app/web/App.module.css` + `src/ui/Device/`   | 左右安全区由 `.page` 让出；上下由机身覆盖，并在机身内部留出对应空间 |
+| 100dvh 总高度             | `src/app/web/App.module.css`                      | 跟随地址栏 / 工具栏伸缩，避免按钮被顶到屏外                         |
+| `overscroll: none`        | `src/app/web/App.module.css`                      | 禁用整页 pull-to-refresh / 弹性滚动                                 |
 | 按钮 `touch-action: none` | `src/ui/Buttons/Buttons.module.css`               | 长按 D-pad / Rotate 不被解释为滚动手势，避免漏 release              |
 | 容器尺寸驱动 scale        | `src/ui/Device/Device.tsx`                        | 用 ResizeObserver 跟随实际容器尺寸缩放，安全区扣完再缩              |
 | 锁竖屏                    | `AndroidManifest.xml`                             | `android:screenOrientation="portrait"`                              |
@@ -144,15 +144,15 @@ Service Worker 只在线上域名模式（`mobile:run:android:online`）和网�
 
 | App 当前 mode             | 返回键 / 右滑动作                                                                       |
 | ------------------------- | --------------------------------------------------------------------------------------- |
-| `playing`                 | 等同按 `Select` —— 退回菜单（不弹任何窗）                                               |
+| `playing`                 | 等同按 `Select`，退回菜单（不弹任何窗）                                                 |
 | `off` / `boot` / `select` | 弹原生 `AlertDialog`（标题"退出 GameBaby"，内容"确认要退出吗？"）→ 选"退出" → `exitApp` |
 
 设计取舍：
 
-- **关机按钮 ≠ 退出 App**：屏幕上方的关机键（`emit Start`）只把 mode 切到 `off`（屏幕黑，App 留前台），不弹窗也不退出 App；如需退出须使用系统返回键 / 边缘右滑。两条路径解耦，避免误把"我想黑屏休息一下"理解成"我想退出 App"。
-- **`playing` 不加确认**：返回菜单是无损操作，加确认窗反而打断游戏体验；`Select` 退菜单是玩家熟悉的语义。
-- **非游戏态都给确认窗**：`off` / `boot` / `select` 三态下，玩家做的不是游戏内动作，右滑明确表达"想退出 App"的意图，所以都走同一条弹窗确认路径。这样"按关机 → 再右滑退出"是顺畅的两步动作，不会出现右滑无响应的情况。
-- **边缘手势误触防御**：确认窗用于防止误退出。
+- 关机按钮 ≠ 退出 App：屏幕上方的关机键（`emit Start`）只把 mode 切到 `off`（屏幕黑，App 留前台），不弹窗也不退出 App；如需退出须使用系统返回键 / 边缘右滑。两条路径解耦，避免把关机误当成退出。
+- `playing` 不加确认：返回菜单是无损操作，加确认窗反而打断游戏体验；`Select` 退菜单是玩家熟悉的语义。
+- 非游戏态都给确认窗：`off` / `boot` / `select` 三态下，玩家做的不是游戏内动作，右滑表示要退出 App，都走同一条弹窗确认路径。关机后再右滑会弹出退出确认，不会出现无响应。
+- 边缘手势误触防御：确认窗用于防止误退出。
 
 弹窗实现：用 `@capacitor/dialog` 而不是 `window.confirm`，主要为了控制按钮文字。`window.confirm` 的 OK / Cancel 按钮文字是浏览器/系统决定的不可定制，而 `@capacitor/dialog` 在 Android App 内渲染 `AlertDialog` 时支持 `okButtonTitle` / `cancelButtonTitle`，能跟项目自身的 i18n（`src/ui/locale`）联动给出"退出 / 取消"。Web 端 `@capacitor/dialog` 自动 fallback 到 `window.confirm`（按钮文字仍为系统默认，但 title / message 仍按 i18n 显示）。
 

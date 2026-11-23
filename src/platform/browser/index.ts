@@ -6,18 +6,19 @@
  *
  * 本层只提供有平台耦合的组件：
  * - RealtimeTicker：rAF + 累积器驱动的固定步长循环
- * - bindKeyboardInput：键盘事件 → L3 InputBus 桥接
+ * - bindKeyboardInput：键盘事件 → InputBus 桥接
+ * - timeoutSchedule：setTimeout 计时器，注入 engine 的 bindPressRepeat
  * - bindBackButton：Android 系统返回键桥接
  * - bindAppState：应用前后台切换桥接
  * - isDevBuild：识别是否运行在 Android 开发版
  * - createLocalStorage：基于 localStorage 的 Storage 适配
- * - createBrowserSound：基于 Web Audio 的 8-bit 音效合成
+ * - createBrowserSound：new AudioContext + fetch 采样，注入 engine 的 createSynthSound
  * - createBrowserContext：把上述组件与 engine 跨平台模块组装成完整 HardwareContext
  */
 
 export { createRealtimeTicker } from './ticker';
 export type { RealtimeTickerOptions } from './ticker';
-export { bindKeyboardInput, DEFAULT_KEY_MAP } from './input';
+export { bindKeyboardInput, DEFAULT_KEY_MAP, timeoutSchedule } from './input';
 export type { BindKeyboardOptions } from './input';
 export { bindBackButton } from './back-button';
 export type { BackButtonHandler, BindBackButtonOptions } from './back-button';
