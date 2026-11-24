@@ -28,10 +28,13 @@ const COLORS = {
 
 const FONT = 'sans-serif';
 
-/** 主屏与副屏的格子样式，同网页 ContentScreen（cellSize=16 / innerSize=9）与 SidePanel 预览格 */
+/**
+ * 主屏与副屏的格子样式，同网页 ContentScreen 与 SidePanel 预览格。
+ * cellSize − innerSize 需为偶数，内方块两侧留白才是整像素，不会偏向一侧
+ */
 export const LCD_STYLE: LcdStyle = {
   cellSize: 16,
-  innerSize: 9,
+  innerSize: 8,
   outerStroke: 2,
   colGap: 2,
   rowGap: 3,

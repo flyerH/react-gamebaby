@@ -8,10 +8,8 @@ export interface SnakeState {
   readonly body: ReadonlyArray<Pixel>;
   /** level > 1 时场地上的障碍砖；蛇撞到视同撞墙 */
   readonly obstacles: ReadonlyArray<Pixel>;
-  /** 当前已生效方向 */
+  /** 当前方向；方向键按下立即生效并走一格，因此不需要单独的待生效方向 */
   readonly dir: Direction;
-  /** 等待下一 tick 应用的方向；避免一个 tick 内连按两次导致反向 */
-  readonly pendingDir: Direction;
   /** 食物坐标；null 表示棋盘已被身体填满（极限通关），不再有空格放食物 */
   readonly food: Pixel | null;
   /** 是否已死亡（撞墙 / 撞自身 / 通关填满都视为本局结束） */
@@ -58,20 +56,54 @@ export interface SnakeState {
    */
   readonly lastOpts: GameInitOptions | null;
   /**
-   * "按键即走"补偿标记：onButton 处理"同 pendingDir 方向键的 repeat（长按）"
-   * 或 A 键（Rotate）时手动推进一格，并把这个标记置 true 让紧接着的下一次
-   * step 跳过一次自然推进。
+   * 距上一次走格累计的毫秒数，满 moveIntervalMs 自然走一格。
    *
-   * 行为目的：模拟 Brick Game 真机的加速 —— 长按同方向键 / A 键时持续触发
-   * keydown repeat，每次都立即推进一格 + 跳过下一 tick，蛇的移动节奏 ≈
-   * 浏览器 key repeat 频率（通常 30–50ms / 次），比 baseline tick 快得多。
-   * 松开后回到自然 tick 节奏，无 lingering 加速。
-   *
-   * 不走这条路径的情况：
-   * - 单点同方向键（press）：不加速，等同 no-op
-   * - 异向方向键（换方向）：只改 pendingDir，不影响 tick 节奏
+   * 按键触发的立即走格会让它从 KEY_TIMER_START 重新计时，下一次自然走格在一个完整间隔之后，
+   * 不会出现按键刚走完、自然节拍紧接着又走一格的情况。
    */
-  readonly skipNextTick: boolean;
+  readonly moveAcc: number;
+  /** 自然走格间隔（ms），由 speed 档决定 */
+  readonly moveIntervalMs: number;
+}
+
+/** 固定 30 帧/秒推进，和 App 的动画帧率一致；走格快慢由 moveIntervalMs 决定 */
+export const SNAKE_TICK_HZ = 30;
+export const FRAME_MS = 1000 / SNAKE_TICK_HZ;
+/** 按键启动的计时起点，原因见 sdk Game.onButton */
+export const KEY_TIMER_START = -FRAME_MS;
+
+/**
+ * 9 档自然走格频率（格/秒），index 与 speed-1 对应。
+ *
+ * speed=2（1.5）保留接近旧版本默认手感作为基线；档位间不是等差也不是
+ * 等比：低档段 +25%~50% 步进，高档段 +30%~50%（专家档逐档明显加快）。
+ * speed=9（10 格/秒 = 100ms）为最快档
+ */
+const MOVES_PER_SECOND: readonly number[] = [1, 1.5, 2, 2.5, 3.5, 4.5, 6, 8, 10];
+
+/** speed 档对应的自然走格间隔（ms）；越界档位钳到首末档 */
+export function moveIntervalMs(speed: number): number {
+  const idx = Math.min(MOVES_PER_SECOND.length, Math.max(1, speed)) - 1;
+  return 1000 / (MOVES_PER_SECOND[idx] ?? 1);
+}
+
+/**
+ * 下一次 step 是否会自然走一格。
+ *
+ * 自动玩按 tick 注入按键，只在这一帧出手，才能保持每个间隔走一格的节奏；
+ * 否则每帧都按方向键会让蛇以帧率连续前进。
+ */
+export function isMoveDue(state: SnakeState): boolean {
+  if (state.over || state.awaitingFirstMove) return false;
+  return reached(state.moveAcc + FRAME_MS, state.moveIntervalMs);
+}
+
+/**
+ * 累计时间是否达到间隔。FRAME_MS 不是整数，3 帧累加得到 99.999…，
+ * 直接比较会让 100ms 的间隔多等一帧，所以留一个微小容差
+ */
+export function reached(acc: number, interval: number): boolean {
+  return acc >= interval - 1e-6;
 }
 
 const DIR_VEC: Readonly<Record<Direction, Pixel>> = {

@@ -1,0 +1,116 @@
+# 推送 vX.Y.Z 格式的 tag 时，构建正式签名的 Android prod APK 并创建 GitHub Release。
+# 版本号规则、所需 secrets 与 keystore 生成方式见 docs/MOBILE.md 的「版本号与发布」一节。
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: release-${{ github.ref }}
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # 签名在构建末尾才用到，先检查，未配置时不必等依赖安装与网页构建跑完才失败
+      - name: Check signing secrets
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          missing=()
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [[ -z ${!name} ]]; then missing+=("$name"); fi
+          done
+          if (( ${#missing[@]} )); then
+            echo "::error::未配置签名 secrets：${missing[*]}"
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          # 生成更新日志需要完整历史与 tag
+          fetch-depth: 0
+
+      - name: Check tag on master
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/master; then
+            echo "::error::$GITHUB_REF_NAME 指向的提交不在 master 上，只发布已合入 master 的版本"
+            exit 1
+          fi
+
+      - name: Parse version
+        id: version
+        run: |
+          if [[ ! $GITHUB_REF_NAME =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::tag 格式应为 vX.Y.Z，实际为 $GITHUB_REF_NAME"
+            exit 1
+          fi
+          # 10# 按十进制解析，避免 08 这类前导零被当作八进制
+          major=$((10#${BASH_REMATCH[1]})) minor=$((10#${BASH_REMATCH[2]})) patch=$((10#${BASH_REMATCH[3]}))
+          if (( minor > 99 || patch > 99 )); then
+            echo "::error::次版本与修订号不得超过 99"
+            exit 1
+          fi
+          name="$major.$minor.$patch"
+          {
+            echo "name=$name"
+            echo "code=$(( major * 1000000 + minor * 10000 + patch * 100 + 1 ))"
+            echo "apk=gamebaby-$name.apk"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web and sync Android
+        env:
+          CAP_REMOTE_URL: https://gamebaby.strawtc.cn
+        run: pnpm mobile:sync
+
+      - name: Build APK
+        working-directory: android
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.jks"
+          base64 -d <<< "$KEYSTORE_BASE64" > "$ANDROID_KEYSTORE_PATH"
+          ./gradlew assembleProdRelease \
+            -PappVersionCode=${{ steps.version.outputs.code }} \
+            -PappVersionName=${{ steps.version.outputs.name }}
+          cp app/build/outputs/apk/prod/release/app-prod-release.apk "../${{ steps.version.outputs.apk }}"
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APK: ${{ steps.version.outputs.apk }}
+        run: |
+          scripts/release-notes.sh "$GITHUB_REF_NAME" "$APK" > release-notes.md
+          gh release create "$GITHUB_REF_NAME" "$APK" --title "$GITHUB_REF_NAME" --notes-file release-notes.md

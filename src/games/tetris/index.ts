@@ -1,3 +1,4 @@
+import type { Button } from '@/engine/types';
 import type { Game, GameEnv } from '@/sdk';
 
 import { init, isAnimating, isGameOver, onButton, render, step } from './logic';
@@ -7,17 +8,14 @@ import {
   isValidPosition,
   pieceCells,
   type Rotation,
+  ROTATION_STATES,
+  TETRIS_TICK_HZ,
   TETROMINOES,
   type TetrisState,
 } from './state';
 
-/**
- * 9 档起始 tick 速度（ticks/second）= 方块自由下落频率。
- *
- * speed=1 1.5 ticks/s ≈ 670ms/格（新手友好），speed=9 12 ticks/s ≈ 83ms/格
- * 接近真机最快档。配合 Down 软降，按住 Down 可达更快的硬降级体感
- */
-const TETRIS_TICK_SPEEDS: readonly number[] = [1.5, 2, 2.5, 3.5, 5, 7, 9, 10.5, 12];
+/** 选关 demo 的速度档：每 0.4s 下落一格，小屏上看得清 */
+const DEMO_SPEED = 3;
 
 /**
  * Demo AI：穷举当前方块的 4 种旋转 × 所有合法 x，模拟硬降找到"最优"落点。
@@ -30,7 +28,8 @@ function pickBestPlacement(state: TetrisState): { rotation: Rotation; x: number 
   let bestRot: Rotation = 0;
   let bestX = 0;
 
-  for (const rot of [0, 1, 2, 3] as Rotation[]) {
+  for (let r = 0; r < ROTATION_STATES[state.active.kind]; r++) {
+    const rot = r as Rotation;
     const shape = TETROMINOES[state.active.kind][rot] ?? [];
     const xs = shape.map(([dx]) => dx);
     const minDx = Math.min(...xs);
@@ -96,11 +95,28 @@ function pickBestPlacement(state: TetrisState): { rotation: Rotation; x: number 
   return bestScore > -Infinity ? { rotation: bestRot, x: bestX } : null;
 }
 
+/** 用 press + release 模拟一次点按，避免按住状态触发连发 */
+function tap(env: GameEnv, state: TetrisState, btn: Button): TetrisState {
+  return onButton(env, onButton(env, state, btn, 'press'), btn, 'release');
+}
+
+/** demo AI 这一帧要按的键：先转到目标相位，再横移到目标列；已就位返回 null */
+function demoButton(state: TetrisState): Button | null {
+  if (!state.active) return null;
+  const target = pickBestPlacement(state);
+  if (!target) return null;
+  if (state.active.rotation !== target.rotation) return 'A';
+  if (state.active.x < target.x) return 'Right';
+  if (state.active.x > target.x) return 'Left';
+  return null;
+}
+
 export const tetris: Game<TetrisState> = {
   id: 'tetris',
   name: 'TETRIS',
   preview: tetrisPreview,
-  tickSpeeds: TETRIS_TICK_SPEEDS,
+  // 下落与连发快慢由游戏内的毫秒计时决定，ticker 固定 30 帧/秒即可，与 speed 档无关
+  tickSpeed: TETRIS_TICK_HZ,
   init,
   step,
   render,
@@ -108,28 +124,15 @@ export const tetris: Game<TetrisState> = {
   isGameOver,
   isAnimating,
   demoInit(env: GameEnv): TetrisState {
-    return init(env);
+    return init(env, { speed: DEMO_SPEED, level: 1 });
   },
 
   demoStep(env: GameEnv, state: TetrisState): TetrisState {
-    if (state.over) return { ...init(env), awaitingFirstMove: false };
+    if (state.over)
+      return { ...init(env, { speed: DEMO_SPEED, level: 1 }), awaitingFirstMove: false };
     if (state.awaitingFirstMove) return onButton(env, state, 'A', 'press');
-    if (state.clearingLines.length > 0) return step(env, state);
-    if (!state.active) return step(env, state);
-
-    // 简单 AI：算出最佳落点（旋转 + x），逐步操作过去
-    const target = pickBestPlacement(state);
-    if (target) {
-      if (state.active.rotation !== target.rotation) {
-        return onButton(env, state, 'A', 'press');
-      }
-      if (state.active.x < target.x) {
-        return onButton(env, state, 'Right', 'press');
-      }
-      if (state.active.x > target.x) {
-        return onButton(env, state, 'Left', 'press');
-      }
-    }
-    return step(env, state);
+    // 每帧最多操作一次，同时照常推进下落
+    const btn = demoButton(state);
+    return step(env, btn ? tap(env, state, btn) : state);
   },
 };

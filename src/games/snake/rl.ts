@@ -21,7 +21,7 @@ import { toGameEnv } from '@/sdk';
 
 import type { RLEnv, StepResult } from '@/ai/rl-env';
 
-import { init, onButton, step } from './logic';
+import { init, moveNow, onButton } from './logic';
 import type { SnakeState } from './state';
 
 const DEFAULT_SEED = 42;
@@ -78,9 +78,9 @@ export function createSnakeRLEnv(opts: SnakeRLEnvOptions = {}): RLEnv<SnakeRLSta
       const { game: prev, env } = rlState;
       const prevScore = prev.score;
 
-      // 先按键改方向，再 tick 推进一步
+      // 一个 RL 步 = 蛇走一格：非反向方向键按下即走；反向键被拒时沿原方向走一格
       const afterBtn = onButton(env, prev, action, 'press');
-      const next = step(env, afterBtn);
+      const next = afterBtn === prev ? moveNow(env, prev, prev.dir) : afterBtn;
 
       const ate = next.score > prevScore;
       const dead = next.over;

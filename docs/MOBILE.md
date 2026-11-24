@@ -95,7 +95,7 @@ pnpm mobile:dev:android
 
 注意事项：
 
-- 装出来的仍然是 debug-signed APK（沿用 `cap run` 的默认行为），不是 Play Store 上架用的 release-signed APK。要做正式发布签名包是另一笔工作（生成 keystore + 改 `android/app/build.gradle` 的 `signingConfigs`），按需再做。
+- 装出来的仍然是 debug-signed APK（沿用 `cap run` 的默认行为）。正式签名的 APK 由发布流水线构建，见下文"版本号与发布"。
 - APK 里 `server.url` 是固化的：换域名要重新跑这条命令重装。
 - 普通 `pnpm mobile:run:android` 不受影响；没设环境变量时 `capacitor.config.ts` 走原来的本地 dist 模式。
 
@@ -127,7 +127,46 @@ Service Worker 只在线上域名模式（`mobile:run:android:online`）和网�
 - `vite-plugin-pwa` 1.3.0 + Vite 8（rolldown 后端）下，rolldown 无法穿透 pnpm 的 `node_modules/.pnpm/` 间接依赖去解析 `workbox-window`，所以本项目把 `workbox-window` 显式提到顶层 `devDependencies`，让 rolldown 能直接找到。
 - 不要给 `dist/sw.js` 加缓存：服务器需要让浏览器每次都重新校验 SW 文件本身，否则无法更新到新版本。当前部署用 nginx 默认配置（无显式 `Cache-Control`），浏览器走启发式缓存，Workbox 自己会带 `?_v=` 之类的查询串绕过。目前线上没问题，但**未来给 nginx 加全站强缓存时务必给 `/sw.js` 留 `Cache-Control: no-cache` 例外**。
 
-## 4. 移动端体验适配（已落地）
+### 版本号与发布
+
+网页部署后界面随之更新，不需要发布新 APK。图标、应用名、Capacitor 插件与配置等原生改动需要重新打包安装，此时发布新版本。
+
+发布由 tag 触发：在 master 上推送 `vX.Y.Z` 后，`.github/workflows/release.yml` 构建正式签名的 prod APK（加载线上域名），创建同名 GitHub Release，附上 APK、自上一个 tag 以来按提交类型分组的更新日志（首个版本不列）与 APK 的 SHA256。
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+版本号由 tag 计算，不需要修改代码：
+
+- `versionName`：展示用的版本号，取 tag 中的 `X.Y.Z`
+- `versionCode`：系统判断能否升级的整数，每次发布必须比上一次大，不能回退。按 `主版本 × 1000000 + 次版本 × 10000 + 修订号 × 100 + 构建序号` 计算，例如 `v1.2.3` 为 `1020301`。次版本与修订号不超过 99
+
+一个版本号只发布一次，构建序号固定为 1；已发布的版本需要重新打包时，发布下一个修订号。末两位保留给以后需要同一版本多次构建时使用。
+
+`android/app/build.gradle` 中的 `versionCode 101` / `versionName 0.0.1` 只是本地构建的默认值，发布时不需要修改。
+
+签名所需的 secrets（Settings → Secrets and variables → Actions）：
+
+| Secret                      | 内容                        |
+| --------------------------- | --------------------------- |
+| `ANDROID_KEYSTORE_BASE64`   | keystore 文件的 base64 编码 |
+| `ANDROID_KEYSTORE_PASSWORD` | keystore 密码               |
+| `ANDROID_KEY_ALIAS`         | 密钥别名                    |
+| `ANDROID_KEY_PASSWORD`      | 密钥密码                    |
+
+生成 keystore（`keytool` 随 JDK 提供，Android Studio 自带的位于 `/Applications/Android Studio.app/Contents/jbr/Contents/Home/bin/`）：
+
+```bash
+keytool -genkeypair -v -keystore gamebaby-release.jks -alias gamebaby \
+  -keyalg RSA -keysize 2048 -validity 36500
+base64 -i gamebaby-release.jks | pbcopy   # 复制后粘贴到 ANDROID_KEYSTORE_BASE64
+```
+
+**keystore 与密码需要离线备份，不得提交进仓库**。丢失后无法再签出同一签名的包，已安装的用户只能卸载重装。正式签名与 `mobile:run:android:online` 装出的调试签名不同，手机上已有调试签名的正式版时，首次安装 Release 中的 APK 需要先卸载。
+
+## 4. 移动端体验适配
 
 | 项目                      | 实现位置                                          | 说明                                                                |
 | ------------------------- | ------------------------------------------------- | ------------------------------------------------------------------- |
@@ -169,4 +208,4 @@ Service Worker 只在线上域名模式（`mobile:run:android:online`）和网�
 - 启动闪屏（`@capacitor/splash-screen`，把首次冷启动的白屏替换为机身色 / Logo）；
 - 抽象 `src/platform/mobile/`：把返回键、前后台切换、开发版识别等移动端桥接从 `src/platform/browser/` 迁过去，并补上 AudioContext 首次手势解锁；
 - 移动端 E2E（Android Emulator 自动化跑流程冒烟）；
-- 打包发布流水线（签名、AAB 产物、内测分发）。
+- AAB 产物与内测分发。

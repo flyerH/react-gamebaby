@@ -325,11 +325,18 @@ ctx.input.subscribe((btn, action) => {
   }
   // 控制键（Start / Pause / Sound / Reset）只响应 press，处理完即返回
   if (action === 'press') handleControlKeys(btn);
-  // 游戏键 → reducer → game.onButton(env, state, btn, action)
-  dispatch({ type: 'INPUT', button: btn, kind: action });
+  // playing 态的游戏键先缓存，其它按键立即进 reducer
+  if (mode === 'playing' && isGameKey(btn)) pendingKeys.push({ btn, action });
+  else dispatch({ type: 'INPUT', button: btn, kind: action });
 });
 
-ctx.ticker.start(() => dispatch({ type: 'TICK' }));
+ctx.ticker.start(() => {
+  // 帧开头按顺序送达缓存的游戏键与自动玩按键，再推进这一帧，计时约定见 sdk Game.onButton
+  for (const k of pendingKeys) dispatch({ type: 'INPUT', button: k.btn, kind: k.action });
+  if (piloting) dispatch({ type: 'INPUT', button: pilot.act(gameState), kind: 'press' });
+  dispatch({ type: 'TICK' });
+});
+// reduce(INPUT) → game.onButton(env, state, btn, action)
 // reduce(TICK) → 按 mode 调 stepBoot / demoStep / game.step
 // dispatch 后：设置 ticker 速度 → screen.batch 内绘制 → 应用暂停 → 更新最高分 → 通知订阅者
 ```
