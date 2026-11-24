@@ -3,8 +3,8 @@ import { describe, it, expect } from 'vitest';
 import { createHeadlessContext } from '@/platform/headless';
 import { toGameEnv, type GameEnv } from '@/sdk';
 
-import { init, onButton, render, step } from '../logic';
-import type { SnakeState } from '../state';
+import { init, moveNow, onButton, render, step } from '../logic';
+import { FRAME_MS, isMoveDue, moveIntervalMs, type SnakeState } from '../state';
 
 function makeEnv(width = 10, height = 20, seed = 42): GameEnv {
   return toGameEnv(createHeadlessContext({ seed, width, height }));
@@ -14,13 +14,13 @@ function makeEnv(width = 10, height = 20, seed = 42): GameEnv {
  * 让用例字面量保持简洁：所有未指定的字段用安全默认。
  * awaitingFirstMove 默认 false 让大部分 step / onButton 用例直接走"已启动"
  * 路径；专测"等待启动"的用例自己 partial 设 true。
+ * moveIntervalMs 默认一帧，让每次 step 都自然走一格；专测走格计时的用例自己覆盖。
  */
 function makeState(partial: Partial<SnakeState>): SnakeState {
   return {
     body: [[0, 0]],
     obstacles: [],
     dir: 'right',
-    pendingDir: 'right',
     food: [9, 0],
     over: false,
     won: false,
@@ -30,7 +30,8 @@ function makeState(partial: Partial<SnakeState>): SnakeState {
     awaitingFirstMove: false,
     score: 0,
     lastOpts: null,
-    skipNextTick: false,
+    moveAcc: 0,
+    moveIntervalMs: FRAME_MS,
     ...partial,
   };
 }
@@ -41,7 +42,8 @@ describe('snake · init', () => {
     const s = init(env);
     expect(s.body).toHaveLength(3);
     expect(s.dir).toBe('right');
-    expect(s.pendingDir).toBe('right');
+    expect(s.moveAcc).toBe(0);
+    expect(s.moveIntervalMs).toBe(moveIntervalMs(1));
     expect(s.over).toBe(false);
     expect(s.overFrame).toBe(0);
     expect(s.crashSnapshot).toEqual([]);
@@ -99,12 +101,11 @@ describe('snake · step（移动、吃食物、碰撞）', () => {
     const env = makeEnv();
     const s0 = makeState({
       body: [[7, 10]],
-      pendingDir: 'right',
       food: [3, 5],
     });
     // head=[7,10] 朝右走，新头 [8,10] 还在屏内，需要再多两格才出屏；
     // 改让头在 x=9，下一步出屏
-    const s1 = step(env, makeState({ body: [[9, 10]], pendingDir: 'right', food: [3, 5] }));
+    const s1 = step(env, makeState({ body: [[9, 10]], food: [3, 5] }));
     expect(s1.over).toBe(true);
     expect(s1.overFrame).toBe(0);
     // x=9 被 clamp 到 7（W-3=10-3=7），y=10 不变
@@ -128,7 +129,6 @@ describe('snake · step（移动、吃食物、碰撞）', () => {
         [4, 10],
       ],
       dir: 'down',
-      pendingDir: 'down',
     });
     const s1 = step(env, s0);
     expect(s1.over).toBe(true);
@@ -140,25 +140,16 @@ describe('snake · step（移动、吃食物、碰撞）', () => {
   it('撞墙的 crashCenter 在 4 个角都被 clamp 到 5×5 完整在屏内', () => {
     const env = makeEnv(10, 20);
     // 撞左墙：head=[0,5] 朝左
-    const left = step(
-      env,
-      makeState({ body: [[0, 5]], dir: 'left', pendingDir: 'left' })
-    ).crashCenter;
+    const left = step(env, makeState({ body: [[0, 5]], dir: 'left' })).crashCenter;
     expect(left).toEqual([2, 5]);
     // 撞右墙：head=[9,5] 朝右
-    const right = step(
-      env,
-      makeState({ body: [[9, 5]], dir: 'right', pendingDir: 'right' })
-    ).crashCenter;
+    const right = step(env, makeState({ body: [[9, 5]], dir: 'right' })).crashCenter;
     expect(right).toEqual([7, 5]);
     // 撞上墙：head=[4,0] 朝上
-    const up = step(env, makeState({ body: [[4, 0]], dir: 'up', pendingDir: 'up' })).crashCenter;
+    const up = step(env, makeState({ body: [[4, 0]], dir: 'up' })).crashCenter;
     expect(up).toEqual([4, 2]);
     // 撞下墙：head=[4,19] 朝下
-    const down = step(
-      env,
-      makeState({ body: [[4, 19]], dir: 'down', pendingDir: 'down' })
-    ).crashCenter;
+    const down = step(env, makeState({ body: [[4, 19]], dir: 'down' })).crashCenter;
     expect(down).toEqual([4, 17]);
   });
 
@@ -171,8 +162,7 @@ describe('snake · step（移动、吃食物、碰撞）', () => {
         [6, 11],
         [6, 10],
       ],
-      dir: 'up',
-      pendingDir: 'right',
+      dir: 'right',
     });
     const s1 = step(env, s0);
     expect(s1.over).toBe(false);
@@ -189,7 +179,6 @@ describe('snake · step（移动、吃食物、碰撞）', () => {
         [1, 1],
       ],
       dir: 'right',
-      pendingDir: 'right',
       food: [1, 0],
     });
     const s1 = step(env, s0);
@@ -388,15 +377,10 @@ describe('snake · onButton', () => {
     ],
   });
 
-  it('方向键 press 更新 pendingDir', () => {
-    const env = makeEnv();
-    expect(onButton(env, base, 'Up', 'press').pendingDir).toBe('up');
-    expect(onButton(env, base, 'Down', 'press').pendingDir).toBe('down');
-  });
-
-  it('反向按键被拒绝（防止一 tick 内反向撞自己）', () => {
+  it('反向按键被拒绝（防止反向撞自己）', () => {
     const env = makeEnv();
     expect(onButton(env, base, 'Left', 'press')).toBe(base);
+    expect(onButton(env, base, 'Left', 'repeat')).toBe(base);
   });
 
   it('release 无副作用 / 非方向键非 A 无副作用', () => {
@@ -404,7 +388,6 @@ describe('snake · onButton', () => {
     expect(onButton(env, base, 'Up', 'release')).toBe(base);
     // 'B' 不在 onButton 处理范围，返回原 state
     expect(onButton(env, base, 'B', 'press')).toBe(base);
-    // A 不是 release 时会触发"沿当前方向走一格"，单独测试见下面"A 键 Rotate"
   });
 
   it('over 态下按键不生效', () => {
@@ -413,13 +396,13 @@ describe('snake · onButton', () => {
     expect(onButton(env, dead, 'Up', 'press')).toBe(dead);
   });
 
-  it('awaitingFirstMove=true 时方向键启动游戏 + 改向', () => {
+  it('awaitingFirstMove=true 时方向键启动游戏 + 改向，不立即走格', () => {
     const env = makeEnv();
     const idle = makeState({ ...base, awaitingFirstMove: true });
     const s1 = onButton(env, idle, 'Up', 'press');
     expect(s1.awaitingFirstMove).toBe(false);
     expect(s1.dir).toBe('up');
-    expect(s1.pendingDir).toBe('up');
+    expect(s1.body).toBe(idle.body);
   });
 
   it('awaitingFirstMove=true 时反向方向键被拒（仍处于等待状态）', () => {
@@ -438,183 +421,137 @@ describe('snake · onButton', () => {
   });
 });
 
-describe('snake · 方向键：长按同向加速，单点不加速，异向只切方向', () => {
-  it('同 pendingDir 方向键 + press（单点）→ 不加速、不打断 tick 节奏（同引用返回）', () => {
-    const env = makeEnv();
-    const s0 = makeState({
-      body: [
-        [4, 10],
-        [3, 10],
-        [2, 10],
-      ],
-      dir: 'right',
-      pendingDir: 'right',
-    });
-    const s1 = onButton(env, s0, 'Right', 'press');
-    expect(s1).toBe(s0);
-  });
+describe('snake · 方向键按下即走，走格计时清零', () => {
+  const body: SnakeState['body'] = [
+    [4, 10],
+    [3, 10],
+    [2, 10],
+  ];
 
-  it('同 pendingDir 方向键 + repeat（长按）→ 加速：advance + skipNextTick=true', () => {
+  it('同向点按（press）立即走一格并清零走格计时', () => {
     const env = makeEnv();
-    const s0 = makeState({
-      body: [
-        [4, 10],
-        [3, 10],
-        [2, 10],
-      ],
-      dir: 'right',
-      pendingDir: 'right',
-    });
-    const s1 = onButton(env, s0, 'Right', 'repeat');
+    const s0 = makeState({ body, dir: 'right', moveAcc: 500, moveIntervalMs: 1000 });
+    const s1 = onButton(env, s0, 'Right', 'press');
     expect(s1.body[0]).toEqual([5, 10]);
     expect(s1.body).toHaveLength(3);
-    expect(s1.skipNextTick).toBe(true);
+    expect(s1.moveAcc).toBe(0);
   });
 
-  it('异 pendingDir 方向键 → 只改 pendingDir，不推进、不设 skipNextTick', () => {
+  it('换向（press）当场转弯并走一格，不等下一拍', () => {
     const env = makeEnv();
-    const s0 = makeState({
-      body: [
-        [4, 10],
-        [3, 10],
-        [2, 10],
-      ],
-      dir: 'right',
-      pendingDir: 'right',
-    });
+    const s0 = makeState({ body, dir: 'right', moveAcc: 500, moveIntervalMs: 1000 });
     const s1 = onButton(env, s0, 'Up', 'press');
-    expect(s1.pendingDir).toBe('up');
-    expect(s1.dir).toBe('right');
-    expect(s1.body).toBe(s0.body);
-    expect(s1.skipNextTick).toBe(false);
+    expect(s1.dir).toBe('up');
+    expect(s1.body[0]).toEqual([4, 9]);
+    expect(s1.moveAcc).toBe(0);
   });
 
-  it('异向 repeat 也仅切方向，不打断 tick 节奏（避免长按换方向意外加速）', () => {
+  it('长按（repeat）同样每次走一格', () => {
     const env = makeEnv();
-    const s0 = makeState({
-      body: [
-        [4, 10],
-        [3, 10],
-      ],
-      dir: 'right',
-      pendingDir: 'right',
-    });
-    const s1 = onButton(env, s0, 'Up', 'repeat');
-    expect(s1.pendingDir).toBe('up');
-    expect(s1.body).toBe(s0.body);
-    expect(s1.skipNextTick).toBe(false);
+    const s0 = makeState({ body, dir: 'right', moveIntervalMs: 1000 });
+    const s1 = onButton(env, s0, 'Right', 'repeat');
+    const s2 = onButton(env, s1, 'Right', 'repeat');
+    expect(s2.body[0]).toEqual([6, 10]);
+    expect(s2.moveAcc).toBe(0);
   });
 
-  it('先按 Up 换方向，长按 Up（repeat）触发加速（pendingDir 已 = up）', () => {
+  it('点按后下一次自然走格在一个完整间隔之后', () => {
     const env = makeEnv();
-    const s0 = makeState({
-      body: [
-        [4, 10],
-        [3, 10],
-      ],
-      dir: 'right',
-      pendingDir: 'right',
-    });
-    const s1 = onButton(env, s0, 'Up', 'press');
-    expect(s1.pendingDir).toBe('up');
-    expect(s1.body).toBe(s0.body);
-    const s2 = onButton(env, s1, 'Up', 'repeat');
-    expect(s2.body[0]).toEqual([4, 9]);
-    expect(s2.skipNextTick).toBe(true);
+    // 间隔 3 帧；计时已累计到差一帧就走格时点按
+    const interval = FRAME_MS * 3;
+    const s0 = makeState({ body, dir: 'right', moveAcc: FRAME_MS * 2, moveIntervalMs: interval });
+    const tapped = onButton(env, onButton(env, s0, 'Right', 'press'), 'Right', 'release');
+    expect(tapped.body[0]).toEqual([5, 10]);
+    // 点按前那一帧本该走格，现在不走
+    const t1 = step(env, tapped);
+    const t2 = step(env, t1);
+    expect(t2.body[0]).toEqual([5, 10]);
+    // 满一个间隔才走
+    const t3 = step(env, t2);
+    expect(t3.body[0]).toEqual([6, 10]);
   });
 
-  it('先按 Up 换方向，再单点 Up（press）不加速（仅 repeat 加速）', () => {
+  it('反向键 vs 当前方向拒绝：dir=up 时按 Down 不生效', () => {
     const env = makeEnv();
-    const s0 = makeState({
-      dir: 'right',
-      pendingDir: 'up',
-      body: [
-        [4, 10],
-        [3, 10],
-      ],
-    });
-    const s1 = onButton(env, s0, 'Up', 'press');
-    expect(s1).toBe(s0);
+    const s0 = makeState({ body, dir: 'up' });
+    expect(onButton(env, s0, 'Down', 'press')).toBe(s0);
   });
 
-  it('反向键 vs 上次 tick 的 dir 拒绝：dir=right 按 left 拒（pendingDir 是 right）', () => {
+  it('A 键（Rotate）：沿当前方向走一格（不改向）并清零计时', () => {
     const env = makeEnv();
-    const s0 = makeState({ dir: 'right', pendingDir: 'right' });
-    expect(onButton(env, s0, 'Left', 'press')).toBe(s0);
-  });
-
-  it('反向键 vs dir 检查（关键保护）：dir=right、pendingDir=up 时再按 Left 仍被拒，避免 tick 间夹角 180° 急转撞身体', () => {
-    const env = makeEnv();
-    const s0 = makeState({ dir: 'right', pendingDir: 'up' });
-    const s1 = onButton(env, s0, 'Left', 'press');
-    expect(s1).toBe(s0);
-  });
-
-  it('反向 pendingDir 但非反向 dir 的方向键允许：dir=right、pendingDir=up 时按 Down 通过（蛇下次 tick 直接 right→down 不撞身体）', () => {
-    const env = makeEnv();
-    const s0 = makeState({ dir: 'right', pendingDir: 'up' });
-    const s1 = onButton(env, s0, 'Down', 'press');
-    expect(s1.pendingDir).toBe('down');
-  });
-
-  it('A 键（Rotate）：沿当前方向走一格（不改向）+ skipNextTick=true', () => {
-    const env = makeEnv();
-    const s0 = makeState({
-      body: [
-        [4, 10],
-        [3, 10],
-        [2, 10],
-      ],
-      dir: 'right',
-      pendingDir: 'right',
-    });
+    const s0 = makeState({ body, dir: 'right', moveAcc: 500, moveIntervalMs: 1000 });
     const s1 = onButton(env, s0, 'A', 'press');
     expect(s1.body[0]).toEqual([5, 10]);
     expect(s1.dir).toBe('right');
-    expect(s1.skipNextTick).toBe(true);
+    expect(s1.moveAcc).toBe(0);
   });
 
-  it('skipNextTick=true 时 step 跳过一次推进 + 重置 skipNextTick=false', () => {
+  it('按键走格撞墙：over=true', () => {
+    const env = makeEnv();
+    const s0 = makeState({ body: [[9, 10]], dir: 'right' });
+    const s1 = onButton(env, s0, 'Right', 'repeat');
+    expect(s1.over).toBe(true);
+  });
+});
+
+describe('snake · 自然走格计时', () => {
+  it('未满间隔只累计时间，满间隔走一格并扣掉一个间隔', () => {
     const env = makeEnv();
     const s0 = makeState({
       body: [
         [4, 10],
         [3, 10],
       ],
-      skipNextTick: true,
+      moveIntervalMs: FRAME_MS * 2,
     });
     const s1 = step(env, s0);
-    expect(s1.body).toEqual(s0.body);
-    expect(s1.skipNextTick).toBe(false);
+    expect(s1.body).toBe(s0.body);
+    expect(s1.moveAcc).toBeCloseTo(FRAME_MS);
+    const s2 = step(env, s1);
+    expect(s2.body[0]).toEqual([5, 10]);
+    expect(s2.moveAcc).toBeCloseTo(0);
   });
 
-  it('方向键 release 清 skipNextTick：避免松开后首拍 ticker 被跳过', () => {
+  it('100ms 间隔恰好每 3 帧走一格（帧长累加的浮点误差不会多等一帧）', () => {
+    const env = makeEnv();
+    let s = makeState({
+      body: [
+        [4, 10],
+        [3, 10],
+      ],
+      moveIntervalMs: 100,
+    });
+    for (let i = 0; i < 3; i++) s = step(env, s);
+    expect(s.body[0]).toEqual([5, 10]);
+  });
+
+  it('init 按 speed 档设置走格间隔', () => {
+    const env = makeEnv();
+    expect(init(env, { speed: 9, level: 1 }).moveIntervalMs).toBe(100);
+    expect(init(env, { speed: 1, level: 1 }).moveIntervalMs).toBe(1000);
+  });
+
+  it('isMoveDue：下一帧会走格时为 true；等待首键或已结束时为 false', () => {
+    const due = makeState({ moveAcc: 0, moveIntervalMs: FRAME_MS });
+    expect(isMoveDue(due)).toBe(true);
+    expect(isMoveDue(makeState({ moveAcc: 0, moveIntervalMs: FRAME_MS * 2 }))).toBe(false);
+    expect(isMoveDue({ ...due, awaitingFirstMove: true })).toBe(false);
+    expect(isMoveDue({ ...due, over: true })).toBe(false);
+  });
+
+  it('moveNow 沿指定方向走一格并清零计时', () => {
     const env = makeEnv();
     const s0 = makeState({
-      body: [[5, 10]],
-      dir: 'right',
-      pendingDir: 'right',
-      skipNextTick: true,
+      body: [
+        [4, 10],
+        [3, 10],
+      ],
+      moveAcc: 20,
+      moveIntervalMs: 1000,
     });
-    const s1 = onButton(env, s0, 'Right', 'release');
-    expect(s1.skipNextTick).toBe(false);
-  });
-
-  it('release 时 skipNextTick=false 已经是 false，返回同引用避免无谓渲染', () => {
-    const env = makeEnv();
-    const s0 = makeState({ skipNextTick: false });
-    expect(onButton(env, s0, 'Right', 'release')).toBe(s0);
-  });
-
-  it('同向键 repeat 加速撞墙：over=true，不设 skipNextTick（over 路径下 step 走动画推进）', () => {
-    const env = makeEnv();
-    const s0 = makeState({
-      body: [[9, 10]],
-      dir: 'right',
-      pendingDir: 'right',
-    });
-    const s1 = onButton(env, s0, 'Right', 'repeat');
-    expect(s1.over).toBe(true);
-    expect(s1.skipNextTick).toBe(false);
+    const s1 = moveNow(env, s0, 'down');
+    expect(s1.body[0]).toEqual([4, 11]);
+    expect(s1.dir).toBe('down');
+    expect(s1.moveAcc).toBe(0);
   });
 });

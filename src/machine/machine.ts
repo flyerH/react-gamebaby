@@ -518,7 +518,16 @@ export function createMachine(opts: MachineOptions): Machine {
       return;
     }
 
-    if (ctx.pause.value && state.mode === 'playing' && GAME_KEYS.has(button)) return;
+    // 暂停只拦截 press / repeat；release 照常送达，否则暂停期间松手会让游戏内的按住状态残留，
+    // 恢复后方块或坦克继续自己移动
+    if (
+      ctx.pause.value &&
+      state.mode === 'playing' &&
+      GAME_KEYS.has(button) &&
+      kind !== 'release'
+    ) {
+      return;
+    }
 
     // 游戏键反馈音：press 与 repeat 都发声，长按连发期间持续发出；release 与 Reset 不发声
     if ((kind === 'press' || kind === 'repeat') && button !== 'Reset') {

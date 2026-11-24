@@ -44,6 +44,8 @@ export const FIELD_HEIGHT: number = 20;
  * - score：消行数 × 分（单消 1 / 双消 3 / 三消 5 / Tetris 8）
  * - lines：累计消行数（玩家成长指标）
  * - lastOpts：菜单选定的 speed / level，用于死亡后自动重开时复用
+ * - fallAcc / fallIntervalMs：自由下落计时，满间隔下落一格
+ * - heldShift / heldDrop：左右键 / 下键的按住状态，由 step 驱动连发
  */
 export interface TetrisState {
   readonly width: number;
@@ -59,15 +61,70 @@ export interface TetrisState {
   readonly score: number;
   readonly lines: number;
   readonly lastOpts: { readonly speed: number; readonly level: number } | null;
+  /** 距上一次下落累计的毫秒数；任何下落（自由下落或软降）都会清零 */
+  readonly fallAcc: number;
+  /** 自由下落间隔（ms），由 speed 档决定 */
+  readonly fallIntervalMs: number;
+  readonly heldShift: HeldShift | null;
+  readonly heldDrop: HeldKey | null;
 }
+
+/** 按住中的键：heldMs 达到起始延迟后，按 repeatAcc 累计连发 */
+export interface HeldKey {
+  readonly heldMs: number;
+  readonly repeatAcc: number;
+}
+
+export interface HeldShift extends HeldKey {
+  readonly dir: -1 | 1;
+}
+
+/** 固定 30 帧/秒推进；下落与连发快慢由各自的毫秒间隔决定 */
+export const TETRIS_TICK_HZ = 30;
+export const FRAME_MS = 1000 / TETRIS_TICK_HZ;
+
+/**
+ * 9 档自由下落频率（格/秒），index 与 speed-1 对应。
+ *
+ * speed=1 1.5 格/秒 ≈ 670ms/格（新手友好），speed=9 12 格/秒 ≈ 83ms/格为最快档
+ */
+const FALLS_PER_SECOND: readonly number[] = [1.5, 2, 2.5, 3.5, 5, 7, 9, 10.5, 12];
+
+/** speed 档对应的自由下落间隔（ms）；越界档位钳到首末档 */
+export function fallIntervalMs(speed: number): number {
+  const idx = Math.min(FALLS_PER_SECOND.length, Math.max(1, speed)) - 1;
+  return 1000 / (FALLS_PER_SECOND[idx] ?? 1);
+}
+
+/**
+ * 累计时间是否达到间隔。FRAME_MS 不是整数，帧长累加有浮点误差，
+ * 直接比较会让恰好整数倍的间隔多等一帧，所以留一个微小容差
+ */
+export function reached(acc: number, interval: number): boolean {
+  return acc >= interval - 1e-6;
+}
+
+/**
+ * 各方块可用的旋转相位数：
+ * O 不转；I / S / Z 只在相位 0、1 之间来回切换，避免转动时位置漂移；T / J / L 四个相位循环
+ */
+export const ROTATION_STATES: Readonly<Record<PieceKind, number>> = {
+  I: 2,
+  O: 1,
+  T: 4,
+  S: 2,
+  Z: 2,
+  J: 4,
+  L: 4,
+};
 
 /**
  * 七种方块的四个旋转相位下的占格相对坐标
  *
  * 每个 PieceKind 是长度 4 的数组（旋转 0 / 90 / 180 / 270），每个相位是
  * 长度 4 的相对坐标数组（一个方块固定 4 格）。坐标基准是方块包围盒左上角，
- * x 向右 y 向下；具体数值参照 SRS 但因为我们不做踢墙（wallkick）所以不需
- * 要带 kicks 表
+ * x 向右 y 向下；具体数值参照 SRS。踢墙只做"越过左右墙时平移回界内"，
+ * 不需要 SRS 的 kicks 表。I / S / Z 只用相位 0、1（见 ROTATION_STATES）
  */
 export const TETROMINOES: Readonly<Record<PieceKind, ReadonlyArray<ReadonlyArray<Pixel>>>> = {
   // I：横躺 → 竖立 → 横躺（下半）→ 竖立（左半）。SRS 标准 4 行 4 列包围盒

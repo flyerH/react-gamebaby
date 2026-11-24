@@ -11,7 +11,7 @@ interface CountState {
   readonly over: boolean;
 }
 
-/** 可玩游戏：每 tick n+1；A 结束本局，Up 加 10 分 */
+/** 可玩游戏：每 tick n+1；A 结束本局，Up 加 10 分，松开 Down 加 1 分（用于观察 release 是否送达） */
 const countGame: Game<CountState> = {
   id: 'count',
   name: 'Count',
@@ -27,6 +27,7 @@ const countGame: Game<CountState> = {
     env.screen.setPixel(s.n % 10, 0, true);
   },
   onButton: (env, s, btn, action) => {
+    if (action === 'release' && btn === 'Down') env.score.add(1);
     if (action !== 'press') return s;
     if (btn === 'A') return { ...s, over: true };
     if (btn === 'Up') env.score.add(10);
@@ -239,6 +240,16 @@ describe('createMachine · 游戏运行', () => {
     expect(ctx.pause.value).toBe(false);
     expect(machine.getState().gameState).toEqual({ n: 1, over: false });
     expect(ticker.advance(1)).toBe(1);
+  });
+
+  it('暂停时仍送达 release，避免恢复后游戏内按住状态残留', () => {
+    const { ctx, press, toPlaying } = setup();
+    toPlaying();
+    press('Pause');
+    ctx.input.emit('Down', 'press');
+    ctx.input.emit('Down', 'repeat');
+    ctx.input.emit('Down', 'release');
+    expect(ctx.score.value).toBe(1);
   });
 
   it('Select 退回菜单并清空副屏', () => {

@@ -8,8 +8,12 @@ import {
   type ActivePiece,
   FIELD_HEIGHT,
   FIELD_WIDTH,
+  fallIntervalMs,
+  FRAME_MS,
   isValidPosition,
   pieceCells,
+  type PieceKind,
+  ROTATION_STATES,
   TETROMINOES,
   type TetrisState,
 } from '../state';
@@ -18,7 +22,10 @@ function makeEnv(seed = 42): GameEnv {
   return toGameEnv(createHeadlessContext({ seed, width: FIELD_WIDTH, height: FIELD_HEIGHT }));
 }
 
-/** 用空 grid 起手 state，便于测特定形态 */
+/**
+ * 用空 grid 起手 state，便于测特定形态。
+ * fallIntervalMs 默认一帧，让每次 step 都自由下落一格；专测计时的用例自己覆盖
+ */
 function emptyState(partial: Partial<TetrisState> = {}): TetrisState {
   return {
     width: FIELD_WIDTH,
@@ -34,6 +41,10 @@ function emptyState(partial: Partial<TetrisState> = {}): TetrisState {
     score: 0,
     lines: 0,
     lastOpts: null,
+    fallAcc: 0,
+    fallIntervalMs: FRAME_MS,
+    heldShift: null,
+    heldDrop: null,
     ...partial,
   };
 }
@@ -426,5 +437,208 @@ describe('tetris · isAnimating', () => {
   });
   it('over 也算动画态', () => {
     expect(isAnimating(emptyState({ over: true }))).toBe(true);
+  });
+});
+
+/** 统计一行的砖块数 */
+function rowCount(s: TetrisState, y: number): number {
+  return s.grid.slice(y * s.width, (y + 1) * s.width).filter((c) => c === 1).length;
+}
+
+describe('tetris · 初始垃圾行', () => {
+  it('level=1 不生成垃圾行', () => {
+    const s = init(makeEnv(), { speed: 1, level: 1 });
+    expect(s.grid.every((c) => c === 0)).toBe(true);
+  });
+
+  it('level=n 自底向上生成 n−1 行，每行 4~6 块，其余行为空', () => {
+    for (const seed of [1, 2, 3, 42, 99]) {
+      const s = init(makeEnv(seed), { speed: 1, level: 5 });
+      for (let i = 0; i < 4; i++) {
+        const n = rowCount(s, FIELD_HEIGHT - 1 - i);
+        expect(n).toBeGreaterThanOrEqual(4);
+        expect(n).toBeLessThanOrEqual(6);
+      }
+      for (let y = 0; y < FIELD_HEIGHT - 4; y++) expect(rowCount(s, y)).toBe(0);
+    }
+  });
+});
+
+describe('tetris · 出生相位', () => {
+  it('出生相位落在该方块的可旋转相位内，最下面一格在第 0 行', () => {
+    const seen = new Map<PieceKind, Set<number>>();
+    for (let seed = 1; seed <= 200; seed++) {
+      const { active } = init(makeEnv(seed));
+      if (!active) throw new Error('init 应生成 active');
+      expect(active.rotation).toBeLessThan(ROTATION_STATES[active.kind]);
+      expect(Math.max(...pieceCells(active).map(([, y]) => y))).toBe(0);
+      const set = seen.get(active.kind) ?? new Set<number>();
+      set.add(active.rotation);
+      seen.set(active.kind, set);
+    }
+    // 200 个种子足以让四相位方块出现非 0 相位
+    expect([...(seen.get('T') ?? [])].some((r) => r > 0)).toBe(true);
+  });
+});
+
+describe('tetris · 旋转与踢墙', () => {
+  it('O 不旋转', () => {
+    const s0 = emptyState({ active: { kind: 'O', rotation: 0, x: 4, y: 5 } });
+    expect(onButton(makeEnv(), s0, 'A', 'press')).toBe(s0);
+  });
+
+  it('I / S / Z 只在相位 0、1 之间切换', () => {
+    const env = makeEnv();
+    for (const kind of ['I', 'S', 'Z'] as const) {
+      const s0 = emptyState({ active: { kind, rotation: 0, x: 3, y: 5 } });
+      const s1 = onButton(env, s0, 'A', 'press');
+      const s2 = onButton(env, s1, 'A', 'press');
+      expect(s1.active?.rotation).toBe(1);
+      expect(s2.active?.rotation).toBe(0);
+    }
+  });
+
+  it('T 四个相位顺时针循环', () => {
+    const env = makeEnv();
+    let s = emptyState({ active: { kind: 'T', rotation: 0, x: 3, y: 5 } });
+    const rots: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      s = onButton(env, s, 'A', 'press');
+      rots.push(s.active?.rotation ?? -1);
+    }
+    expect(rots).toEqual([1, 2, 3, 0]);
+  });
+
+  it('贴左墙旋转越界时平移回界内', () => {
+    // I 竖放在第 0 列（相位 1 的格子在 x+2）
+    const s0 = emptyState({ active: { kind: 'I', rotation: 1, x: -2, y: 5 } });
+    const s1 = onButton(makeEnv(), s0, 'A', 'press');
+    expect(s1.active).toEqual({ kind: 'I', rotation: 0, x: 0, y: 5 });
+  });
+
+  it('贴右墙旋转越界时平移回界内', () => {
+    const s0 = emptyState({ active: { kind: 'I', rotation: 1, x: 7, y: 5 } });
+    const s1 = onButton(makeEnv(), s0, 'A', 'press');
+    expect(s1.active).toEqual({ kind: 'I', rotation: 0, x: 6, y: 5 });
+  });
+
+  it('转后压到砖块时放弃，不平移', () => {
+    // T 从相位 0 转到 1 会新占 (4,7)
+    const grid = new Array<number>(FIELD_WIDTH * FIELD_HEIGHT).fill(0);
+    grid[7 * FIELD_WIDTH + 4] = 1;
+    const s0 = emptyState({ grid, active: { kind: 'T', rotation: 0, x: 3, y: 5 } });
+    expect(onButton(makeEnv(), s0, 'A', 'press')).toBe(s0);
+  });
+
+  it('越过左墙同时压到界内砖块时放弃，不平移', () => {
+    // I 转成横放占 (-2..1, 6)，(1,6) 有砖
+    const grid = new Array<number>(FIELD_WIDTH * FIELD_HEIGHT).fill(0);
+    grid[6 * FIELD_WIDTH + 1] = 1;
+    const s0 = emptyState({ grid, active: { kind: 'I', rotation: 1, x: -2, y: 5 } });
+    expect(onButton(makeEnv(), s0, 'A', 'press')).toBe(s0);
+  });
+
+  it('平移回界内后压到砖块时放弃', () => {
+    // 平移后占 (0..3, 6)，(3,6) 有砖
+    const grid = new Array<number>(FIELD_WIDTH * FIELD_HEIGHT).fill(0);
+    grid[6 * FIELD_WIDTH + 3] = 1;
+    const s0 = emptyState({ grid, active: { kind: 'I', rotation: 1, x: -2, y: 5 } });
+    expect(onButton(makeEnv(), s0, 'A', 'press')).toBe(s0);
+  });
+});
+
+describe('tetris · 自由下落计时', () => {
+  it('未满间隔只累计，满间隔下落一格并清零', () => {
+    const env = makeEnv();
+    const s0 = emptyState({
+      active: { kind: 'T', rotation: 0, x: 3, y: 5 },
+      fallIntervalMs: FRAME_MS * 2,
+    });
+    const s1 = step(env, s0);
+    expect(s1.active?.y).toBe(5);
+    const s2 = step(env, s1);
+    expect(s2.active?.y).toBe(6);
+    expect(s2.fallAcc).toBe(0);
+  });
+
+  it('init 按 speed 档设置下落间隔', () => {
+    expect(init(makeEnv(), { speed: 9, level: 1 }).fallIntervalMs).toBe(fallIntervalMs(9));
+  });
+
+  it('Down 按下立即降一格并清零下落计时', () => {
+    const s0 = emptyState({
+      active: { kind: 'T', rotation: 0, x: 3, y: 5 },
+      fallAcc: 300,
+      fallIntervalMs: 1000,
+    });
+    const s1 = onButton(makeEnv(), s0, 'Down', 'press');
+    expect(s1.active?.y).toBe(6);
+    expect(s1.fallAcc).toBe(0);
+  });
+});
+
+describe('tetris · 按住连发', () => {
+  /** 关掉自由下落，只看按键连发 */
+  const noGravity = { fallIntervalMs: 1e9 };
+
+  it('左右键：按下立即移一格，按住约 233ms 后每帧移一格', () => {
+    const env = makeEnv();
+    let s = emptyState({ ...noGravity, active: { kind: 'T', rotation: 0, x: 5, y: 5 } });
+    s = onButton(env, s, 'Left', 'press');
+    expect(s.active?.x).toBe(4);
+    s = advanceTicks(env, s, 6);
+    expect(s.active?.x).toBe(4);
+    s = step(env, s);
+    expect(s.active?.x).toBe(3);
+    s = step(env, s);
+    expect(s.active?.x).toBe(2);
+  });
+
+  it('平台层的 repeat 事件不参与连发', () => {
+    const s0 = emptyState({ active: { kind: 'T', rotation: 0, x: 5, y: 5 } });
+    expect(onButton(makeEnv(), s0, 'Left', 'repeat')).toBe(s0);
+  });
+
+  it('松开后停止连发', () => {
+    const env = makeEnv();
+    let s = emptyState({ ...noGravity, active: { kind: 'T', rotation: 0, x: 5, y: 5 } });
+    s = onButton(env, s, 'Right', 'press');
+    s = onButton(env, s, 'Right', 'release');
+    expect(s.heldShift).toBeNull();
+    s = advanceTicks(env, s, 20);
+    expect(s.active?.x).toBe(6);
+  });
+
+  it('左右连发撞墙即停', () => {
+    const env = makeEnv();
+    let s = emptyState({ ...noGravity, active: { kind: 'T', rotation: 0, x: 1, y: 5 } });
+    s = onButton(env, s, 'Left', 'press');
+    s = advanceTicks(env, s, 20);
+    expect(s.active?.x).toBe(0);
+  });
+
+  it('下键：按下立即降一格，按住约 233ms 后每帧降两格', () => {
+    const env = makeEnv();
+    let s = emptyState({ ...noGravity, active: { kind: 'T', rotation: 0, x: 3, y: 0 } });
+    s = onButton(env, s, 'Down', 'press');
+    expect(s.active?.y).toBe(1);
+    s = advanceTicks(env, s, 6);
+    expect(s.active?.y).toBe(1);
+    s = step(env, s);
+    expect(s.active?.y).toBe(3);
+  });
+
+  it('按住下键落到底立即锁定，下一块重新计起始延迟', () => {
+    const env = makeEnv();
+    let s = emptyState({
+      ...noGravity,
+      active: { kind: 'T', rotation: 0, x: 3, y: 17 },
+      next: 'O',
+      heldDrop: { heldMs: 1000, repeatAcc: 0 },
+    });
+    s = step(env, s);
+    expect(s.grid.filter((c) => c === 1)).toHaveLength(4);
+    expect(s.active?.kind).toBe('O');
+    expect(s.heldDrop).toEqual({ heldMs: 0, repeatAcc: 0 });
   });
 });

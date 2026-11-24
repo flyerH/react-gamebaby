@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { bindPressRepeat } from '@/engine/repeat';
 import type { Button, ButtonAction } from '@/engine/types';
 import { defaultGames } from '@/games';
-import type { SnakeState } from '@/games/snake/state';
+import { isMoveDue, type SnakeState } from '@/games/snake/state';
 import { type AutopilotProvider, createMachine } from '@/machine';
 import {
   bindAppState,
@@ -40,6 +40,9 @@ const snakeAutopilot: AutopilotProvider = {
         act(gameState) {
           const gs = gameState as SnakeState | null;
           if (!gs?.body) return null;
+          // 方向键按下即走一格，只在该走格的那一帧出手，保持模型训练时一步一格的节奏；
+          // 等待首键时照常出手，由第一次按键开局
+          if (!gs.awaitingFirstMove && !isMoveDue(gs)) return null;
           try {
             const obs = rl.encodeSnakeObs(gs, rl.SNAKE_RL_WIDTH, rl.SNAKE_RL_HEIGHT);
             return AI_ACTION_MAP[agent.act(obs)] ?? null;

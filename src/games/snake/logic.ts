@@ -1,7 +1,16 @@
 import type { Button, ButtonAction } from '@/engine/types';
 import type { GameEnv, GameInitOptions, Pixel } from '@/sdk';
 
-import { type Direction, dirVec, isOpposite, randomFood, type SnakeState } from './state';
+import {
+  type Direction,
+  dirVec,
+  FRAME_MS,
+  isOpposite,
+  moveIntervalMs,
+  randomFood,
+  reached,
+  type SnakeState,
+} from './state';
 
 const INITIAL_LENGTH = 3;
 
@@ -84,7 +93,6 @@ export function init(env: GameEnv, opts?: GameInitOptions): SnakeState {
     body,
     obstacles,
     dir: 'right',
-    pendingDir: 'right',
     food,
     over: false,
     won: false,
@@ -94,7 +102,8 @@ export function init(env: GameEnv, opts?: GameInitOptions): SnakeState {
     awaitingFirstMove: true,
     score: 0,
     lastOpts: opts ?? null,
-    skipNextTick: false,
+    moveAcc: 0,
+    moveIntervalMs: moveIntervalMs(opts?.speed ?? 1),
   };
 }
 
@@ -162,26 +171,32 @@ export function step(env: GameEnv, state: SnakeState): SnakeState {
   // 等待玩家按键启动：step 不推进蛇，画面静止在初始姿态
   if (state.awaitingFirstMove) return state;
 
-  // 按键即走的补偿：onButton 已经手动推进一格，跳过这次自然 tick
-  if (state.skipNextTick) {
-    return { ...state, skipNextTick: false };
-  }
-
-  return advance(env, state);
+  const acc = state.moveAcc + FRAME_MS;
+  if (!reached(acc, state.moveIntervalMs)) return { ...state, moveAcc: acc };
+  // 自然走格扣掉一个间隔而不是清零：间隔不是帧长整数倍时保持平均速度
+  return advance(env, { ...state, moveAcc: Math.max(0, acc - state.moveIntervalMs) }, state.dir);
 }
 
 /**
- * 把蛇沿 pendingDir 推进一格 + 处理墙 / 自撞 / 吃食物 / 通关。
+ * 按键触发的立即走格：沿 dir 走一格并把走格计时清零，
+ * 下一次自然走格在一个完整间隔之后。
  *
- * 抽出这个函数让 step（ticker tick 触发）和 onButton（按键即走）共享同一段
- * 移动 + 碰撞 + 食物逻辑，避免在两处重复实现。所有副作用（env.score.set /
- * env.sound.play）都集中在这里
+ * RL 适配器在动作没有触发立即走格时（反向键被拒）也用它推进一格
  */
-function advance(env: GameEnv, state: SnakeState): SnakeState {
+export function moveNow(env: GameEnv, state: SnakeState, dir: Direction): SnakeState {
+  return advance(env, { ...state, moveAcc: 0 }, dir);
+}
+
+/**
+ * 把蛇沿 dir 推进一格 + 处理墙 / 自撞 / 吃食物 / 通关。
+ *
+ * 自然走格（step）与按键立即走格（moveNow）共享同一段移动 + 碰撞 + 食物
+ * 逻辑。所有副作用（env.score.set / env.sound.play）都集中在这里
+ */
+function advance(env: GameEnv, state: SnakeState, dir: Direction): SnakeState {
   const head = state.body[0];
   if (!head) return state;
 
-  const dir = state.pendingDir;
   const [dx, dy] = dirVec(dir);
   const nx = head[0] + dx;
   const ny = head[1] + dy;
@@ -354,17 +369,7 @@ export function onButton(
   btn: Button,
   action: ButtonAction
 ): SnakeState {
-  if (state.over) return state;
-
-  switch (action) {
-    case 'release':
-      // 方向键松开后清 skipNextTick：长按期间最后一次 repeat 留下了 skipNextTick=true，
-      // 如果不清，松开后第一次自然 ticker tick 会被跳过 → 玩家感觉"松开后停顿一拍才走"
-      return state.skipNextTick ? { ...state, skipNextTick: false } : state;
-    case 'press':
-    case 'repeat':
-      break;
-  }
+  if (state.over || action === 'release') return state;
 
   const nextDir = buttonToDir(btn);
 
@@ -372,50 +377,20 @@ export function onButton(
   if (state.awaitingFirstMove) {
     if (action !== 'press') return state;
     if (nextDir && isOpposite(state.dir, nextDir)) return state;
-    return {
-      ...state,
-      awaitingFirstMove: false,
-      pendingDir: nextDir ?? state.pendingDir,
-      dir: nextDir ?? state.dir,
-    };
+    return { ...state, awaitingFirstMove: false, dir: nextDir ?? state.dir };
   }
 
-  // 方向键分三种行为，与 Brick-Game 真机对齐：
-  // - 同 pendingDir 的方向键 + repeat（长按）→ 按键即走加速：
-  //   advance + skipNextTick；蛇沿当前方向以浏览器 key-repeat 频率快速走
-  // - 同 pendingDir 的方向键 + press（单点）→ 不加速、不打断 tick 节奏，
-  //   等同 no-op；玩家单点同向键不会让蛇瞬移一格
-  // - 异 pendingDir 的方向键（press / repeat 都一样）→ 只更新 pendingDir，
-  //   不打断 tick 节奏；下一拍 step 才按新方向推进。换方向本身不该理解为
-  //   "想加速"
-  // - 反向键拒绝：检查必须 vs state.dir（上次 tick 实际跑的方向），不能 vs
-  //   pendingDir。否则 dir=right、pendingDir=up（玩家刚按 Up）时再按 Left
-  //   会通过（pendingDir 视角 up vs left 不反向），下次 tick 蛇直接从 right
-  //   跳到 left → 撞身体。这就是 pendingDir / dir 分开存的意义
-  // A 键（Rotate）始终走加速路径（press / repeat 都加速）
-  switch (btn) {
-    case 'Up':
-    case 'Down':
-    case 'Left':
-    case 'Right': {
-      if (!nextDir) return state;
-      if (isOpposite(state.dir, nextDir)) return state;
-      if (nextDir === state.pendingDir) {
-        if (action !== 'repeat') return state;
-        const moved = advance(env, state);
-        if (moved.over) return moved;
-        return { ...moved, skipNextTick: true };
-      }
-      return { ...state, pendingDir: nextDir };
-    }
-    case 'A': {
-      const moved = advance(env, state);
-      if (moved.over) return moved;
-      return { ...moved, skipNextTick: true };
-    }
-    default:
-      return state;
+  // 方向键与 A 键的规则：
+  // - 非反向的方向键（press / repeat）立即朝该方向走一格并重置走格计时：
+  //   同向点按每次多走一格，换向当场转弯，长按以连发频率连续前进
+  // - 反向键拒绝，蛇按原节奏继续前进
+  // - A 键（Rotate）沿当前方向立即走一格（press / repeat 都生效）
+  if (nextDir) {
+    if (isOpposite(state.dir, nextDir)) return state;
+    return moveNow(env, state, nextDir);
   }
+  if (btn === 'A') return moveNow(env, state, state.dir);
+  return state;
 }
 
 export function isGameOver(state: SnakeState): boolean {

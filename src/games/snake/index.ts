@@ -2,17 +2,17 @@ import type { Button, Game, GameEnv } from '@/sdk';
 
 import { init, isGameOver, onButton, render, step } from './logic';
 import { snakePreview } from './preview';
-import { type Direction, dirVec, isOpposite, type SnakeState } from './state';
+import {
+  type Direction,
+  dirVec,
+  isMoveDue,
+  isOpposite,
+  SNAKE_TICK_HZ,
+  type SnakeState,
+} from './state';
 
-/**
- * 9 档起始 tick 速度（ticks/second）。
- *
- * speed=2（1.5）保留接近旧版本默认手感作为基线；档位间不是等差也不是
- * 等比 —— 低档段 +25%~50% 步进，高档段 +30%~50%（专家档逐档明显加快）。
- * speed=9 (10 ticks/s = 100ms) 接近 Brick Game 真机最快 Snake 节奏，
- * 配合长按 repeat 节奏达到极限手感
- */
-const SNAKE_TICK_SPEEDS: readonly number[] = [1, 1.5, 2, 2.5, 3.5, 4.5, 6, 8, 10];
+/** 选关 demo 的速度档：每 0.5s 走一格，小屏上看得清 */
+const DEMO_SPEED = 3;
 
 const DIR_TO_BTN: Record<Direction, Button> = {
   up: 'Up',
@@ -57,7 +57,8 @@ export const snake: Game<SnakeState> = {
   id: 'snake',
   name: 'SNAKE',
   preview: snakePreview,
-  tickSpeeds: SNAKE_TICK_SPEEDS,
+  // 走格快慢由 state.moveIntervalMs 决定，ticker 固定 30 帧/秒即可，与 speed 档无关
+  tickSpeed: SNAKE_TICK_HZ,
   init,
   step,
   render,
@@ -65,18 +66,19 @@ export const snake: Game<SnakeState> = {
   isGameOver,
 
   demoInit(env: GameEnv): SnakeState {
-    return init(env);
+    return init(env, { speed: DEMO_SPEED, level: 1 });
   },
 
   demoStep(env: GameEnv, state: SnakeState): SnakeState {
     // 死亡或蛇够长 → 静默重开（跳过死亡动画 + 跳过等待首键）
     if (state.over || state.body.length >= Math.floor((env.screen.width * env.screen.height) / 3)) {
-      return { ...init(env), awaitingFirstMove: false };
+      return { ...init(env, { speed: DEMO_SPEED, level: 1 }), awaitingFirstMove: false };
     }
     if (state.awaitingFirstMove) return onButton(env, state, 'Right', 'press');
-    const btn = pickDemoDir(state, env.screen.width, env.screen.height);
-    if (btn && btn !== DIR_TO_BTN[state.dir]) {
-      return onButton(env, state, btn, 'press');
+    // 只在该走格的那一帧决策：换向按键会当场走一格，代替这一帧的自然走格
+    if (isMoveDue(state)) {
+      const btn = pickDemoDir(state, env.screen.width, env.screen.height);
+      if (btn && btn !== DIR_TO_BTN[state.dir]) return onButton(env, state, btn, 'press');
     }
     return step(env, state);
   },
