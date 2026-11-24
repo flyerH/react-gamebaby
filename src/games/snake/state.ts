@@ -58,7 +58,7 @@ export interface SnakeState {
   /**
    * 距上一次走格累计的毫秒数，满 moveIntervalMs 自然走一格。
    *
-   * 按键触发的立即走格会把它清零，下一次自然走格在一个完整间隔之后，
+   * 按键触发的立即走格会让它从 KEY_TIMER_START 重新计时，下一次自然走格在一个完整间隔之后，
    * 不会出现按键刚走完、自然节拍紧接着又走一格的情况。
    */
   readonly moveAcc: number;
@@ -69,6 +69,8 @@ export interface SnakeState {
 /** 固定 30 帧/秒推进，和 App 的动画帧率一致；走格快慢由 moveIntervalMs 决定 */
 export const SNAKE_TICK_HZ = 30;
 export const FRAME_MS = 1000 / SNAKE_TICK_HZ;
+/** 按键启动的计时起点，原因见 sdk Game.onButton */
+export const KEY_TIMER_START = -FRAME_MS;
 
 /**
  * 9 档自然走格频率（格/秒），index 与 speed-1 对应。

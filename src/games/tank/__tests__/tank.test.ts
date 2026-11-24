@@ -93,6 +93,14 @@ describe('tank · 玩家移动', () => {
     expect(run(env, released, TICK_HZ).player?.y).toBe(2);
   });
 
+  it('按下后第二拍在 130ms 后：按键所在帧的推进不计入按住时长', () => {
+    const env = makeEnv();
+    const pressed = onButton(env, makeState(env), 'Up', 'press');
+    // 按键所在帧加之后 3 帧共 100ms，还不到一拍
+    expect(run(env, pressed, 4).player?.y).toBe(9);
+    expect(run(env, pressed, 5).player?.y).toBe(8);
+  });
+
   it('撞墙 / 撞敌军时原地不动', () => {
     const env = makeEnv();
     const atEdge = makeState(env, { player: { x: 4, y: 1, dir: 'up', horizontal: false } });
@@ -116,6 +124,8 @@ describe('tank · 开火', () => {
     expect(s1.bullets).toEqual([{ x: 4, y: 8, dir: 'up', owner: 'player', acc: 0 }]);
     const again = onButton(env, onButton(env, s1, 'A', 'release'), 'A', 'press');
     expect(again.bullets).toHaveLength(1);
+    // 按键所在帧的推进之后冷却从 0 开始计
+    expect(step(env, s1).sinceShot).toBeCloseTo(0);
   });
 
   it('按住开火键按 FIRE_WAIT_MS 连发', () => {

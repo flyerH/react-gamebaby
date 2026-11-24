@@ -4,7 +4,7 @@ import { createHeadlessContext } from '@/platform/headless';
 import { toGameEnv, type GameEnv } from '@/sdk';
 
 import { init, moveNow, onButton, render, step } from '../logic';
-import { FRAME_MS, isMoveDue, moveIntervalMs, type SnakeState } from '../state';
+import { FRAME_MS, isMoveDue, KEY_TIMER_START, moveIntervalMs, type SnakeState } from '../state';
 
 function makeEnv(width = 10, height = 20, seed = 42): GameEnv {
   return toGameEnv(createHeadlessContext({ seed, width, height }));
@@ -421,20 +421,20 @@ describe('snake · onButton', () => {
   });
 });
 
-describe('snake · 方向键按下即走，走格计时清零', () => {
+describe('snake · 方向键按下即走，走格重新计时', () => {
   const body: SnakeState['body'] = [
     [4, 10],
     [3, 10],
     [2, 10],
   ];
 
-  it('同向点按（press）立即走一格并清零走格计时', () => {
+  it('同向点按（press）立即走一格并重新开始走格计时', () => {
     const env = makeEnv();
     const s0 = makeState({ body, dir: 'right', moveAcc: 500, moveIntervalMs: 1000 });
     const s1 = onButton(env, s0, 'Right', 'press');
     expect(s1.body[0]).toEqual([5, 10]);
     expect(s1.body).toHaveLength(3);
-    expect(s1.moveAcc).toBe(0);
+    expect(s1.moveAcc).toBe(KEY_TIMER_START);
   });
 
   it('换向（press）当场转弯并走一格，不等下一拍', () => {
@@ -443,7 +443,7 @@ describe('snake · 方向键按下即走，走格计时清零', () => {
     const s1 = onButton(env, s0, 'Up', 'press');
     expect(s1.dir).toBe('up');
     expect(s1.body[0]).toEqual([4, 9]);
-    expect(s1.moveAcc).toBe(0);
+    expect(s1.moveAcc).toBe(KEY_TIMER_START);
   });
 
   it('长按（repeat）同样每次走一格', () => {
@@ -452,23 +452,36 @@ describe('snake · 方向键按下即走，走格计时清零', () => {
     const s1 = onButton(env, s0, 'Right', 'repeat');
     const s2 = onButton(env, s1, 'Right', 'repeat');
     expect(s2.body[0]).toEqual([6, 10]);
-    expect(s2.moveAcc).toBe(0);
+    expect(s2.moveAcc).toBe(KEY_TIMER_START);
   });
 
   it('点按后下一次自然走格在一个完整间隔之后', () => {
     const env = makeEnv();
-    // 间隔 3 帧；计时已累计到差一帧就走格时点按
+    // 间隔 3 帧；计时已累计到这一帧就该走格时点按
     const interval = FRAME_MS * 3;
     const s0 = makeState({ body, dir: 'right', moveAcc: FRAME_MS * 2, moveIntervalMs: interval });
     const tapped = onButton(env, onButton(env, s0, 'Right', 'press'), 'Right', 'release');
     expect(tapped.body[0]).toEqual([5, 10]);
-    // 点按前那一帧本该走格，现在不走
-    const t1 = step(env, tapped);
-    const t2 = step(env, t1);
-    expect(t2.body[0]).toEqual([5, 10]);
-    // 满一个间隔才走
-    const t3 = step(env, t2);
-    expect(t3.body[0]).toEqual([6, 10]);
+    // 按键所在帧的推进不再自然走格
+    let s = step(env, tapped);
+    expect(s.body[0]).toEqual([5, 10]);
+    expect(s.moveAcc).toBeCloseTo(0);
+    // 之后满 3 帧才走
+    s = step(env, step(env, s));
+    expect(s.body[0]).toEqual([5, 10]);
+    s = step(env, s);
+    expect(s.body[0]).toEqual([6, 10]);
+  });
+
+  it('开局按键之后第一次自然走格在一个完整间隔之后', () => {
+    const env = makeEnv();
+    const s0 = makeState({ body, dir: 'right', moveIntervalMs: FRAME_MS * 2 });
+    let s = step(env, onButton(env, { ...s0, awaitingFirstMove: true }, 'Right', 'press'));
+    expect(s.awaitingFirstMove).toBe(false);
+    s = step(env, s);
+    expect(s.body[0]).toEqual([4, 10]);
+    s = step(env, s);
+    expect(s.body[0]).toEqual([5, 10]);
   });
 
   it('反向键 vs 当前方向拒绝：dir=up 时按 Down 不生效', () => {
@@ -477,13 +490,13 @@ describe('snake · 方向键按下即走，走格计时清零', () => {
     expect(onButton(env, s0, 'Down', 'press')).toBe(s0);
   });
 
-  it('A 键（Rotate）：沿当前方向走一格（不改向）并清零计时', () => {
+  it('A 键（Rotate）：沿当前方向走一格（不改向）并重新计时', () => {
     const env = makeEnv();
     const s0 = makeState({ body, dir: 'right', moveAcc: 500, moveIntervalMs: 1000 });
     const s1 = onButton(env, s0, 'A', 'press');
     expect(s1.body[0]).toEqual([5, 10]);
     expect(s1.dir).toBe('right');
-    expect(s1.moveAcc).toBe(0);
+    expect(s1.moveAcc).toBe(KEY_TIMER_START);
   });
 
   it('按键走格撞墙：over=true', () => {
@@ -539,7 +552,7 @@ describe('snake · 自然走格计时', () => {
     expect(isMoveDue({ ...due, over: true })).toBe(false);
   });
 
-  it('moveNow 沿指定方向走一格并清零计时', () => {
+  it('moveNow 沿指定方向走一格并重新计时', () => {
     const env = makeEnv();
     const s0 = makeState({
       body: [
@@ -552,6 +565,6 @@ describe('snake · 自然走格计时', () => {
     const s1 = moveNow(env, s0, 'down');
     expect(s1.body[0]).toEqual([4, 11]);
     expect(s1.dir).toBe('down');
-    expect(s1.moveAcc).toBe(0);
+    expect(s1.moveAcc).toBe(KEY_TIMER_START);
   });
 });

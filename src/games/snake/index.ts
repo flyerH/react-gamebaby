@@ -74,12 +74,15 @@ export const snake: Game<SnakeState> = {
     if (state.over || state.body.length >= Math.floor((env.screen.width * env.screen.height) / 3)) {
       return { ...init(env, { speed: DEMO_SPEED, level: 1 }), awaitingFirstMove: false };
     }
-    if (state.awaitingFirstMove) return onButton(env, state, 'Right', 'press');
+    // 与 machine 一致：按键在帧开头送达，随后照常推进这一帧。
     // 只在该走格的那一帧决策：换向按键会当场走一格，代替这一帧的自然走格
-    if (isMoveDue(state)) {
-      const btn = pickDemoDir(state, env.screen.width, env.screen.height);
-      if (btn && btn !== DIR_TO_BTN[state.dir]) return onButton(env, state, btn, 'press');
+    let s = state;
+    if (s.awaitingFirstMove) {
+      s = onButton(env, s, 'Right', 'press');
+    } else if (isMoveDue(s)) {
+      const btn = pickDemoDir(s, env.screen.width, env.screen.height);
+      if (btn && btn !== DIR_TO_BTN[s.dir]) s = onButton(env, s, btn, 'press');
     }
-    return step(env, state);
+    return step(env, s);
   },
 };

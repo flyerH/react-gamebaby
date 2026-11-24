@@ -6,6 +6,7 @@ import {
   dirVec,
   FRAME_MS,
   isOpposite,
+  KEY_TIMER_START,
   moveIntervalMs,
   randomFood,
   reached,
@@ -178,13 +179,13 @@ export function step(env: GameEnv, state: SnakeState): SnakeState {
 }
 
 /**
- * 按键触发的立即走格：沿 dir 走一格并把走格计时清零，
+ * 按键触发的立即走格：沿 dir 走一格并重新开始走格计时，
  * 下一次自然走格在一个完整间隔之后。
  *
  * RL 适配器在动作没有触发立即走格时（反向键被拒）也用它推进一格
  */
 export function moveNow(env: GameEnv, state: SnakeState, dir: Direction): SnakeState {
-  return advance(env, { ...state, moveAcc: 0 }, dir);
+  return advance(env, { ...state, moveAcc: KEY_TIMER_START }, dir);
 }
 
 /**
@@ -377,7 +378,12 @@ export function onButton(
   if (state.awaitingFirstMove) {
     if (action !== 'press') return state;
     if (nextDir && isOpposite(state.dir, nextDir)) return state;
-    return { ...state, awaitingFirstMove: false, dir: nextDir ?? state.dir };
+    return {
+      ...state,
+      awaitingFirstMove: false,
+      dir: nextDir ?? state.dir,
+      moveAcc: KEY_TIMER_START,
+    };
   }
 
   // 方向键与 A 键的规则：

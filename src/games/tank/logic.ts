@@ -22,6 +22,7 @@ import {
   FIRE_WAIT_MS,
   FRAME_MS,
   inside,
+  KEY_TIMER_START,
   killScore,
   LEVEL_MAX,
   MAX_ALIVE_ENEMIES,
@@ -241,13 +242,14 @@ function playerAct(state: TankState, dir: Direction): TankState {
   return canPlace(state, playerCells(moved), blocked) ? { ...state, player: moved } : state;
 }
 
-function playerFire(state: TankState): TankState {
+/** timerStart 是开火冷却的起点：在 step 里为 0，由按键触发时为 KEY_TIMER_START */
+function playerFire(state: TankState, timerStart = 0): TankState {
   const p = state.player;
   if (!p || state.sinceShot < FIRE_WAIT_MS) return state;
   const bullet = makeBullet(state, muzzle(p), p.dir, 'player');
   return {
     ...state,
-    sinceShot: 0,
+    sinceShot: timerStart,
     bullets: bullet ? [...state.bullets, bullet] : state.bullets,
   };
 }
@@ -730,8 +732,8 @@ export function onButton(
   if (state.phase === 'ready') return { ...state, phase: 'playing' };
   if (state.phase !== 'playing') return state;
 
-  if (dir) return playerAct({ ...state, heldDir: dir, moveAcc: 0 }, dir);
-  return playerFire({ ...state, fireHeld: true, fireAcc: 0 });
+  if (dir) return playerAct({ ...state, heldDir: dir, moveAcc: KEY_TIMER_START }, dir);
+  return playerFire({ ...state, fireHeld: true, fireAcc: KEY_TIMER_START }, KEY_TIMER_START);
 }
 
 export function isGameOver(state: TankState): boolean {

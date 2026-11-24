@@ -388,6 +388,7 @@ export function createMachine(opts: MachineOptions): Machine {
   let pilot: Autopilot | null = null;
   let pilotLoading = false;
   let gameOverTicks = 0;
+  let pendingKeys: { readonly button: Button; readonly kind: ButtonAction }[] = [];
   let hi: { readonly gameId: string; readonly counter: Counter } | null = null;
 
   const notify = (): void => {
@@ -405,9 +406,14 @@ export function createMachine(opts: MachineOptions): Machine {
   };
 
   // 后台、或 playing 且用户暂停，任一成立都暂停 ticker；其它模式不受用户暂停影响
+  // 暂停前缓存的 press / repeat 不留到恢复后才生效；release 保留，恢复后第一帧先结束按住
   const applyPause = (): void => {
-    if (backgrounded || (state.mode === 'playing' && ctx.pause.value)) ctx.ticker.pause();
-    else ctx.ticker.resume();
+    if (backgrounded || (state.mode === 'playing' && ctx.pause.value)) {
+      ctx.ticker.pause();
+      pendingKeys = pendingKeys.filter((k) => k.kind === 'release');
+    } else {
+      ctx.ticker.resume();
+    }
   };
 
   // 每款游戏各自一条最高分；非 playing 态取菜单选中的那款，让菜单里也能看到纪录
@@ -438,6 +444,12 @@ export function createMachine(opts: MachineOptions): Machine {
     const prev = state;
     state = reduce(state, action, deps);
     if (state === prev) return;
+    // 换局、换游戏或离开 playing 时丢弃缓存的游戏键，不带进新的一局
+    const newRound =
+      action.type === 'AI_ENTER' || (action.type === 'INPUT' && action.button === 'Reset');
+    if (newRound || state.mode !== prev.mode || state.playingId !== prev.playingId) {
+      pendingKeys = [];
+    }
     // 切换游戏 / 退出 playing 时清空副屏，避免上一款游戏残留的辅助像素
     if (state.playingId !== prev.playingId) ctx.auxScreen.clear();
     if (!state.aiPlaying) disposePilot();
@@ -536,6 +548,11 @@ export function createMachine(opts: MachineOptions): Machine {
 
     if (kind === 'press' && state.mode === 'boot') stopMelody();
 
+    // 游戏键缓存到下一帧开头送达，约定见 sdk Game.onButton
+    if (state.mode === 'playing' && GAME_KEYS.has(button)) {
+      pendingKeys.push({ button, kind });
+      return;
+    }
     dispatch({ type: 'INPUT', button, kind });
   };
 
@@ -547,6 +564,9 @@ export function createMachine(opts: MachineOptions): Machine {
       state.mode === 'playing' &&
       state.playingId === provider.gameId;
 
+    const keys = pendingKeys;
+    pendingKeys = [];
+    for (const { button, kind } of keys) dispatch({ type: 'INPUT', button, kind });
     if (piloting && pilot) {
       const btn = pilot.act(state.gameState);
       if (btn) dispatch({ type: 'INPUT', button: btn, kind: 'press' });
@@ -610,6 +630,7 @@ export function createMachine(opts: MachineOptions): Machine {
       for (const unsub of unsubs) unsub();
       unsubs = [];
       ctx.ticker.stop();
+      pendingKeys = [];
       stopMelody();
       disposePilot();
       // pilot 已释放，再次 start 时由玩家接管当前局

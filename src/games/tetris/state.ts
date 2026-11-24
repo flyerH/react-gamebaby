@@ -61,7 +61,7 @@ export interface TetrisState {
   readonly score: number;
   readonly lines: number;
   readonly lastOpts: { readonly speed: number; readonly level: number } | null;
-  /** 距上一次下落累计的毫秒数；任何下落（自由下落或软降）都会清零 */
+  /** 距上一次下落累计的毫秒数；任何下落（自由下落或软降）都会重新开始计时 */
   readonly fallAcc: number;
   /** 自由下落间隔（ms），由 speed 档决定 */
   readonly fallIntervalMs: number;
@@ -82,6 +82,8 @@ export interface HeldShift extends HeldKey {
 /** 固定 30 帧/秒推进；下落与连发快慢由各自的毫秒间隔决定 */
 export const TETRIS_TICK_HZ = 30;
 export const FRAME_MS = 1000 / TETRIS_TICK_HZ;
+/** 按键启动的计时起点，原因见 sdk Game.onButton */
+export const KEY_TIMER_START = -FRAME_MS;
 
 /**
  * 9 档自由下落频率（格/秒），index 与 speed-1 对应。

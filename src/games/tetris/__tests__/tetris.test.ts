@@ -11,6 +11,7 @@ import {
   fallIntervalMs,
   FRAME_MS,
   isValidPosition,
+  KEY_TIMER_START,
   pieceCells,
   type PieceKind,
   ROTATION_STATES,
@@ -565,7 +566,7 @@ describe('tetris · 自由下落计时', () => {
     expect(init(makeEnv(), { speed: 9, level: 1 }).fallIntervalMs).toBe(fallIntervalMs(9));
   });
 
-  it('Down 按下立即降一格并清零下落计时', () => {
+  it('Down 按下立即降一格并重新开始下落计时', () => {
     const s0 = emptyState({
       active: { kind: 'T', rotation: 0, x: 3, y: 5 },
       fallAcc: 300,
@@ -573,7 +574,21 @@ describe('tetris · 自由下落计时', () => {
     });
     const s1 = onButton(makeEnv(), s0, 'Down', 'press');
     expect(s1.active?.y).toBe(6);
-    expect(s1.fallAcc).toBe(0);
+    expect(s1.fallAcc).toBe(KEY_TIMER_START);
+  });
+
+  it('Down 锁定后直接出的下一块，下落计时同样从按键所在帧起算', () => {
+    const env = makeEnv();
+    const s0 = emptyState({
+      active: { kind: 'T', rotation: 0, x: 3, y: FIELD_HEIGHT - 2 },
+      fallAcc: 300,
+      fallIntervalMs: 1000,
+    });
+    const s1 = onButton(env, s0, 'Down', 'press');
+    expect(s1.active).not.toBeNull();
+    expect(s1.grid.filter((c) => c === 1)).toHaveLength(4);
+    expect(s1.fallAcc).toBe(KEY_TIMER_START);
+    expect(step(env, s1).fallAcc).toBeCloseTo(0);
   });
 });
 
@@ -586,7 +601,8 @@ describe('tetris · 按住连发', () => {
     let s = emptyState({ ...noGravity, active: { kind: 'T', rotation: 0, x: 5, y: 5 } });
     s = onButton(env, s, 'Left', 'press');
     expect(s.active?.x).toBe(4);
-    s = advanceTicks(env, s, 6);
+    // 按键所在帧的推进加上之后 6 帧，按住满 200ms，再下一帧开始连发
+    s = advanceTicks(env, s, 7);
     expect(s.active?.x).toBe(4);
     s = step(env, s);
     expect(s.active?.x).toBe(3);
@@ -622,7 +638,7 @@ describe('tetris · 按住连发', () => {
     let s = emptyState({ ...noGravity, active: { kind: 'T', rotation: 0, x: 3, y: 0 } });
     s = onButton(env, s, 'Down', 'press');
     expect(s.active?.y).toBe(1);
-    s = advanceTicks(env, s, 6);
+    s = advanceTicks(env, s, 7);
     expect(s.active?.y).toBe(1);
     s = step(env, s);
     expect(s.active?.y).toBe(3);
@@ -640,5 +656,27 @@ describe('tetris · 按住连发', () => {
     expect(s.grid.filter((c) => c === 1)).toHaveLength(4);
     expect(s.active?.kind).toBe('O');
     expect(s.heldDrop).toEqual({ heldMs: 0, repeatAcc: 0 });
+  });
+});
+
+describe('tetris · 堆顶与下落计时', () => {
+  it('锁定时仍有格子在屏幕上方则 game over', () => {
+    // I 竖放出生在 (4, -3..0)，下方第 1 行有砖，下不去即锁定
+    const grid = new Array<number>(FIELD_WIDTH * FIELD_HEIGHT).fill(0);
+    grid[1 * FIELD_WIDTH + 4] = 1;
+    const s0 = emptyState({ grid, active: { kind: 'I', rotation: 1, x: 2, y: -3 } });
+    const s1 = step(makeEnv(), s0);
+    expect(s1.over).toBe(true);
+    expect(s1.active).toBeNull();
+  });
+
+  it('自然下落保留超出间隔的余量：speed 9 每秒下落 12 格', () => {
+    const env = makeEnv();
+    let s = emptyState({
+      active: { kind: 'I', rotation: 1, x: 0, y: -3 },
+      fallIntervalMs: fallIntervalMs(9),
+    });
+    for (let i = 0; i < 30; i++) s = step(env, s);
+    expect(s.active?.y).toBe(-3 + 12);
   });
 });

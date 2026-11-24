@@ -171,7 +171,7 @@ export function App(): React.ReactElement {
     <div className={styles.page}>
       <Device
         badge={devBuild ? 'DEV' : undefined}
-        screen={<ContentScreen screen={ctx.screen} cellSize={16} innerSize={9} />}
+        screen={<ContentScreen screen={ctx.screen} cellSize={16} innerSize={8} />}
         side={
           <SidePanel
             power={state.mode !== 'off'}

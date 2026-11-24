@@ -113,6 +113,8 @@ export interface TankState {
 /** 固定 30 帧/秒，和 App 的动画帧率一致；各实体每帧累计毫秒，累计满自己的间隔才行动 */
 export const TICK_HZ = 30;
 export const FRAME_MS = 1000 / TICK_HZ;
+/** 按键启动的计时起点，原因见 sdk Game.onButton */
+export const KEY_TIMER_START = -FRAME_MS;
 
 export const TOTAL_ENEMIES = 50;
 export const MAX_ALIVE_ENEMIES = 4;

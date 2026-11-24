@@ -7,6 +7,7 @@ import {
   FRAME_MS,
   type HeldKey,
   isValidPosition,
+  KEY_TIMER_START,
   type PieceKind,
   pickKind,
   pieceCells,
@@ -176,19 +177,34 @@ function tryFall(state: TetrisState): ActivePiece | null {
 }
 
 /**
- * 下落一格（自由下落与软降共用），并清零下落计时；
- * 下不去就锁定 + 检测消行
+ * 按下 Down 的软降：下落一格并重新开始下落计时；下不去就锁定 + 检测消行
  */
-function fall(env: GameEnv, state: TetrisState): TetrisState {
+function softDrop(env: GameEnv, state: TetrisState): TetrisState {
   const fallen = tryFall(state);
-  return fallen ? { ...state, active: fallen, fallAcc: 0 } : lockAndClear(env, state);
+  return fallen
+    ? { ...state, active: fallen, fallAcc: KEY_TIMER_START }
+    : lockAndClear(env, state, KEY_TIMER_START);
 }
 
-/** 锁定 active；满行时进入闪烁阶段，否则直接出下一块 */
-function lockAndClear(env: GameEnv, state: TetrisState): TetrisState {
+/**
+ * 锁定 active；满行时进入闪烁阶段，否则直接出下一块。
+ * timerStart 是直接出下一块时各计时的起点：在 step 里为 0，由按键触发时为 KEY_TIMER_START
+ */
+function lockAndClear(env: GameEnv, state: TetrisState, timerStart = 0): TetrisState {
   const lockedGrid = lockPiece(state);
+  // 锁定时仍有格子在屏幕上方，说明已堆到顶，游戏结束
+  if (state.active && pieceCells(state.active).some(([, y]) => y < 0)) {
+    env.sound.play('over');
+    return {
+      ...state,
+      grid: lockedGrid,
+      active: null,
+      over: true,
+      overFrame: 0,
+    };
+  }
   const fullRows = findFullRows({ ...state, grid: lockedGrid });
-  if (fullRows.length === 0) return spawnAfter(env, state, lockedGrid);
+  if (fullRows.length === 0) return spawnAfter(env, state, lockedGrid, timerStart);
 
   const newScore = state.score + (LINE_SCORE[fullRows.length] ?? 0);
   env.score.set(newScore);
@@ -205,14 +221,20 @@ function lockAndClear(env: GameEnv, state: TetrisState): TetrisState {
 }
 
 /** 换新方块时，仍按住的键重新计起始延迟，避免连发直接带到下一块 */
-function restartHold<T extends HeldKey>(held: T | null): T | null {
-  return held ? { ...held, heldMs: 0, repeatAcc: 0 } : null;
+function restartHold<T extends HeldKey>(held: T | null, timerStart: number): T | null {
+  return held ? { ...held, heldMs: timerStart, repeatAcc: 0 } : null;
 }
 
 /**
  * 根据指定 grid spawn 下一块；若出生位置非法，转为 game over。
+ * timerStart 含义同 lockAndClear
  */
-function spawnAfter(env: GameEnv, state: TetrisState, grid: ReadonlyArray<number>): TetrisState {
+function spawnAfter(
+  env: GameEnv,
+  state: TetrisState,
+  grid: ReadonlyArray<number>,
+  timerStart = 0
+): TetrisState {
   const newActive = spawnPiece(state.next, state.width, env.rng);
   const base = {
     ...state,
@@ -220,9 +242,9 @@ function spawnAfter(env: GameEnv, state: TetrisState, grid: ReadonlyArray<number
     next: pickKind(env.rng),
     clearingLines: [],
     clearFrame: 0,
-    fallAcc: 0,
-    heldShift: restartHold(state.heldShift),
-    heldDrop: restartHold(state.heldDrop),
+    fallAcc: timerStart,
+    heldShift: restartHold(state.heldShift, timerStart),
+    heldDrop: restartHold(state.heldDrop, timerStart),
   };
   if (!isValidPosition(grid, state.width, state.height, newActive)) {
     env.sound.play('over');
@@ -304,7 +326,10 @@ export function step(env: GameEnv, state: TetrisState): TetrisState {
 
   const acc = s.fallAcc + FRAME_MS;
   if (!reached(acc, s.fallIntervalMs)) return { ...s, fallAcc: acc };
-  return fall(env, s);
+  const fallen = tryFall(s);
+  if (!fallen) return lockAndClear(env, s);
+  // 自然下落扣掉一个间隔而不是清零：间隔不是帧长整数倍时保持配置的下落频率
+  return { ...s, active: fallen, fallAcc: Math.max(0, acc - s.fallIntervalMs) };
 }
 
 export function render(env: GameEnv, state: TetrisState): void {
@@ -436,7 +461,9 @@ export function onButton(
   }
   if (action === 'repeat') return state;
 
-  if (state.awaitingFirstMove) return { ...state, awaitingFirstMove: false };
+  if (state.awaitingFirstMove) {
+    return { ...state, awaitingFirstMove: false, fallAcc: KEY_TIMER_START };
+  }
   if (!state.active) return state;
 
   if (dx !== null) {
@@ -444,12 +471,12 @@ export function onButton(
     return {
       ...state,
       active: moved ?? state.active,
-      heldShift: { dir: dx, heldMs: 0, repeatAcc: 0 },
+      heldShift: { dir: dx, heldMs: KEY_TIMER_START, repeatAcc: 0 },
     };
   }
   switch (btn) {
     case 'Down':
-      return { ...fall(env, state), heldDrop: { heldMs: 0, repeatAcc: 0 } };
+      return { ...softDrop(env, state), heldDrop: { heldMs: KEY_TIMER_START, repeatAcc: 0 } };
     case 'Up':
     case 'A': {
       const rotated = tryRotate(state);

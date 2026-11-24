@@ -11,7 +11,10 @@ interface CountState {
   readonly over: boolean;
 }
 
-/** 可玩游戏：每 tick n+1；A 结束本局，Up 加 10 分，松开 Down 加 1 分（用于观察 release 是否送达） */
+/**
+ * 可玩游戏：每 tick n+1；A 结束本局，Right 使 n+100，Up 加 10 分（不改 state），
+ * 松开 Down 加 1 分（用于观察 release 是否送达）
+ */
 const countGame: Game<CountState> = {
   id: 'count',
   name: 'Count',
@@ -30,6 +33,7 @@ const countGame: Game<CountState> = {
     if (action === 'release' && btn === 'Down') env.score.add(1);
     if (action !== 'press') return s;
     if (btn === 'A') return { ...s, over: true };
+    if (btn === 'Right') return { ...s, n: s.n + 100 };
     if (btn === 'Up') env.score.add(10);
     return s;
   },
@@ -224,7 +228,26 @@ describe('createMachine · 游戏运行', () => {
     const { ticker, press, toPlaying } = setup();
     toPlaying();
     press('A');
+    ticker.advance(1);
     expect(ticker.speed).toBe(30);
+  });
+
+  it('游戏键缓存到下一帧开头送达，随后照常推进这一帧', () => {
+    const { ctx, ticker, machine, toPlaying } = setup();
+    toPlaying();
+    ctx.input.emit('Right', 'press');
+    expect(machine.getState().gameState).toEqual({ n: 1, over: false });
+    ticker.advance(1);
+    expect(machine.getState().gameState).toEqual({ n: 102, over: false });
+  });
+
+  it('Reset 重开时丢弃尚未送达的游戏键', () => {
+    const { ctx, ticker, machine, press, toPlaying } = setup();
+    toPlaying();
+    ctx.input.emit('Right', 'press');
+    press('Reset');
+    ticker.advance(1);
+    expect(machine.getState().gameState).toEqual({ n: 2, over: false });
   });
 
   it('暂停时 ticker 停止且拦截游戏键；Reset 清除暂停并重开', () => {
@@ -242,13 +265,18 @@ describe('createMachine · 游戏运行', () => {
     expect(ticker.advance(1)).toBe(1);
   });
 
-  it('暂停时仍送达 release，避免恢复后游戏内按住状态残留', () => {
-    const { ctx, press, toPlaying } = setup();
+  it('暂停期间的 release 在恢复后第一帧送达；暂停前未送达的 press 丢弃', () => {
+    const { ctx, ticker, press, toPlaying } = setup();
     toPlaying();
+    ctx.input.emit('Up', 'press');
     press('Pause');
     ctx.input.emit('Down', 'press');
     ctx.input.emit('Down', 'repeat');
     ctx.input.emit('Down', 'release');
+    expect(ctx.score.value).toBe(0);
+
+    press('Pause');
+    ticker.advance(1);
     expect(ctx.score.value).toBe(1);
   });
 
@@ -275,12 +303,13 @@ describe('createMachine · 游戏运行', () => {
 
 describe('createMachine · 最高分', () => {
   it('分数超过纪录时写入存储并通知订阅者', () => {
-    const { ctx, machine, press, toPlaying } = setup();
+    const { ctx, ticker, machine, press, toPlaying } = setup();
     toPlaying();
     const listener = vi.fn();
     machine.subscribe(listener);
 
     press('Up');
+    ticker.advance(1);
     expect(machine.getHiScore()).toBe(10);
     expect(ctx.storage.get('hi-score:count')).toBe(10);
     expect(listener).toHaveBeenCalled();
@@ -348,6 +377,21 @@ describe('createMachine · 自动玩', () => {
     ticker.advance(1);
     expect(act).toHaveBeenCalledTimes(1);
     expect(ctx.score.value).toBe(10);
+  });
+
+  it('自动玩的按键与人的按键一样在帧开头送达，随后照常推进这一帧', async () => {
+    const { act, provider } = createPilot();
+    const { ticker, machine, press, toSelect } = setup({ autopilot: provider });
+    toSelect();
+    press('B');
+    await vi.waitFor(() => {
+      expect(machine.getState().aiPlaying).toBe(true);
+    });
+    const n0 = (machine.getState().gameState as CountState).n;
+
+    act.mockReturnValueOnce('Right');
+    ticker.advance(1);
+    expect((machine.getState().gameState as CountState).n).toBe(n0 + 101);
   });
 
   it('game over 后约 1.2s（36 tick）自动重开', async () => {

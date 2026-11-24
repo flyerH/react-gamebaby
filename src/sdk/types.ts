@@ -90,7 +90,14 @@ export interface Game<S = unknown> {
   step?(env: GameEnv, state: S): S;
   /** 把当前 state 投影到 env.screen；不修改 state */
   render?(env: GameEnv, state: S): void;
-  /** 响应按键；未命中场景直接返回原 state */
+  /**
+   * 响应按键；未命中场景直接返回原 state。
+   *
+   * playing 态的按键先由 machine 缓存，到下一帧开头按到达顺序送达，随后照常调用
+   * 这一帧的 step，按键因此统一发生在帧边界。按键启动的计时（走格、下落、按住连发等）
+   * 要从负一帧起算：同帧 step 累加一帧后正好在帧边界归零，之后每帧累加的都是真实
+   * 经过的时间；从 0 起算会让按键后的第一个间隔少一帧
+   */
   onButton?(env: GameEnv, state: S, btn: Button, action: ButtonAction): S;
   /** 判定游戏是否结束；App 据此决定是否暂停推进 / 回菜单 */
   isGameOver?(state: S): boolean;
