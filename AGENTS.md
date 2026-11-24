@@ -34,9 +34,10 @@ pre-commit 钩子会自动对 staged 文件跑 `eslint --fix` + `prettier --writ
   - 英文冒号 + 半角空格 + 中文描述，标题 ≤ 72 字
   - 需要解释原因时，空行后写 body
 - 不提交 `console.log` / `debugger` / 死代码 / 被注释掉的旧实现
-- AI 助手不得主动 `git push` 或执行 `gh pr create` / `gh pr edit` 等对远端产生可见变更的动作；**推送 / 开 PR / 改远端 PR 只能在用户明确指令后执行**
+- AI 助手不得主动 `git push` 或执行 `gh pr create` / `gh pr edit` 等对远端产生可见变更的动作；**推送 / 提 PR / 改远端 PR 只能在用户明确指令后执行**
 - `gh` CLI 已纳入项目工具链；AI 处理 PR 相关操作（提 / 关 / 改 body / 评论）一律走 `gh`，不要求用户手动打开链接
 - **AI 每次 `git commit` 前必须先把拟用的 commit message（标题 + body）完整展示给用户确认**，用户确认后再执行 commit；用户可以在确认前要求改措辞 / 拆分 / 合并
+- **AI 每次 `gh pr create`，或用 `gh pr edit` 修改标题 / 描述前，必须先把拟用的 PR 标题与描述完整展示给用户确认**，用户确认后再执行
 - **AI 每次 `gh pr create` / `gh pr edit` 后必须在回复里输出 PR 链接**（形如 `https://github.com/<owner>/<repo>/pull/<n>`），方便用户直接跳转
 
 ## AI 协作流程
@@ -44,7 +45,7 @@ pre-commit 钩子会自动对 staged 文件跑 `eslint --fix` + `prettier --writ
 - **用户要求"提 PR"时，AI 必须先做 CR 再提**：
   1. `git log origin/master..HEAD` 看提交，`git diff origin/master..HEAD` 看改动
   2. 按本文件 + `docs/ARCHITECTURE.md` 做一次中文评审，列高价值问题
-  3. 用户修完或确认无问题后，再 `gh pr create`
+  3. 用户修完或确认无问题后，展示 PR 标题与描述（见「Git 规范」），用户确认后再 `gh pr create`
 - 远程侧由 CodeRabbit（GitHub App）自动复审，配置文件在 `.coderabbit.yaml`；AI 本地 CR 与远程 App CR 互为补充
 - **AI 修复 CR 问题后必须收尾**：
   1. 已修复的 review thread 要 resolve（通过 GraphQL `resolveReviewThread`）
